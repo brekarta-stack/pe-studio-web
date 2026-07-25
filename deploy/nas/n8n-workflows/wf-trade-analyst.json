@@ -9,8 +9,8 @@
       "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
       "position": [-60, -280],
       "parameters": {
-        "height": 240, "width": 700,
-        "content": "## C-5 분석가 (타협 불가 경계)\n이 워크플로는 **제안만** 만든다. 주문은 NAS의 격리 엔진(trading-loop)만 낸다.\n- DB 접속은 `trade_analyst` 롤 — trade_orders/idempotency_keys 권한 **없음**(DB가 강제, 실측 검증됨)\n- `client_key`가 결정적(analyst:날짜:종목:방향) → 재실행해도 제안 1건(ON CONFLICT DO NOTHING)\n- 실제 주문 전 가드레일: 명목가 상한·일손실한도·킬스위치·시장 화이트리스트\n\n활성화 전 필요: 시세/뉴스 소스 노드 연결(지금은 데모 입력), 스케줄 확인(08:20 장전).\nKIS 연결 전까지 엔진 브로커는 `mock` — 실제 주문 안 나감."
+        "height": 300, "width": 720,
+        "content": "## C-5 분석가 (타협 불가 경계)\n이 워크플로는 **제안만** 만든다. 주문은 NAS의 격리 엔진(trading-loop)만 낸다.\n- DB 접속은 `trade_analyst` 롤 — trade_orders/idempotency_keys 권한 **없음**(DB가 강제, 실측 검증됨)\n- ⚠️ `client_key`는 **LLM 출력과 무관**해야 한다(`analyst:날짜:morning`). 종목/방향을 키에 넣으면\n  인젝션이 종목만 바꿔 dedup을 우회한다 — 2차 리뷰 지적, 고쳐진 상태다. 되돌리지 말 것.\n- ⚠️ `queryReplacement`는 **배열**이어야 한다. 콤마 구분 문자열로 '단순화'하면 rationale의 쉼표가\n  파라미터를 밀어버린다.\n- 가드레일(엔진): 건당 명목가 50만 · **당일 총 명목가 150만** · 킬스위치 · 시장/종목형식 · 제안 TTL 30분\n\n활성화 전 필요: 시세/뉴스 소스 노드 연결(지금은 데모 입력), 스케줄 확인(08:20 장전).\nKIS 연결 전까지 엔진 브로커는 `mock` — 실제 주문 안 나감."
       }
     },
     {
@@ -78,7 +78,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO trade_proposals (client_key, source, market, symbol, side, qty, limit_price, rationale) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (client_key) DO NOTHING RETURNING id, client_key, status",
         "options": {
-          "queryReplacement": "={{ ['analyst:' + $now.toFormat('yyyy-MM-dd') + ':' + $json.symbol + ':' + $json.side, 'analyst-morning', 'KR', $json.symbol, $json.side, $json.qty, $json.limit_price, $json.rationale] }}"
+          "queryReplacement": "={{ ['analyst:' + $now.toFormat('yyyy-MM-dd') + ':morning', 'analyst-morning', 'KR', $json.symbol, $json.side, $json.qty, $json.limit_price, String($json.rationale ?? '').slice(0, 500)] }}"
         }
       },
       "credentials": { "postgres": { "id": "pgtradeanalyst01", "name": "PG trade_analyst (제안 INSERT 전용)" } }

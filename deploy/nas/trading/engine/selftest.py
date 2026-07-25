@@ -1,25 +1,27 @@
-"""모의 1왕복 셀프테스트 v2 (리뷰 C17 반영 — DB 부수효과까지 검증).
+"""셀프테스트 v3 (2차 적대 리뷰 반영 — 13 케이스, DB 부수효과까지 검증).
 
-케이스: 1) 정상 왕복+DB 검증 2) 멱등 재처리(주문 1개 유지) 3) 한도 초과 4) 킬스위치(자기 파일만)
-       5) NaN 관통 차단 6) 일손실한도 발화 7) 브로커 거절 8) 브로커 예외→FAILED 9) 갇힌 상태 스윕
-종료코드: 0=통과, 1=실패, 2=운영자 킬스위치 가동 중(테스트 거부 — A3).
+케이스: 1 정상왕복+DB검증 · 2 멱등재처리 · 3 건당한도 · 4 킬스위치=보류(거절 아님) ·
+       5 NaN 차단 · 6 일손실한도(시드) · 7 브로커거절 · 8 브로커예외→FAILED+대사플래그 ·
+       9 스윕 · 10 당일 명목가 총량 상한 · 11 symbol 형식(인젝션) · 12 KR 정수수량 ·
+       13 실브로커 주문 있으면 스키마 DROP 거부
+종료코드: 0=통과, 1=실패, 2=거부(킬스위치 ON 또는 루프 가동 중)
 """
 import os
 import sys
 import time
 
 from .core import (apply_schema, db_connect, load_limits, process_proposal, stale_sweep,
-                   KST_TODAY)
-from .guardrails import validate_kill_switch_dir
+                   today_filled_notional_krw, KST_TODAY)
+from .guardrails import GuardrailViolation, check_proposal, validate_kill_switch_dir
 from .main import acquire_singleton
 from .ratelimit import TokenBucket
 
-RUN_ID = str(int(time.time()))  # 실행마다 유일 — 과거 실행의 멱등키와 충돌 방지(밀폐성)
-_seq = iter(range(1, 100))
+RUN_ID = str(int(time.time()))
+_seq = iter(range(1, 200))
 
 
-def insert_proposal(conn, symbol="005930", qty="1", price="70000"):
-    ck = f"selftest:{RUN_ID}:{next(_seq)}"   # client_key 경로(A7)를 기본 사용 — 의도-단위 멱등 커버
+def insert_proposal(conn, symbol="005930", qty="1", price="70000", expect_fail=False):
+    ck = f"selftest:{RUN_ID}:{next(_seq)}"
     with conn.cursor() as cur:
         cur.execute(
             "INSERT INTO trade_proposals (client_key, source, market, symbol, side, qty, limit_price, rationale) "
@@ -38,9 +40,10 @@ def q1(cur, sql, *args):
 
 def main() -> int:
     limits = load_limits()
-    # A3: 운영자가 킬스위치를 켜둔 상태면 테스트가 그걸 건드리면 안 된다 — 즉시 거부.
+    # 운영자가 킬스위치를 켜둔 상태면 테스트가 그걸 건드리면 안 된다.
+    # (compose에서 selftest용 경로를 분리했지만, 같은 경로로 실행될 가능성도 방어)
     if os.path.exists(limits.kill_switch_path):
-        print(f"REFUSED: kill switch is ON ({limits.kill_switch_path}) — 운영자 정지 상태에서 selftest 금지")
+        print(f"REFUSED: kill switch is ON ({limits.kill_switch_path}) — 정지 상태에서 selftest 금지")
         return 2
     validate_kill_switch_dir(limits)
 
@@ -49,10 +52,9 @@ def main() -> int:
     ok = lambda c, msg: None if c else fails.append(msg)
 
     with db_connect() as conn:
-        # selftest는 스키마를 DROP+재생성한다 → 가동 중인 엔진 밑에서 돌면 실데이터/실행중 주문이 날아간다.
-        # 엔진과 같은 advisory lock을 잡아 보고, 못 잡으면 = 엔진 가동 중 = 거부.
+        # selftest는 스키마를 DROP+재생성한다 → 가동 중인 엔진 밑에서 돌면 안 된다.
         if not acquire_singleton(conn):
-            print("REFUSED: trading-loop이 가동 중(advisory lock) — 먼저 정지시킬 것: "
+            print("REFUSED: trading-loop이 가동 중(advisory lock) — 먼저 정지: "
                   "docker compose --profile trading stop trading-loop")
             return 2
 
@@ -78,23 +80,38 @@ def main() -> int:
             ok(r2["outcome"] == "duplicate" and r2.get("key_status") == "done", "2: replay not dedup/done")
             ok(q1(cur, "SELECT count(*) FROM trade_orders WHERE proposal_id=%s", p["id"]) == 1, "2: order rows grew")
 
-            # 3) 한도 초과
+            # 3) 건당 명목가 상한
             big = insert_proposal(conn, qty="1000", price=str(int(limits.max_order_krw)))
             r3 = process_proposal(conn, big, "mock", limits, bucket)
             print(f"[3] over-limit: {r3}")
-            ok(r3["outcome"] == "rejected", "3: over-limit not rejected")
+            ok(r3["outcome"] == "rejected" and "max_order_krw" in (r3.get("reason") or ""), "3: over-limit not rejected")
 
-            # 4) 킬스위치 (여기 도달 = 시작 때 없었음 → 자기 파일만 만들고 지움)
+            # 4) 킬스위치 = **보류(deferred)**, 영구 거절이 아님. 제안은 pending 복귀.
             open(limits.kill_switch_path, "w").close()
             try:
                 p4 = insert_proposal(conn)
+                with conn.cursor() as c4:
+                    c4.execute("UPDATE trade_proposals SET status='picked', picked_at=now() WHERE id=%s", (p4["id"],))
+                    conn.commit()
                 r4 = process_proposal(conn, p4, "mock", limits, bucket)
                 print(f"[4] kill switch: {r4}")
-                ok(r4["outcome"] == "rejected" and "KILL" in (r4.get("reason") or ""), "4: kill switch not blocking")
+                ok(r4["outcome"] == "deferred" and "KILL" in (r4.get("reason") or ""), "4: kill switch not deferred")
+                ok(q1(cur, "SELECT status FROM trade_proposals WHERE id=%s", p4["id"]) == "pending",
+                   "4: proposal not returned to pending")
+                ok(q1(cur, "SELECT count(*) FROM trade_orders WHERE proposal_id=%s", p4["id"]) == 0,
+                   "4: kill switch created an order row")
+                ok(q1(cur, "SELECT count(*) FROM idempotency_keys WHERE key=%s", r4["idem_key"]) == 0,
+                   "4: idem key not rolled back (재시도 불가 상태)")
             finally:
                 os.remove(limits.kill_switch_path)
+            # 보류된 제안이 킬스위치 해제 후 정상 처리되는지(자동 재개 실증)
+            p4b = q1(cur, "SELECT id FROM trade_proposals WHERE id=%s", p4["id"])
+            cur.execute("SELECT * FROM trade_proposals WHERE id=%s", (p4b,))
+            r4b = process_proposal(conn, cur.fetchone(), "mock", limits, bucket)
+            print(f"[4b] resume after kill switch off: {r4b}")
+            ok(r4b["outcome"] == "filled", "4b: deferred proposal did not resume")
 
-            # 5) NaN — DB CHECK가 먼저 막는지(A1). INSERT 자체가 거부돼야 정상.
+            # 5) NaN — DB CHECK가 먼저 막고, 파이썬 가드도 막는다
             try:
                 insert_proposal(conn, qty="NaN")
                 fails.append("5: NaN INSERT was accepted by DB")
@@ -102,15 +119,13 @@ def main() -> int:
             except Exception:
                 conn.rollback()
                 print("[5] NaN insert: blocked by DB CHECK")
-            # 파이썬 가드도 확인(엔진에 NaN이 들어온 상황 가정)
-            from .guardrails import check_proposal, GuardrailViolation
             try:
-                check_proposal(limits, "KR", "buy", float("nan"), 100.0, 0.0)
+                check_proposal(limits, "KR", "buy", float("nan"), 100.0, 0.0, 0.0)
                 fails.append("5: python guard passed NaN")
             except GuardrailViolation:
                 print("[5] NaN python guard: blocked")
 
-            # 6) 일손실한도 발화 (pnl 시드 후 차단 확인 — A2)
+            # 6) 일손실한도(원가 미구현이라 시드해서 경로만 검증)
             cur.execute(
                 f"INSERT INTO trade_daily_pnl (trade_date, realized_krw) VALUES ({KST_TODAY}, %s) "
                 "ON CONFLICT (trade_date) DO UPDATE SET realized_krw = EXCLUDED.realized_krw",
@@ -123,27 +138,27 @@ def main() -> int:
             cur.execute(f"DELETE FROM trade_daily_pnl WHERE trade_date = {KST_TODAY}")
             conn.commit()
 
-            # 7) 브로커 거절 → REJECTED
+            # 7) 브로커 거절
             p7 = insert_proposal(conn)
             r7 = process_proposal(conn, p7, "mock-reject", limits, bucket)
             print(f"[7] broker reject: {r7}")
             ok(r7["outcome"] == "rejected", "7: broker reject not handled")
 
-            # 8) 브로커 예외 → FAILED (+RECONCILE 표식)
+            # 8) 브로커 예외 → FAILED + needs_reconcile
             p8 = insert_proposal(conn)
             r8 = process_proposal(conn, p8, "mock-explode", limits, bucket)
             print(f"[8] broker exception: {r8}")
             ok(r8["outcome"] == "failed", "8: broker exception not FAILED")
             ok(q1(cur, "SELECT state FROM trade_orders WHERE proposal_id=%s", p8["id"]) == "FAILED", "8: state != FAILED")
-            # 테스트가 만든 RECONCILE_NEEDED는 테스트가 치운다 — 안 그러면 engine.main이 이 산출물 때문에
-            # 영구 HALT한다(실측). 실제 주문이 아니므로 대사 완료로 표시.
-            cur.execute("UPDATE trade_orders SET reject_reason = replace(reject_reason,'RECONCILE_NEEDED','RECONCILED_SELFTEST') "
-                        "WHERE proposal_id=%s", (p8["id"],))
+            ok(q1(cur, "SELECT needs_reconcile FROM trade_orders WHERE proposal_id=%s", p8["id"]) is True,
+               "8: needs_reconcile not set")
+            # 테스트가 만든 대사 플래그는 테스트가 해소한다(안 그러면 engine.main이 영구 HALT).
+            cur.execute("UPDATE trade_orders SET reconciled_at=now() WHERE proposal_id=%s", (p8["id"],))
             conn.commit()
-            ok(q1(cur, "SELECT count(*) FROM trade_orders WHERE reject_reason LIKE %s", "%RECONCILE_NEEDED%") == 0,
-               "8: selftest left RECONCILE_NEEDED artifact")
+            ok(q1(cur, "SELECT count(*) FROM trade_orders WHERE needs_reconcile AND reconciled_at IS NULL") == 0,
+               "8: selftest left unreconciled artifact")
 
-            # 9) 갇힌 pending 키 시뮬레이션 → 스윕이 잡는지
+            # 9) 갇힌 pending 키 → 스윕이 잡는지
             cur.execute("INSERT INTO idempotency_keys (key, kind, status, created_at) "
                         "VALUES ('trade:selftest-stale', 'trade', 'pending', now() - interval '1 hour') "
                         "ON CONFLICT (key) DO UPDATE SET status='pending', created_at=now() - interval '1 hour'")
@@ -154,10 +169,53 @@ def main() -> int:
             cur.execute("DELETE FROM idempotency_keys WHERE key='trade:selftest-stale'")
             conn.commit()
 
+            # 10) 당일 명목가 총량 상한 — 건당 한도는 통과하지만 누적으로 막히는가
+            notional_now = today_filled_notional_krw(cur)
+            print(f"[10] 당일 체결 명목가 누계: {notional_now:,.0f} / cap {limits.daily_notional_krw:,.0f}")
+            tight = load_limits()
+            tight.daily_notional_krw = notional_now + 1000   # 다음 주문이 반드시 걸리도록
+            p10 = insert_proposal(conn, qty="1", price="70000")
+            r10 = process_proposal(conn, p10, "mock", tight, bucket)
+            print(f"[10] daily notional cap: {r10}")
+            ok(r10["outcome"] == "rejected" and "daily notional" in (r10.get("reason") or ""),
+               "10: daily notional cap not enforced")
+
+            # 11) symbol 형식 — 인젝션이 임의 문자열을 종목으로 넣는 것
+            try:
+                insert_proposal(conn, symbol="EVIL01")
+                fails.append("11: non-numeric symbol accepted by DB")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                print("[11] symbol 형식: blocked by DB CHECK")
+
+            # 12) KR 정수 수량
+            try:
+                check_proposal(limits, "KR", "buy", 0.5, 1000.0, 0.0, 0.0)
+                fails.append("12: fractional qty passed KR guard")
+            except GuardrailViolation:
+                print("[12] KR 소수 수량: blocked")
+
+            # 13) 실브로커 주문이 있으면 스키마 DROP 거부
+            cur.execute("INSERT INTO trade_orders (idem_key, state, broker) "
+                        "VALUES ('selftest-realbroker-probe','REJECTED','kis-paper')")
+            conn.commit()
+            try:
+                apply_schema(conn)
+                fails.append("13: apply_schema wiped tables despite real-broker order")
+            except RuntimeError as e:
+                print(f"[13] 실주문 존재 시 스키마 리셋: blocked ({str(e)[:60]}...)")
+            finally:
+                conn.rollback()
+                cur.execute("DELETE FROM trade_orders WHERE idem_key='selftest-realbroker-probe'")
+                conn.commit()
+
     if fails:
         print("SELFTEST FAILED:", "; ".join(fails))
         return 1
-    print("SELFTEST PASSED: roundtrip/idempotency/limit/killswitch/NaN/daily-loss/reject/failed/sweep (9/9)")
+    print("SELFTEST PASSED (13 cases): roundtrip/idempotency/order-cap/killswitch-defer+resume/"
+          "NaN/daily-loss/broker-reject/broker-fail+reconcile/sweep/daily-notional-cap/symbol-format/"
+          "KR-integer-qty/schema-guard")
     return 0
 
 

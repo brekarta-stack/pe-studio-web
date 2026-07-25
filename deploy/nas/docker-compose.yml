@@ -83,6 +83,7 @@ services:
 
   trading:
     build: ./trading                        # 매매 엔진 스켈레톤(D7) — 격리 컨테이너(GD-1)
+    image: agent-backbone-trading:local     # ★ 두 서비스가 같은 이미지를 보게 고정(코드 버전 불일치 방지)
     profiles: ["trading"]                   # 기본 미기동. 셀프테스트: docker compose --profile trading run --rm trading
     depends_on:
       postgres:
@@ -93,18 +94,26 @@ services:
       PG_PASSWORD: ${PG_PASSWORD}
       PG_DB: ${PG_DB}
       TRADE_MAX_ORDER_KRW: ${TRADE_MAX_ORDER_KRW:-500000}
+      TRADE_DAILY_NOTIONAL_KRW: ${TRADE_DAILY_NOTIONAL_KRW:-1500000}
       TRADE_DAILY_LOSS_LIMIT_KRW: ${TRADE_DAILY_LOSS_LIMIT_KRW:-200000}
       TRADE_ALLOWED_MARKETS: ${TRADE_ALLOWED_MARKETS:-KR}
-      TRADE_KILL_SWITCH: /data/KILL
+      # ★ 운영 킬스위치와 경로 분리 — selftest가 케이스 4에서 파일을 만들고 지우므로,
+      #   같은 경로면 그 사이 운영자가 켠 비상 정지를 테스트가 지워버린다(2차 리뷰).
+      TRADE_KILL_SWITCH: /data/KILL.selftest
       TZ: Asia/Seoul
     volumes:
       - tradingdata:/data                   # 킬스위치·상태 파일
+    logging: { driver: "json-file", options: { max-size: "10m", max-file: "3" } }
     # 포트 미노출 — 주문 경로는 외부에서 접근 불가(C-5 격리)
 
   trading-loop:                             # 상시 폴링 루프(제안→검증→주문). 기본 CMD(selftest) 대신 main
     build: ./trading
+    image: agent-backbone-trading:local     # trading과 동일 이미지(빌드 1회 → 두 서비스 동일 코드)
     profiles: ["trading"]                   # 명시 기동만: docker compose --profile trading up -d trading-loop
-    restart: unless-stopped                 # ※ always 아님 — HALT(대사 미완) 시 무한 재시작 방지
+    restart: unless-stopped                 # HALT는 프로세스를 죽이지 않으므로 재시작과 무관.
+                                            # 재시작 대상은 exit 3(락 경합)/5(스키마 없음)/미포착 예외 —
+                                            # 백오프로 자가치유되며, 원인은 status.json과 로그에 남는다.
+    stop_grace_period: 60s                  # 브로커 제출 중 SIGKILL 방지(대사 대상 최소화)
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,14 +125,25 @@ services:
       PG_DB: ${PG_DB}
       TRADE_BROKER: ${TRADE_BROKER:-mock}   # mock | kis-paper | kis-live (KIS는 D10+)
       TRADE_POLL_SEC: ${TRADE_POLL_SEC:-5}
+      TRADE_PROPOSAL_TTL_MIN: ${TRADE_PROPOSAL_TTL_MIN:-30}   # 오래된 제안은 expired(뒤늦은 체결 방지)
       TRADE_MAX_ORDER_KRW: ${TRADE_MAX_ORDER_KRW:-500000}
+      TRADE_DAILY_NOTIONAL_KRW: ${TRADE_DAILY_NOTIONAL_KRW:-1500000}  # ★ 총 노출 상한(실질 브레이크)
       TRADE_DAILY_LOSS_LIMIT_KRW: ${TRADE_DAILY_LOSS_LIMIT_KRW:-200000}
       TRADE_ALLOWED_MARKETS: ${TRADE_ALLOWED_MARKETS:-KR}
-      TRADE_KILL_SWITCH: /data/KILL
+      TRADE_KILL_SWITCH: /data/KILL         # 운영 킬스위치(selftest와 경로 분리)
       TRADE_HEARTBEAT_URL: ${TRADE_HEARTBEAT_URL:-}   # Kuma push/healthchecks — 활성일 때만 핑(정지=적색)
       TZ: Asia/Seoul
     volumes:
       - tradingdata:/data
+    logging: { driver: "json-file", options: { max-size: "10m", max-file: "3" } }
+    # status.json이 active이고 최근(3×폴링주기)일 때만 healthy — "Up이지만 정지"를 Kuma가 구분한다.
+    # restart 정책은 unhealthy로 재시작하지 않으므로(Swarm 전용) 순수 신호로 안전하다.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json,time,sys; d=json.load(open('/data/status.json')); sys.exit(0 if d['state']=='active' and (time.time()-__import__('os').path.getmtime('/data/status.json'))<45 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 2
+      start_period: 20s
 
 volumes:
   pgdata:                                   # 명명 볼륨(M2)
