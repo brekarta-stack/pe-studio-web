@@ -1,0 +1,126 @@
+{
+  "id": "tbleadgen0000001",
+  "name": "공용: 리드 발굴 (파트 정의 테이블 순회)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "l0", "name": "공용 골격 설명",
+      "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
+      "position": [-60, -300],
+      "parameters": {
+        "height": 280, "width": 760,
+        "content": "## 공용 파이프라인 = 워크플로 1개 × 파트 정의 테이블 (D5)\n사업이 늘어도 **이 워크플로를 복제하지 않는다**. `part_definitions` 테이블에 행을 추가할 뿐.\n\n- 파트 소스: `part_definitions`(SSOT는 레포 `deploy/pipelines/part-definitions.yaml`, `sync-parts.sh`로 동기화)\n- `active=false`이거나 `lead_gen.enabled=false`인 파트는 **쿼리 단계에서 걸러진다** → 게이트 전엔 biz-a만 돈다\n- n8n은 행 하나당 아이템 하나로 이후 노드를 **파트별로 반복 실행**한다(별도 루프 노드 불필요)\n- 스코어링은 `classify-fast`(로컬 저가), 임계값은 파트의 `lead_gen.min_score`\n- 중복 방지: `leads.dedup_key` UNIQUE + `ON CONFLICT DO NOTHING`\n\n**활성화 전 교체할 것**: '수집(데모)' 노드 → 네이버 검색 API/구글 뉴스 노드.\n그 외 단계는 그대로 쓸 수 있다."
+      }
+    },
+    {
+      "id": "l1", "name": "매일 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 9 * * 1-5" } ] } }
+    },
+    {
+      "id": "l1m", "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
+      "position": [0, 180], "parameters": {}
+    },
+    {
+      "id": "l2", "name": "활성 파트 로드",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [240, 90],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT part_key, name, config->'lead_gen'->>'keywords' AS keywords_json, COALESCE((config->'lead_gen'->>'min_score')::numeric, 0.6) AS min_score, COALESCE(config->'lead_gen'->>'sources', '[]') AS sources FROM part_definitions WHERE active AND COALESCE((config->'lead_gen'->>'enabled')::boolean, false) ORDER BY part_key",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "l3", "name": "수집 (데모 — 검색 API 노드로 교체)",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [480, 90],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "s1", "name": "part_key", "type": "string", "value": "={{ $json.part_key }}" },
+          { "id": "s2", "name": "min_score", "type": "number", "value": "={{ Number($json.min_score) }}" },
+          { "id": "s3", "name": "company", "type": "string",
+            "value": "={{ '데모기관-' + $json.part_key }}" },
+          { "id": "s4", "name": "raw", "type": "string",
+            "value": "={{ '[' + $json.name + ' 데모 수집] 키워드=' + ($json.keywords_json || '[]') + ' 대상: 체험 프로그램 키트 납품 문의 예시' }}" }
+        ] }
+      }
+    },
+    {
+      "id": "l4", "name": "1차 스코어링 (classify-fast)",
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [720, 90],
+      "parameters": {
+        "method": "POST",
+        "url": "http://litellm:4000/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'classify-fast', messages:[{role:'system', content:'너는 B2B 리드 스코어러다. 0.0~1.0 사이 숫자 하나만 출력하라. 설명 금지.'},{role:'user', content: $json.raw}], stream:false, max_tokens:10}) }}",
+        "options": { "timeout": 120000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" } }
+    },
+    {
+      "id": "l5", "name": "점수 파싱 + 임계값",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [960, 90],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "p1", "name": "part_key", "type": "string", "value": "={{ $('수집 (데모 — 검색 API 노드로 교체)').item.json.part_key }}" },
+          { "id": "p2", "name": "company", "type": "string", "value": "={{ $('수집 (데모 — 검색 API 노드로 교체)').item.json.company }}" },
+          { "id": "p3", "name": "raw", "type": "string", "value": "={{ $('수집 (데모 — 검색 API 노드로 교체)').item.json.raw }}" },
+          { "id": "p4", "name": "score", "type": "number",
+            "value": "={{ Math.max(0, Math.min(1, Number((($json.choices[0].message.content || '0').match(/[0-9]*\\.?[0-9]+/) || ['0'])[0]))) }}" },
+          { "id": "p5", "name": "passes", "type": "boolean",
+            "value": "={{ Math.max(0, Math.min(1, Number((($json.choices[0].message.content || '0').match(/[0-9]*\\.?[0-9]+/) || ['0'])[0]))) >= $('수집 (데모 — 검색 API 노드로 교체)').item.json.min_score }}" }
+        ] }
+      }
+    },
+    {
+      "id": "l6", "name": "임계값 통과만",
+      "type": "n8n-nodes-base.filter", "typeVersion": 2.2,
+      "position": [1200, 90],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [ {
+            "id": "c1",
+            "leftValue": "={{ $json.passes }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+          } ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "l7", "name": "리드 적재 (중복 무시)",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [1440, 90],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO leads (business, company, source, score, status, payload, dedup_key) VALUES ($1,$2,$3,$4,'new',jsonb_build_object('raw',$5::text),$6) ON CONFLICT (dedup_key) DO NOTHING RETURNING id, business, company, score",
+        "options": {
+          "queryReplacement": "={{ [$json.part_key, $json.company, 'leadgen-demo', $json.score, String($json.raw).slice(0,2000), 'lead:' + $json.part_key + ':' + $json.company + ':' + $now.toFormat('yyyy-MM-dd')] }}"
+        }
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    }
+  ],
+  "connections": {
+    "매일 09:00": { "main": [[ { "node": "활성 파트 로드", "type": "main", "index": 0 } ]] },
+    "수동 테스트": { "main": [[ { "node": "활성 파트 로드", "type": "main", "index": 0 } ]] },
+    "활성 파트 로드": { "main": [[ { "node": "수집 (데모 — 검색 API 노드로 교체)", "type": "main", "index": 0 } ]] },
+    "수집 (데모 — 검색 API 노드로 교체)": { "main": [[ { "node": "1차 스코어링 (classify-fast)", "type": "main", "index": 0 } ]] },
+    "1차 스코어링 (classify-fast)": { "main": [[ { "node": "점수 파싱 + 임계값", "type": "main", "index": 0 } ]] },
+    "점수 파싱 + 임계값": { "main": [[ { "node": "임계값 통과만", "type": "main", "index": 0 } ]] },
+    "임계값 통과만": { "main": [[ { "node": "리드 적재 (중복 무시)", "type": "main", "index": 0 } ]] }
+  }
+}
