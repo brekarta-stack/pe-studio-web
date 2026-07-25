@@ -88,8 +88,8 @@ def transition(cur, order_id: int, old: str, new: str, **fields):
 
 
 def stale_sweep(conn, minutes: int = 10) -> list:
-    """A4: 갇힌 상태 목록 — pending으로 오래된 멱등키 + 비종결 주문.
-    (b)(c)(d) 크래시 잔재 탐지용. 기동/셀프테스트 시 출력, D10 루프에선 주기 실행+알림."""
+    """A4: 갇힌 상태 목록 — pending으로 오래된 멱등키 + 비종결 주문 + 집힌 채 방치된 제안.
+    크래시 잔재 탐지용. 기동 시 출력, 루프에선 주기 실행+알림."""
     with conn.cursor() as cur:
         cur.execute(
             "SELECT k.key, k.created_at FROM idempotency_keys k "
@@ -101,8 +101,15 @@ def stale_sweep(conn, minutes: int = 10) -> list:
             "WHERE state IN ('VALIDATED','SUBMITTED') AND updated_at < now() - make_interval(mins => %s)",
             (minutes,))
         stale_orders = cur.fetchall()
+        # 'picked'로 남은 제안 = 처리 중 크래시 또는 duplicate로 종결 없이 남은 것(재집기 방지 상태)
+        cur.execute(
+            "SELECT id, created_at FROM trade_proposals "
+            "WHERE status='picked' AND created_at < now() - make_interval(mins => %s)",
+            (minutes,))
+        stale_props = cur.fetchall()
     return [("key", r["key"], r["created_at"]) for r in stale_keys] + \
-           [("order", r["id"], f"{r['state']}@{r['updated_at']}") for r in stale_orders]
+           [("order", r["id"], f"{r['state']}@{r['updated_at']}") for r in stale_orders] + \
+           [("proposal", r["id"], f"picked@{r['created_at']}") for r in stale_props]
 
 
 def _idem_key(prop: dict) -> str:

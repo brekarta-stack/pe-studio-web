@@ -18,8 +18,15 @@
 ## 실행 (NAS)
 ```sh
 cd ~/agent-backbone
-sudo docker compose --profile trading run --rm trading    # 셀프테스트(스키마 자동적용 포함)
+sudo docker compose --profile trading up -d trading-loop   # 상시 폴링 루프(제안→검증→주문)
+sudo docker logs agent-backbone-trading-loop-1 --tail 20
+sudo docker compose --profile trading stop trading-loop    # 정지
+sudo docker compose --profile trading run --rm trading     # 셀프테스트(루프 정지 상태에서만)
 ```
+- **셀프테스트는 스키마를 DROP+재생성**하므로 루프 가동 중엔 advisory lock으로 **거부**된다(의도된 안전장치).
+- 루프는 단일 인스턴스만 가능(같은 advisory lock) — 두 번째는 즉시 종료(exit 3).
+- **HALT 상태**(대사 미완 주문 존재): 컨테이너는 살아있되 주문을 안 낸다. 로그에 이유가 주기적으로 찍힌다.
+  → "컨테이너 Up"과 "주문 처리 중"은 다르다. 로그로 구분할 것.
 **킬스위치(비상 전면 정지)** — 상시 컨테이너가 없어도 동작하는 형태(C19):
 ```sh
 sudo docker compose --profile trading run --rm --no-deps trading touch /data/KILL   # ON

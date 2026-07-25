@@ -1,0 +1,94 @@
+{
+  "id": "tbanalyst0000001",
+  "name": "매매: LLM 분석가 → 제안 큐 (읽기전용, 주문권한 0)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "a0", "name": "설계 경계 안내",
+      "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
+      "position": [-60, -280],
+      "parameters": {
+        "height": 240, "width": 700,
+        "content": "## C-5 분석가 (타협 불가 경계)\n이 워크플로는 **제안만** 만든다. 주문은 NAS의 격리 엔진(trading-loop)만 낸다.\n- DB 접속은 `trade_analyst` 롤 — trade_orders/idempotency_keys 권한 **없음**(DB가 강제, 실측 검증됨)\n- `client_key`가 결정적(analyst:날짜:종목:방향) → 재실행해도 제안 1건(ON CONFLICT DO NOTHING)\n- 실제 주문 전 가드레일: 명목가 상한·일손실한도·킬스위치·시장 화이트리스트\n\n활성화 전 필요: 시세/뉴스 소스 노드 연결(지금은 데모 입력), 스케줄 확인(08:20 장전).\nKIS 연결 전까지 엔진 브로커는 `mock` — 실제 주문 안 나감."
+      }
+    },
+    {
+      "id": "a1", "name": "장전 08:20",
+      "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "20 8 * * 1-5" } ] } }
+    },
+    {
+      "id": "a1m", "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
+      "position": [0, 180], "parameters": {}
+    },
+    {
+      "id": "a2", "name": "시장 입력 (데모 — 시세·뉴스 노드로 교체)",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [220, 90],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "m1", "name": "market_note", "type": "string",
+            "value": "삼성전자(005930) 전일 종가 70,000원, 거래량 평균 수준. 보유 0주. 데모 입력이다." }
+        ] }
+      }
+    },
+    {
+      "id": "a3", "name": "분석가 (LiteLLM analyst-trading)",
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [460, 90],
+      "parameters": {
+        "method": "POST",
+        "url": "http://litellm:4000/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'analyst-trading', messages:[{role:'system', content:'너는 읽기전용 주식 분석가다. 주문 권한이 없고, 제안만 JSON으로 낸다. 반드시 이 스키마의 JSON 객체 하나만 출력: {\"symbol\":\"6자리코드\",\"side\":\"buy|sell\",\"qty\":정수,\"limit_price\":정수,\"rationale\":\"한국어 한 문장\"}. 설명/마크다운 금지. 명목가(qty*limit_price)는 30만원 이하로 제안하라.'},{role:'user', content: $json.market_note}], stream:false, max_tokens:300}) }}",
+        "options": { "timeout": 120000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" } }
+    },
+    {
+      "id": "a4", "name": "제안 파싱 (JSON 추출)",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [700, 90],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "p1", "name": "symbol", "type": "string",
+            "value": "={{ JSON.parse($json.choices[0].message.content.replace(/^[\\s\\S]*?\\{/, '{').replace(/\\}[\\s\\S]*$/, '}')).symbol }}" },
+          { "id": "p2", "name": "side", "type": "string",
+            "value": "={{ JSON.parse($json.choices[0].message.content.replace(/^[\\s\\S]*?\\{/, '{').replace(/\\}[\\s\\S]*$/, '}')).side }}" },
+          { "id": "p3", "name": "qty", "type": "number",
+            "value": "={{ Number(JSON.parse($json.choices[0].message.content.replace(/^[\\s\\S]*?\\{/, '{').replace(/\\}[\\s\\S]*$/, '}')).qty) }}" },
+          { "id": "p4", "name": "limit_price", "type": "number",
+            "value": "={{ Number(JSON.parse($json.choices[0].message.content.replace(/^[\\s\\S]*?\\{/, '{').replace(/\\}[\\s\\S]*$/, '}')).limit_price) }}" },
+          { "id": "p5", "name": "rationale", "type": "string",
+            "value": "={{ JSON.parse($json.choices[0].message.content.replace(/^[\\s\\S]*?\\{/, '{').replace(/\\}[\\s\\S]*$/, '}')).rationale }}" }
+        ] }
+      }
+    },
+    {
+      "id": "a5", "name": "제안 큐 INSERT (trade_analyst 롤)",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [940, 90],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO trade_proposals (client_key, source, market, symbol, side, qty, limit_price, rationale) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (client_key) DO NOTHING RETURNING id, client_key, status",
+        "options": {
+          "queryReplacement": "={{ ['analyst:' + $now.toFormat('yyyy-MM-dd') + ':' + $json.symbol + ':' + $json.side, 'analyst-morning', 'KR', $json.symbol, $json.side, $json.qty, $json.limit_price, $json.rationale] }}"
+        }
+      },
+      "credentials": { "postgres": { "id": "pgtradeanalyst01", "name": "PG trade_analyst (제안 INSERT 전용)" } }
+    }
+  ],
+  "connections": {
+    "장전 08:20": { "main": [[ { "node": "시장 입력 (데모 — 시세·뉴스 노드로 교체)", "type": "main", "index": 0 } ]] },
+    "수동 테스트": { "main": [[ { "node": "시장 입력 (데모 — 시세·뉴스 노드로 교체)", "type": "main", "index": 0 } ]] },
+    "시장 입력 (데모 — 시세·뉴스 노드로 교체)": { "main": [[ { "node": "분석가 (LiteLLM analyst-trading)", "type": "main", "index": 0 } ]] },
+    "분석가 (LiteLLM analyst-trading)": { "main": [[ { "node": "제안 파싱 (JSON 추출)", "type": "main", "index": 0 } ]] },
+    "제안 파싱 (JSON 추출)": { "main": [[ { "node": "제안 큐 INSERT (trade_analyst 롤)", "type": "main", "index": 0 } ]] }
+  }
+}

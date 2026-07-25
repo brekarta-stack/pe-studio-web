@@ -101,6 +101,29 @@ services:
       - tradingdata:/data                   # 킬스위치·상태 파일
     # 포트 미노출 — 주문 경로는 외부에서 접근 불가(C-5 격리)
 
+  trading-loop:                             # 상시 폴링 루프(제안→검증→주문). 기본 CMD(selftest) 대신 main
+    build: ./trading
+    profiles: ["trading"]                   # 명시 기동만: docker compose --profile trading up -d trading-loop
+    restart: unless-stopped                 # ※ always 아님 — HALT(대사 미완) 시 무한 재시작 방지
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "engine.main"]
+    environment:
+      PG_HOST: postgres
+      PG_USER: ${PG_USER}
+      PG_PASSWORD: ${PG_PASSWORD}
+      PG_DB: ${PG_DB}
+      TRADE_BROKER: ${TRADE_BROKER:-mock}   # mock | kis-paper | kis-live (KIS는 D10+)
+      TRADE_POLL_SEC: ${TRADE_POLL_SEC:-5}
+      TRADE_MAX_ORDER_KRW: ${TRADE_MAX_ORDER_KRW:-500000}
+      TRADE_DAILY_LOSS_LIMIT_KRW: ${TRADE_DAILY_LOSS_LIMIT_KRW:-200000}
+      TRADE_ALLOWED_MARKETS: ${TRADE_ALLOWED_MARKETS:-KR}
+      TRADE_KILL_SWITCH: /data/KILL
+      TZ: Asia/Seoul
+    volumes:
+      - tradingdata:/data
+
 volumes:
   pgdata:                                   # 명명 볼륨(M2)
   n8ndata:

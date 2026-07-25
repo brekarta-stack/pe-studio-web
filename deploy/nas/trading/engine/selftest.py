@@ -11,6 +11,7 @@ import time
 from .core import (apply_schema, db_connect, load_limits, process_proposal, stale_sweep,
                    KST_TODAY)
 from .guardrails import validate_kill_switch_dir
+from .main import acquire_singleton
 from .ratelimit import TokenBucket
 
 RUN_ID = str(int(time.time()))  # 실행마다 유일 — 과거 실행의 멱등키와 충돌 방지(밀폐성)
@@ -48,6 +49,13 @@ def main() -> int:
     ok = lambda c, msg: None if c else fails.append(msg)
 
     with db_connect() as conn:
+        # selftest는 스키마를 DROP+재생성한다 → 가동 중인 엔진 밑에서 돌면 실데이터/실행중 주문이 날아간다.
+        # 엔진과 같은 advisory lock을 잡아 보고, 못 잡으면 = 엔진 가동 중 = 거부.
+        if not acquire_singleton(conn):
+            print("REFUSED: trading-loop이 가동 중(advisory lock) — 먼저 정지시킬 것: "
+                  "docker compose --profile trading stop trading-loop")
+            return 2
+
         applied = apply_schema(conn)
         print(f"[0] schema {'applied' if applied else 'skip (no file)'}")
         for item in stale_sweep(conn):
@@ -127,6 +135,13 @@ def main() -> int:
             print(f"[8] broker exception: {r8}")
             ok(r8["outcome"] == "failed", "8: broker exception not FAILED")
             ok(q1(cur, "SELECT state FROM trade_orders WHERE proposal_id=%s", p8["id"]) == "FAILED", "8: state != FAILED")
+            # 테스트가 만든 RECONCILE_NEEDED는 테스트가 치운다 — 안 그러면 engine.main이 이 산출물 때문에
+            # 영구 HALT한다(실측). 실제 주문이 아니므로 대사 완료로 표시.
+            cur.execute("UPDATE trade_orders SET reject_reason = replace(reject_reason,'RECONCILE_NEEDED','RECONCILED_SELFTEST') "
+                        "WHERE proposal_id=%s", (p8["id"],))
+            conn.commit()
+            ok(q1(cur, "SELECT count(*) FROM trade_orders WHERE reject_reason LIKE %s", "%RECONCILE_NEEDED%") == 0,
+               "8: selftest left RECONCILE_NEEDED artifact")
 
             # 9) 갇힌 pending 키 시뮬레이션 → 스윕이 잡는지
             cur.execute("INSERT INTO idempotency_keys (key, kind, status, created_at) "

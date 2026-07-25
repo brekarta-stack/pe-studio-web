@@ -98,5 +98,15 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 - **아침 브리핑 E2E 성공**: 트리거→일정(placeholder)→LiteLLM(로컬 35B)→3줄 한국어 브리핑 생성 확인. Slack/Calendar 연결만 남음(inactive).
 - **자산 회수(미니→레포)**: `deploy/pipelines/assets/`(sns_lines.json·learning.json — 파트정의 직접 재료) · `deploy/nas/trading/reference/`(kis-balance·kis-order·invest 2종 — 시크릿 無 확인). 미니 소멸 대비 확보.
 
+## ✅ 8차 (2026-07-25 — C-5 매매 루프 E2E 완성 + Kuma 정상화)
+- **★ C-5 전체 루프 실증**: n8n 분석가(LiteLLM `analyst-trading`=Claude) → 구조화 JSON → `trade_analyst` 롤로 제안 INSERT → 격리 엔진이 집기(SKIP LOCKED) → 가드레일 → MockBroker 체결.
+  실측 결과: 제안 `analyst:2026-07-25:005930:buy` → 주문 FILLED(4주 @70,000, MOCK-000001), 손익 행 생성.
+  **의도-단위 멱등 실증**: 같은 날 분석가 재실행 → ON CONFLICT로 제안 재삽입 0 → 주문도 1건 유지.
+- **최소권한 DB 실증(네거티브 테스트)**: `trade_analyst`는 제안 INSERT/SELECT만 성공, **trade_orders·idempotency_keys·trade_daily_pnl은 전부 permission denied**. n8n이 침해돼도 주문 불가가 DB로 강제됨. 비밀번호는 NAS `.env`에서 생성·보관(채팅/로그 미노출).
+- **엔진 상시 루프**(`trading-loop`, profile=trading): PG advisory lock 단일 인스턴스 · `FOR UPDATE SKIP LOCKED` 제안 집기 · 부팅 스윕 · SIGTERM 우아한 정지.
+- **드릴이 잡은 결함 2건**: ① HALT를 `exit`으로 처리해 **재시작 루프** 발생 → "살아있되 주문 안 함"으로 변경(매 사이클 재확인 → 대사 끝나면 자동 재개) ② **셀프테스트 산출물(RECONCILE_NEEDED)이 엔진을 영구 HALT** → 테스트가 자기 산출물 정리 + 가동 중 셀프테스트는 advisory lock으로 거부(스키마 DROP이 실주문을 날리는 것 방지).
+- **Kuma 정상화**: n8n 모니터가 죽은 포트(5679)를 보고 있던 것 수정 → **3모니터 전부 200 OK**. (수정 중 SQLite 파라미터 해석으로 URL이 잠시 비워진 것 즉시 복구, kuma.db 백업 후 작업.)
+- **문서**: `docs/where-things-run.md` — "이 자동화는 어디서 도는가/어디서 보는가" 지도(n8n vs cron vs 격리 컨테이너).
+
 ## ⬜ UGOS 업데이트 후 생존 확인 3종
 `/etc/cron.d/agent-backbone` · `/etc/sysctl.d/99-agent-backbone.conf` · `/usr/local/sbin/ab-*.sh` (없어졌으면 install-cron.sh 재실행 + sysctl 재적용)
