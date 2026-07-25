@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  로컬 티어 워밍업 — ollama LaunchAgent와 함께 부팅 시 실행.
+  ollama가 뜰 때까지 기다렸다가 모델 4종을 메모리에 올린다(C-3 "상주"의 실체).
+  설치:
+    cp com.agent.ollama-warmup.plist ~/Library/LaunchAgents/
+    cp ollama-warmup.sh ~/bin/ 및 chmod +x   (또는 아래 경로를 레포 경로로 수정)
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agent.ollama-warmup.plist
+  ※ KeepAlive는 쓰지 않는다 — 1회 실행 후 종료가 정상이다.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.agent.ollama-warmup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/seakimacultra/bin/ollama-warmup.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OLLAMA_HOST</key>
+    <string>100.65.201.6:11434</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/seakimacultra/Library/Logs/ollama-warmup.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/seakimacultra/Library/Logs/ollama-warmup.err.log</string>
+</dict>
+</plist>

@@ -14,7 +14,10 @@
 
 ## 2. Studio 하드닝 (로컬 티어)
 ```bash
-bash deploy/studio/harden-studio.sh   # pmset·ollama 0.0.0.0·모델 pull
+bash deploy/studio/harden-studio.sh   # pmset · ollama를 **Studio Tailscale IP(100.x)에만** 바인딩 · 모델 4종 pull
+#  ⚠️ 0.0.0.0 바인딩이 아니다(H2 수정 이후). 따라서 localhost:11434는 응답하지 않는다 —
+#     Studio에서 테스트할 때도 http://100.65.201.6:11434 를 써야 한다.
+bash deploy/studio/ollama-warmup.sh   # (선택) 즉시 워밍업. 상시화는 com.agent.ollama-warmup.plist
 # macOS 방화벽 ON. 출력의 Tailscale 이름을 기록(STUDIO_HOST).
 ```
 

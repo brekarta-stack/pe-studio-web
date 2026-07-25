@@ -34,6 +34,17 @@ cp "$SRC_DIR/weekly-selfcheck.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
 chown root:root "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
 chmod 755 "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
 
+# 커널 파라미터(부팅 시 TS IP 바인딩 실패 방지) — 레포의 정본을 복사·적용해 복원 가능하게 한다.
+# (이전엔 수동 설정이라 레포·백업 어디에도 없었다 — 감사 지적)
+SYSCTL_SRC="$SRC_DIR/../sysctl-99-agent-backbone.conf"
+if [ -f "$SYSCTL_SRC" ]; then
+  cp "$SYSCTL_SRC" /etc/sysctl.d/99-agent-backbone.conf
+  chmod 644 /etc/sysctl.d/99-agent-backbone.conf
+  sysctl -p /etc/sysctl.d/99-agent-backbone.conf >/dev/null 2>&1 && echo "sysctl 적용됨(ip_nonlocal_bind)"
+else
+  echo "WARN: $SYSCTL_SRC 없음 — 부팅 시 TS IP 바인딩 실패 방어가 빠진다"
+fi
+
 # 백업 목적지: root 소유(사용자 계정 침해 시 심볼릭링크 스왑 방지)
 mkdir -p "$BACKUP_ROOT/daily"
 chown root:root "$BACKUP_ROOT" "$BACKUP_ROOT/daily" 2>/dev/null || true

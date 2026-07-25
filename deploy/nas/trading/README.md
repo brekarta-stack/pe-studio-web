@@ -58,8 +58,14 @@ sudo docker exec agent-backbone-trading-loop-1 rm /data/KILL      # OFF — 자�
 - **KIS 단계 첫 작업 = 이 파일을 추가형 마이그레이션으로 전환**(DROP/DELETE 제거).
 
 ## KIS 연결 단계 (D10+, 사용자 개입 필수)
-1. **자격증명은 사용자가 직접**: KIS Developers 모의투자 appkey/secret → NAS `.env`에
-   `KIS_APPKEY= KIS_APPSECRET= KIS_ACCOUNT=` (600 유지). 미니의 kis_token*.json 재사용 금지.
+1. **자격증명은 사용자가 직접**: KIS Developers 모의투자 appkey/secret → NAS `.env`에 아래 이름으로.
+   **이름의 정본은 `docker-compose.yml`의 trading-loop 환경변수다**(문서마다 달랐던 것을 통일):
+   ```
+   KIS_APPKEY=      KIS_APPSECRET=      KIS_ACCOUNT=      KIS_ENV=paper
+   ```
+   `.env`는 600 유지. 미니의 `kis_token*.json`은 토큰 캐시일 뿐이니 재사용하지 말고 새로 발급할 것.
+   ⚠️ 미니에 **실전 키가 이미 존재**한다 — 모의용을 따로 발급해 `KIS_ENV=paper`로 두고,
+   실전 전환은 사람이 명시적으로 바꾸는 것 외에는 일어나지 않게 한다.
    자동화 세션은 증권 자격증명을 다루지 않는다.
 2. `KISBroker` 구현 — broker.py 독스트링의 필수 목록(토큰 앵커 갱신·웹소켓·세션 캘린더·지정가 전용·
    **기동 시 SUBMITTED↔KIS 주문조회 대사** · Decimal 전달 · 제출 타임아웃).

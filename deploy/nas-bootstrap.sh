@@ -140,6 +140,13 @@ services:
       PG_PASSWORD: ${PG_PASSWORD}
       PG_DB: ${PG_DB}
       TRADE_BROKER: ${TRADE_BROKER:-mock}   # mock | kis-paper | kis-live (KIS는 D10+)
+      # KIS 자격증명 — 이름은 여기가 정본이다(문서마다 달랐던 것을 통일).
+      # 미설정이면 빈 문자열이 들어가고 KISBroker가 기동 시 거부한다(mock에는 무영향).
+      KIS_APPKEY: ${KIS_APPKEY:-}
+      KIS_APPSECRET: ${KIS_APPSECRET:-}
+      KIS_ACCOUNT: ${KIS_ACCOUNT:-}
+      KIS_ENV: ${KIS_ENV:-paper}          # paper | live — live 전환은 사람이 명시적으로
+      TRADE_RATE_PER_SEC: ${TRADE_RATE_PER_SEC:-20}   # 모의계좌는 실전보다 낮음 — 연결 시 하향
       TRADE_POLL_SEC: ${TRADE_POLL_SEC:-5}
       TRADE_PROPOSAL_TTL_MIN: ${TRADE_PROPOSAL_TTL_MIN:-30}   # 오래된 제안은 expired(뒤늦은 체결 방지)
       TRADE_MAX_ORDER_KRW: ${TRADE_MAX_ORDER_KRW:-500000}
@@ -223,6 +230,9 @@ model_list:
       model: anthropic/claude-sonnet-5
 
   # ── 폴백용 concrete 엔드포인트 ──
+  # ⚠️ kimi-k2.6도 **추론형**이다. 로컬 모델과 달리 `think:false`(ollama 전용)를 쓸 수 없으므로
+  #    호출 측에서 **max_tokens를 넉넉히**(≥500) 줘야 한다. 작게 주면 사고 과정에 다 쓰고
+  #    content가 빈 문자열로 온다(실측: 30토큰→빈 응답 / 600토큰→정상). 워크플로 작성 시 주의.
   - model_name: kimi-cheap             # 대량 저가 + 로컬 백스톱(재부팅 창). LiteLLM moonshot 프로바이더가 MOONSHOT_API_KEY 자동 사용
     litellm_params:
       model: moonshot/kimi-k2.6                   # ~$0.6/$2.5 per M, 256K context
@@ -230,13 +240,24 @@ model_list:
     litellm_params:
       model: openai/gpt-5.6-sol
 
+  # ── routing-design.md 별칭 복원(감사 지적: 11종 중 2종 부재) ──
+  - model_name: code-heavy             # 다중파일·복잡 디버깅(내부용). code-fast와 code-max 사이의 중간 티어.
+    litellm_params:                    #   이게 없으면 code-fast 폴백이 곧장 최고가 Opus로 튄다.
+      model: ollama_chat/qwen3-coder:30b
+      api_base: os.environ/STUDIO_OLLAMA_BASE
+  - model_name: bulk-quality           # 대량인데 품질도 필요한 배치(로컬로는 부족, 프런티어는 과함)
+    litellm_params:
+      model: moonshot/kimi-k2.6
+
 router_settings:
   # 폴백 체인: 로컬 1순위 → 클라우드 저가 → (필요시) 프런티어
   fallbacks:
     - {"classify-fast":   ["kimi-cheap"]}
     - {"summarize":       ["kimi-cheap"]}
     - {"write-ko-draft":  ["kimi-cheap"]}
-    - {"code-fast":       ["kimi-cheap", "code-max"]}
+    - {"code-fast":       ["code-heavy", "code-max"]}   # 로컬 → 로컬 코더 → 프런티어(중간 티어 복원)
+    - {"code-heavy":      ["code-max"]}
+    - {"bulk-quality":    ["gpt-frontier"]}
     - {"write-ko-final":  ["gpt-frontier"]}
     - {"code-max":        ["gpt-frontier"]}
     - {"analyst-trading": ["gpt-frontier"]}
@@ -604,6 +625,17 @@ cp "$SRC_DIR/ab-boot-up.sh" "$BIN_DIR/ab-boot-up.sh"
 cp "$SRC_DIR/weekly-selfcheck.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
 chown root:root "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
 chmod 755 "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
+
+# 커널 파라미터(부팅 시 TS IP 바인딩 실패 방지) — 레포의 정본을 복사·적용해 복원 가능하게 한다.
+# (이전엔 수동 설정이라 레포·백업 어디에도 없었다 — 감사 지적)
+SYSCTL_SRC="$SRC_DIR/../sysctl-99-agent-backbone.conf"
+if [ -f "$SYSCTL_SRC" ]; then
+  cp "$SYSCTL_SRC" /etc/sysctl.d/99-agent-backbone.conf
+  chmod 644 /etc/sysctl.d/99-agent-backbone.conf
+  sysctl -p /etc/sysctl.d/99-agent-backbone.conf >/dev/null 2>&1 && echo "sysctl 적용됨(ip_nonlocal_bind)"
+else
+  echo "WARN: $SYSCTL_SRC 없음 — 부팅 시 TS IP 바인딩 실패 방어가 빠진다"
+fi
 
 # 백업 목적지: root 소유(사용자 계정 침해 시 심볼릭링크 스왑 방지)
 mkdir -p "$BACKUP_ROOT/daily"

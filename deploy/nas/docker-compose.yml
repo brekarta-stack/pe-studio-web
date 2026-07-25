@@ -124,6 +124,13 @@ services:
       PG_PASSWORD: ${PG_PASSWORD}
       PG_DB: ${PG_DB}
       TRADE_BROKER: ${TRADE_BROKER:-mock}   # mock | kis-paper | kis-live (KIS는 D10+)
+      # KIS 자격증명 — 이름은 여기가 정본이다(문서마다 달랐던 것을 통일).
+      # 미설정이면 빈 문자열이 들어가고 KISBroker가 기동 시 거부한다(mock에는 무영향).
+      KIS_APPKEY: ${KIS_APPKEY:-}
+      KIS_APPSECRET: ${KIS_APPSECRET:-}
+      KIS_ACCOUNT: ${KIS_ACCOUNT:-}
+      KIS_ENV: ${KIS_ENV:-paper}          # paper | live — live 전환은 사람이 명시적으로
+      TRADE_RATE_PER_SEC: ${TRADE_RATE_PER_SEC:-20}   # 모의계좌는 실전보다 낮음 — 연결 시 하향
       TRADE_POLL_SEC: ${TRADE_POLL_SEC:-5}
       TRADE_PROPOSAL_TTL_MIN: ${TRADE_PROPOSAL_TTL_MIN:-30}   # 오래된 제안은 expired(뒤늦은 체결 방지)
       TRADE_MAX_ORDER_KRW: ${TRADE_MAX_ORDER_KRW:-500000}

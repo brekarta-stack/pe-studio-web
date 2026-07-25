@@ -71,16 +71,6 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 - **재부팅 #3 완전 통과**: 부팅 직후 6/6 자동복구 + 2차 방어선 "compose up OK" + cron 생존 + TS 포트 3종 OPEN + e2e 라우팅("GREEN").
 - **OPENAI 키**: TextEdit 사고로 뒤섞인 것을 확정 재구성(`sk-proj-`+몸통)해 설치, 인증 통과 확인. 단 **계정 크레딧 0 → 쿼터 오류** — 충전 전까지 gpt-frontier 비활성.
 
-## ⬜ 남은 것 — [사람] 필요 (2026-07-25 기준 최신)
-1. **도메인 게이트 3문항** — `docs/domain-definition-DRAFT.md` 말미. 답하면 D10~14 전부 착수 가능.
-2. **healthchecks.io** 가입 → 체크 2개 → NAS의 `heartbeat.url`·`heartbeat-backup.url`에 기록.
-   (cron은 이미 5분마다 돌고 URL만 기다린다. **NAS 자체 다운을 알 유일한 수단**)
-3. **Kuma에 Slack 웹훅** 등록 → 5모니터 연결. *지금은 빨간불이 떠도 아무도 안 부른다.*
-4. **B2 계정** → `restic.env`(root:600) → 오프사이트 활성. RESTIC_PASSWORD는 NAS 밖 에스크로 필수.
-   *현재 3-2-1이 아니라 로컬 사본뿐 — NAS 전손 시 전부 소실.*
-5. **USB 마이크 → Studio** → `deploy/studio/voicebridge-cutover.md`(10분) → 어학 가동.
-6. **KIS 모의투자 appkey** → `.env` → KISBroker 구현 착수. *자동화 세션은 증권 자격증명 비취급.*
-7. (선택) **OpenAI 크레딧 충전** — 키는 유효, 잔액 0이라 429.
 
 ## ✅ 6차 (2026-07-24 밤 — Track B 무관 3종 착수·골격 완성)
 - **D8 어학 (voicebridge 이식)**: 미니 `~/voicebridge` → Studio(코드+모델 350M, 시크릿 無), uv 신규 설치 + `uv sync` venv 재구축. 기동 체인이 "입력장치 탐색"까지 검증됨 — **Studio에 마이크 0개**(내장 없음)라 여기가 자동화 한계. plist 설치(bootstrap 안 함), 커트오버 절차=`deploy/studio/voicebridge-cutover.md`(USB 마이크 이동→TCC 승인→bootstrap→그후 미니 정지). 미니 인스턴스는 유지 중(대체 검증 전 중단 금지).
@@ -127,4 +117,17 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 - n8n 실패 실행 4건은 전부 위에서 수정한 결함의 과거 기록이며, 각 워크플로의 **최신 실행은 모두 성공**.
 
 ## ⬜ UGOS 업데이트 후 생존 확인 3종
-`/etc/cron.d/agent-backbone` · `/etc/sysctl.d/99-agent-backbone.conf` · `/usr/local/sbin/ab-*.sh` (없어졌으면 install-cron.sh 재실행 + sysctl 재적용)
+`/etc/cron.d/agent-backbone` · `/etc/sysctl.d/99-agent-backbone.conf` · `/usr/local/sbin/ab-*.sh`
+→ **`sudo sh ~/agent-backbone/scripts/install-cron.sh ~/agent-backbone /volume3/backup/agent-backbone` 한 줄이면 셋 다 복구된다**(sysctl 포함).
+확인: `sh ~/agent-backbone/scripts/smoke-all.sh`
+
+## ⬜ 남은 것 — [사람] 필요 (2026-07-25 기준 최신)
+1. **도메인 게이트 3문항** — `docs/domain-definition-DRAFT.md` 말미. 답하면 D10~14 전부 착수 가능.
+2. **healthchecks.io** 가입 → 체크 2개 → NAS의 `heartbeat.url`·`heartbeat-backup.url`에 기록.
+   (cron은 이미 5분마다 돌고 URL만 기다린다. **NAS 자체 다운을 알 유일한 수단**)
+3. **Kuma에 Slack 웹훅** 등록 → 5모니터 연결. *지금은 빨간불이 떠도 아무도 안 부른다.*
+4. **B2 계정** → `restic.env`(root:600) → 오프사이트 활성. RESTIC_PASSWORD는 NAS 밖 에스크로 필수.
+   *현재 3-2-1이 아니라 로컬 사본뿐 — NAS 전손 시 전부 소실.*
+5. **USB 마이크 → Studio** → `deploy/studio/voicebridge-cutover.md`(10분) → 어학 가동.
+6. **KIS 모의투자 appkey** → `.env` → KISBroker 구현 착수. *자동화 세션은 증권 자격증명 비취급.*
+7. (선택) **OpenAI 크레딧 충전** — 키는 유효, 잔액 0이라 429.
