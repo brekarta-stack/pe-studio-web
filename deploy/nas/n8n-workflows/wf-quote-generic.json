@@ -1,0 +1,148 @@
+{
+  "id": "tbquote000000001",
+  "name": "공용: 견적서 문안 생성 → 승인 → 발송 (파트 순회)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "q0", "name": "설계 규칙",
+      "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
+      "position": [-60, -340],
+      "parameters": {
+        "height": 320, "width": 800,
+        "content": "## 공용 견적 플로우 (돈이 오가는 대외 산출물)\n**전부 프런티어 고정**(`quote-legal`). 로컬 모델은 T1 실측에서 견적서에 **가격을 10배로 쓰고 사실을 날조**했다.\n초안조차 로컬에 맡기지 않는다 — 블로그와 다른 점이다.\n\n- 단가는 **LLM이 계산하지 않는다**: `pricebook`(파트 설정)에서 조회한 값을 문안에만 넣는다.\n  LLM에 산수를 시키면 틀린다 → 금액 계산은 워크플로가, 문장은 LLM이.\n- **멱등성(GD-2)**: `email:{quote_id}:{수신자}:{버전}` — 같은 견적을 두 번 보내지 않는다.\n- **승인 필수**: 발송은 사람 승인 후에만. 자동 발송 금지(설계 §승인 게이트).\n\n**활성화 전 교체**: '견적 요청 입력'(→ 웹훅/폼/Slack 명령), 'PDF 생성'(→ Gotenberg/WeasyPrint),\n'발송'(→ Gmail 노드). pricebook YAML은 파트별로 사용자가 작성한다."
+      }
+    },
+    {
+      "id": "q1", "name": "견적 요청 (수동 — 웹훅/폼으로 교체)",
+      "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
+      "position": [0, 60], "parameters": {}
+    },
+    {
+      "id": "q2", "name": "요청 입력 (데모)",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [230, 60],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "i1", "name": "part_key", "type": "string", "value": "biz-a" },
+          { "id": "i2", "name": "quote_id", "type": "string", "value": "={{ 'Q' + $now.toFormat('yyyyMMdd') + '-001' }}" },
+          { "id": "i3", "name": "customer", "type": "string", "value": "데모 과학관" },
+          { "id": "i4", "name": "recipient", "type": "string", "value": "demo@example.invalid" },
+          { "id": "i5", "name": "items_json", "type": "string",
+            "value": "=[{\"name\":\"체험 키트 A\",\"unit_price\":12000,\"qty\":100},{\"name\":\"강사 운영비\",\"unit_price\":150000,\"qty\":2}]" }
+        ] }
+      }
+    },
+    {
+      "id": "q3", "name": "파트 설정 로드",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [460, 60],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT part_key, name, COALESCE(config->'quote'->>'pricebook','?') AS pricebook, COALESCE((config->'quote'->>'approval') = 'required', true) AS approval_required FROM part_definitions WHERE part_key = $1 AND active AND COALESCE((config->'quote'->>'enabled')::boolean, false)",
+        "options": { "queryReplacement": "={{ [$json.part_key] }}" }
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "q4", "name": "금액 계산 (워크플로가 — LLM 아님)",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [690, 60],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "c1", "name": "part_key", "type": "string", "value": "={{ $json.part_key }}" },
+          { "id": "c2", "name": "part_name", "type": "string", "value": "={{ $json.name }}" },
+          { "id": "c3", "name": "approval_required", "type": "boolean", "value": "={{ $json.approval_required }}" },
+          { "id": "c4", "name": "quote_id", "type": "string", "value": "={{ $('요청 입력 (데모)').item.json.quote_id }}" },
+          { "id": "c5", "name": "customer", "type": "string", "value": "={{ $('요청 입력 (데모)').item.json.customer }}" },
+          { "id": "c6", "name": "recipient", "type": "string", "value": "={{ $('요청 입력 (데모)').item.json.recipient }}" },
+          { "id": "c7", "name": "lines", "type": "string",
+            "value": "={{ JSON.parse($('요청 입력 (데모)').item.json.items_json).map(x => x.name + ' ' + x.qty + '개 × ' + x.unit_price.toLocaleString() + '원 = ' + (x.qty*x.unit_price).toLocaleString() + '원').join('\\n') }}" },
+          { "id": "c8", "name": "subtotal", "type": "number",
+            "value": "={{ JSON.parse($('요청 입력 (데모)').item.json.items_json).reduce((s,x) => s + x.qty*x.unit_price, 0) }}" },
+          { "id": "c9", "name": "vat", "type": "number",
+            "value": "={{ Math.round(JSON.parse($('요청 입력 (데모)').item.json.items_json).reduce((s,x) => s + x.qty*x.unit_price, 0) * 0.1) }}" },
+          { "id": "c10", "name": "total", "type": "number",
+            "value": "={{ Math.round(JSON.parse($('요청 입력 (데모)').item.json.items_json).reduce((s,x) => s + x.qty*x.unit_price, 0) * 1.1) }}" }
+        ] }
+      }
+    },
+    {
+      "id": "q5", "name": "멱등키 선점 (email:견적:수신자)",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [920, 60],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO idempotency_keys (key, kind, status) VALUES ($1,'email','pending') ON CONFLICT (key) DO NOTHING RETURNING key",
+        "options": { "queryReplacement": "={{ ['email:' + $json.quote_id + ':' + $json.recipient + ':v1'] }}" }
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "q6", "name": "신규 키만 통과 (멱등 게이트)",
+      "type": "n8n-nodes-base.filter", "typeVersion": 2.2,
+      "position": [1140, 60],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [ {
+            "id": "g1", "leftValue": "={{ $json.key }}", "rightValue": "",
+            "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+          } ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "q7", "name": "견적 문안 (프런티어 quote-legal)",
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [1360, 60],
+      "parameters": {
+        "method": "POST",
+        "url": "http://litellm:4000/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'quote-legal', messages:[{role:'system', content:'너는 견적서 문안 작성자다. **금액은 주어진 값을 그대로 인용만 하고 어떤 계산도 하지 마라.** 합계를 다시 더하거나 고치지 마라. 정중한 한국어 비즈니스 문체로 인사말·범위 설명·유효기간(발행일로부터 30일)·문의 안내를 작성하라. 표는 만들지 말고 문단만.'},{role:'user', content: '고객: ' + $('금액 계산 (워크플로가 — LLM 아님)').item.json.customer + '\\n견적번호: ' + $('금액 계산 (워크플로가 — LLM 아님)').item.json.quote_id + '\\n항목:\\n' + $('금액 계산 (워크플로가 — LLM 아님)').item.json.lines + '\\n공급가액: ' + $('금액 계산 (워크플로가 — LLM 아님)').item.json.subtotal + '원\\n부가세: ' + $('금액 계산 (워크플로가 — LLM 아님)').item.json.vat + '원\\n합계: ' + $('금액 계산 (워크플로가 — LLM 아님)').item.json.total + '원'}], stream:false, max_tokens:900}) }}",
+        "options": { "timeout": 180000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" } }
+    },
+    {
+      "id": "q8", "name": "문안 + 금액 결합 (금액은 워크플로 값 사용)",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [1590, 60],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "f1", "name": "quote_id", "type": "string", "value": "={{ $('금액 계산 (워크플로가 — LLM 아님)').item.json.quote_id }}" },
+          { "id": "f2", "name": "total", "type": "number", "value": "={{ $('금액 계산 (워크플로가 — LLM 아님)').item.json.total }}" },
+          { "id": "f3", "name": "approval_required", "type": "boolean", "value": "={{ $('금액 계산 (워크플로가 — LLM 아님)').item.json.approval_required }}" },
+          { "id": "f4", "name": "quote_text", "type": "string", "value": "={{ $json.choices[0].message.content }}" }
+        ] }
+      }
+    },
+    {
+      "id": "q9", "name": "→ 승인 대기 (#approvals, Slack 노드로 교체)",
+      "type": "n8n-nodes-base.noOp", "typeVersion": 1,
+      "position": [1820, 60], "parameters": {}
+    },
+    {
+      "id": "q10", "name": "→ PDF 생성 + Gmail 발송 (교체)",
+      "type": "n8n-nodes-base.noOp", "typeVersion": 1,
+      "position": [2040, 60], "parameters": {}
+    }
+  ],
+  "connections": {
+    "견적 요청 (수동 — 웹훅/폼으로 교체)": { "main": [[ { "node": "요청 입력 (데모)", "type": "main", "index": 0 } ]] },
+    "요청 입력 (데모)": { "main": [[ { "node": "파트 설정 로드", "type": "main", "index": 0 } ]] },
+    "파트 설정 로드": { "main": [[ { "node": "금액 계산 (워크플로가 — LLM 아님)", "type": "main", "index": 0 } ]] },
+    "금액 계산 (워크플로가 — LLM 아님)": { "main": [[ { "node": "멱등키 선점 (email:견적:수신자)", "type": "main", "index": 0 } ]] },
+    "멱등키 선점 (email:견적:수신자)": { "main": [[ { "node": "신규 키만 통과 (멱등 게이트)", "type": "main", "index": 0 } ]] },
+    "신규 키만 통과 (멱등 게이트)": { "main": [[ { "node": "견적 문안 (프런티어 quote-legal)", "type": "main", "index": 0 } ]] },
+    "견적 문안 (프런티어 quote-legal)": { "main": [[ { "node": "문안 + 금액 결합 (금액은 워크플로 값 사용)", "type": "main", "index": 0 } ]] },
+    "문안 + 금액 결합 (금액은 워크플로 값 사용)": { "main": [[ { "node": "→ 승인 대기 (#approvals, Slack 노드로 교체)", "type": "main", "index": 0 } ]] },
+    "→ 승인 대기 (#approvals, Slack 노드로 교체)": { "main": [[ { "node": "→ PDF 생성 + Gmail 발송 (교체)", "type": "main", "index": 0 } ]] }
+  }
+}

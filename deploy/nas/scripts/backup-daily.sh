@@ -111,6 +111,19 @@ else
 fi
 $DC exec -T n8n rm -rf /tmp/n8n-backup 2>/dev/null
 
+# ── 3-b. 배포 설정 일체(레포 대응물 + NAS에만 있는 SSOT) ──
+#    pg 덤프에는 part_definitions의 "값"만 들어간다. 사람이 편집하는 YAML(주석·미정표시·defaults 구분)과
+#    compose·litellm 설정·워크플로 JSON·매매 코드는 여기서만 백업된다.
+if tar czf "$DEST/compose_config.tar.gz" -C "$COMPOSE_DIR" \
+     --exclude='.env' --exclude='*.tmp' --exclude='._*' --exclude='__pycache__' \
+     pipelines n8n-workflows trading docker-compose.yml litellm-config.yaml init-db.sql 2>/dev/null \
+   && [ -s "$DEST/compose_config.tar.gz" ]; then
+  log "compose/config archive OK"
+else
+  rm -f "$DEST/compose_config.tar.gz"
+  log "WARN: compose/config archive failed"; WARN=1
+fi
+
 # ── 4. Kuma 데이터(모니터·알림 설정 SQLite) ──
 if $DC exec -T uptime-kuma tar czf - -C /app data > "$DEST/kuma_data.tar.gz" 2>/dev/null \
    && [ -s "$DEST/kuma_data.tar.gz" ] && gzip -t "$DEST/kuma_data.tar.gz" 2>/dev/null; then

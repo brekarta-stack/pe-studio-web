@@ -36,16 +36,30 @@ cd ~/agent-backbone && sh pipelines/sync-parts.sh
 
 | 롤 | 할 수 있는 것 | 못 하는 것 |
 |---|---|---|
-| `pipeline_runner` (n8n 사업 파이프라인) | `part_definitions` 읽기, `leads` 읽기·쓰기 | 매매 테이블 일체 |
-| `trade_analyst` (n8n 매매 분석가) | `trade_proposals` 제안 INSERT | 주문·멱등키·손익, 리드 |
-| `agent` (엔진·관리) | 전부 | — |
-→ 사업 파이프라인이 침해돼도 매매를 못 건드리고, 그 반대도 마찬가지다.
+| `pipeline_runner` (n8n 사업 파이프라인) | `part_definitions` 읽기 · `leads` 읽기·쓰기 · `idempotency_keys` **(kind=publish\|email 그리고 key 접두사가 kind와 일치할 때만 — RLS가 강제)** | 매매 테이블 일체, `trade:` 키(조회조차 불가) |
+| `trade_analyst` (n8n 매매 분석가) | `trade_proposals` 제안 INSERT(컬럼 한정) | 주문·멱등키·손익, 리드, 파트 정의 |
+| `agent` (엔진·관리) | 전부(테이블 소유자라 RLS 우회) | — |
+
+> 멱등키 테이블은 GD-2 결정에 따라 매매와 **공유**한다. 그래서 kind만 막으면 부족하다 —
+> `kind='publish'`인 채 `key='trade:...'`를 심으면 매매 엔진이 그 제안을 "이미 처리됨"으로 보고
+> **주문 없이 종결**한다(무단 주문은 못 내지만 매매를 조용히 멈출 수 있다).
+> RLS 정책이 `key LIKE kind || ':%'`까지 강제하는 이유다.
 
 ## 실측 검증 (2026-07-25)
-- `sync-parts.sh` → biz-a active / biz-b·c inactive 반영 확인
-- 공용 리드발굴 워크플로 실행 → 활성 파트만 순회 → `classify-fast` 스코어링(0.6) → `leads` 적재
-- **재실행 시 중복 0건**(`dedup_key` UNIQUE + `ON CONFLICT DO NOTHING`)
+- **크레덴셜 감사**(`wf-credential-audit.json`): n8n이 실제로 `pipeline_runner`/`trade_analyst`로 접속하고
+  둘 다 `is_superuser=off`, pipeline_runner가 보는 `trade:` 키 0개 — 권한 분리가 장식이 아님을 확인.
+- `sync-parts.sh` → biz-a active / biz-b·c inactive 반영.
+- 공용 리드발굴 워크플로: **파트 1개로 end-to-end 1회 통과**. `classify-fast` 스코어링 → `leads` 적재 →
+  같은 날 재실행 시 중복 0건. ⚠️ **N>1 fan-out(파트 2개 이상 동시 순회)은 아직 미검증** — 게이트 후 스모크 필요.
+- RLS 네거티브 테스트: pipeline_runner의 `trade` 키 INSERT는 정책 위반으로 거부, DELETE는 권한 없음.
 
 ## 활성화 전 교체할 것
-`wf-leadgen-generic.json`의 **"수집 (데모)"** 노드 → 네이버 검색 API / 구글 뉴스 노드.
-나머지 단계(파트 로드·스코어링·임계값·적재·중복방지)는 그대로 쓴다.
+`wf-leadgen-generic.json`의 **`수집`** 노드 → 네이버 검색 API / 구글 뉴스 노드.
+⚠️ **노드 이름은 정확히 `수집`으로 유지**하고 타입만 바꿔라 — 뒤 노드 3곳이 `$('수집')`으로 참조한다
+(삭제 후 새로 만들면 참조가 런타임에 깨진다).
+
+## 알려진 공백 (게이트 전에 채울 것)
+- `leads.contact` 미채움, 수집 단계가 데모 Set 노드 — 실제 검색 API 연결 전까지 영업에 쓸 수 없다.
+- 실패·무행 알림이 #ops로 안 간다(Slack 크레덴셜 대기). 지금은 `활성 파트 있는지` 필터가
+  0행일 때 조용히 끝나므로, 전 사업 중단이 "성공"으로 보인다.
+- `pricebooks/*.yaml`·`templates/*.html`(견적용) 실체 파일 없음.
