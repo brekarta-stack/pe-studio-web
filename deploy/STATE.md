@@ -71,12 +71,16 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 - **재부팅 #3 완전 통과**: 부팅 직후 6/6 자동복구 + 2차 방어선 "compose up OK" + cron 생존 + TS 포트 3종 OPEN + e2e 라우팅("GREEN").
 - **OPENAI 키**: TextEdit 사고로 뒤섞인 것을 확정 재구성(`sk-proj-`+몸통)해 설치, 인증 통과 확인. 단 **계정 크레딧 0 → 쿼터 오류** — 충전 전까지 gpt-frontier 비활성.
 
-## ⬜ 남은 것 — [사람] 필요
-1. **healthchecks.io** 가입 → 체크 2개(nas-alive 5분/backup-daily 1일) → URL을 위 파일 2개에 기록 (#2 완성)
-2. **Kuma GUI**: n8n 모니터 URL 5679→**5678** 수정 + #agent-log 웹훅 등록 → 3모니터 연결 (#1)
-3. **OpenAI 크레딧 충전**(선택) — 키는 유효 설치됨, 잔액 0이라 429. 충전 즉시 gpt-frontier 활성(재시작 불필요)
-4. **B2 계정** → restic.env(root:600)+에스크로 → 오프사이트 자동 활성 (#4 완성)
-5. 도메인 게이트: domain-definition-template + channel-reorg O/X (🚧 Track B 종속분 선행조건)
+## ⬜ 남은 것 — [사람] 필요 (2026-07-25 기준 최신)
+1. **도메인 게이트 3문항** — `docs/domain-definition-DRAFT.md` 말미. 답하면 D10~14 전부 착수 가능.
+2. **healthchecks.io** 가입 → 체크 2개 → NAS의 `heartbeat.url`·`heartbeat-backup.url`에 기록.
+   (cron은 이미 5분마다 돌고 URL만 기다린다. **NAS 자체 다운을 알 유일한 수단**)
+3. **Kuma에 Slack 웹훅** 등록 → 5모니터 연결. *지금은 빨간불이 떠도 아무도 안 부른다.*
+4. **B2 계정** → `restic.env`(root:600) → 오프사이트 활성. RESTIC_PASSWORD는 NAS 밖 에스크로 필수.
+   *현재 3-2-1이 아니라 로컬 사본뿐 — NAS 전손 시 전부 소실.*
+5. **USB 마이크 → Studio** → `deploy/studio/voicebridge-cutover.md`(10분) → 어학 가동.
+6. **KIS 모의투자 appkey** → `.env` → KISBroker 구현 착수. *자동화 세션은 증권 자격증명 비취급.*
+7. (선택) **OpenAI 크레딧 충전** — 키는 유효, 잔액 0이라 429.
 
 ## ✅ 6차 (2026-07-24 밤 — Track B 무관 3종 착수·골격 완성)
 - **D8 어학 (voicebridge 이식)**: 미니 `~/voicebridge` → Studio(코드+모델 350M, 시크릿 無), uv 신규 설치 + `uv sync` venv 재구축. 기동 체인이 "입력장치 탐색"까지 검증됨 — **Studio에 마이크 0개**(내장 없음)라 여기가 자동화 한계. plist 설치(bootstrap 안 함), 커트오버 절차=`deploy/studio/voicebridge-cutover.md`(USB 마이크 이동→TCC 승인→bootstrap→그후 미니 정지). 미니 인스턴스는 유지 중(대체 검증 전 중단 금지).
@@ -107,6 +111,20 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 - **드릴이 잡은 결함 2건**: ① HALT를 `exit`으로 처리해 **재시작 루프** 발생 → "살아있되 주문 안 함"으로 변경(매 사이클 재확인 → 대사 끝나면 자동 재개) ② **셀프테스트 산출물(RECONCILE_NEEDED)이 엔진을 영구 HALT** → 테스트가 자기 산출물 정리 + 가동 중 셀프테스트는 advisory lock으로 거부(스키마 DROP이 실주문을 날리는 것 방지).
 - **Kuma 정상화**: n8n 모니터가 죽은 포트(5679)를 보고 있던 것 수정 → **3모니터 전부 200 OK**. (수정 중 SQLite 파라미터 해석으로 URL이 잠시 비워진 것 즉시 복구, kuma.db 백업 후 작업.)
 - **문서**: `docs/where-things-run.md` — "이 자동화는 어디서 도는가/어디서 보는가" 지도(n8n vs cron vs 격리 컨테이너).
+
+## ✅ 9차 (2026-07-25 밤 — 공용 플로우 3종 완성 + 2차 리뷰 반영 + 관측 폐쇄)
+- **복원 리허설 전 항목 통과**: 체크섬·덤프 무오류·테이블 188개 일치·**크레덴셜 실복호화**(백업 키로 스크래치 n8n 기동 → 워크플로 실행 성공)·Kuma 아카이브. 스크립트=`deploy/nas/scripts/restore-rehearsal.sh`.
+- **도메인 게이트 사전작성**: 미니 설정에서 뽑은 증거 기반 초안(`docs/domain-definition-DRAFT.md`, `channel-reorg-DRAFT.md`). 실제 운영 라인이 4개(3사업+개인브랜드)뿐임을 확인 → 사용자 몫이 **3문항**으로 축소.
+- **D5 공용 골격 + 플로우 3종**: `part_definitions` 테이블 × 워크플로 1개. lead-gen(스코어링·중복방지)·blog(로컬 초안→**프런티어 퇴고**)·quote(**금액은 워크플로가 계산, LLM은 인용만** — T1의 10배 오류 대응). 전부 E2E 성공.
+  **N>1 fan-out 검증**: 파트 2개 동시 활성 → 각각 순회, 리드 귀속 정확.
+- **★ 로컬 추론모델 결함(86배 낭비)**: `qwen3.6:35b-a3b`가 추론형이라 `think`를 안 끄면 max_tokens 안에서 **본문을 한 글자도 못 낸다**(3000토큰에도 빈 응답). 무제한이면 같은 출력에 7092토큰(≈85초). LiteLLM 게이트에 `think:false` → 82토큰(1초). `classify-fast`·`code-fast`는 비추론형(실측).
+- **2차 적대 리뷰 반영**: [Critical] RLS가 kind만 봐서 `kind='publish'`+`key='trade:…'`로 **매매를 조용히 멈출 수 있던 경로** → `key LIKE kind||':%'` 강제(공격 차단 실증). [High] 스코어 파싱 fail-open(`"8점 만점"`이 1.0으로 통과) → 범위검증. [Med] 백업에 **SSOT YAML·워크플로·compose·매매 코드가 통째로 빠져 있던 것** → `compose_config.tar.gz` 추가. 그 외 트랜잭션 래핑·재귀 병합·prune 옵트인·dedup 키 재설계 등 15건.
+- **권한 분리 실증**: 크레덴셜 감사 워크플로로 n8n이 실제 `pipeline_runner`/`trade_analyst`로 접속(superuser 아님, trade 키 0개 조회) 확인 — 장식이 아님.
+- **관측 폐쇄**: Kuma **5모니터**(+trading-loop push, +mini-alive). 매매 루프는 active일 때만 핑 → 킬스위치 ON 시 `No heartbeat`(적) → OFF 시 `OK`(녹) 왕복 실증. "Up이지만 정지"를 잡는 유일한 수단.
+- **미니 이관 1단계**: `docs/mini-migration-map.md`(34잡 대조·8단계 순서). Kuma에 미니 감시 세운 뒤 관제 잡 4종 OFF(가치 0 — Slack 알림이 7/23부터 실패 중이었다). 로드 잡 33→29.
+- **주간 자가점검 이식**: `weekly-selfcheck.sh`(월 09:00 cron). 미니 자기점검 루프를 신 아키텍처용으로 축소 — 읽기전용·제안만. 첫 실행이 오프사이트 백업·외부 하트비트·비활성 워크플로 7개를 정확히 짚음.
+- **RAG 토대 검증**: `embed`(bge-m3 1024차원) → `archive` 적재 → 코사인 검색 정확(관련 0.73 vs 무관 0.34).
+- n8n 실패 실행 4건은 전부 위에서 수정한 결함의 과거 기록이며, 각 워크플로의 **최신 실행은 모두 성공**.
 
 ## ⬜ UGOS 업데이트 후 생존 확인 3종
 `/etc/cron.d/agent-backbone` · `/etc/sysctl.d/99-agent-backbone.conf` · `/usr/local/sbin/ab-*.sh` (없어졌으면 install-cron.sh 재실행 + sysctl 재적용)
