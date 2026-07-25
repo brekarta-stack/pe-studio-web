@@ -49,8 +49,12 @@ cd ~/agent-backbone && sh pipelines/sync-parts.sh
 - **크레덴셜 감사**(`wf-credential-audit.json`): n8n이 실제로 `pipeline_runner`/`trade_analyst`로 접속하고
   둘 다 `is_superuser=off`, pipeline_runner가 보는 `trade:` 키 0개 — 권한 분리가 장식이 아님을 확인.
 - `sync-parts.sh` → biz-a active / biz-b·c inactive 반영.
-- 공용 리드발굴 워크플로: **파트 1개로 end-to-end 1회 통과**. `classify-fast` 스코어링 → `leads` 적재 →
-  같은 날 재실행 시 중복 0건. ⚠️ **N>1 fan-out(파트 2개 이상 동시 순회)은 아직 미검증** — 게이트 후 스모크 필요.
+- 공용 리드발굴 워크플로: `classify-fast` 스코어링 → `leads` 적재 → 재실행 시 `inserted=false`(중복 감지).
+- **N>1 fan-out 검증 완료**: biz-a·biz-b를 동시 활성화해 실행 → 파트별로 각각 1회씩 순회,
+  `leads.business`에 정확히 귀속(biz-a 2건 / biz-b 1건). `$('수집').item` 페어링이 아이템 간에 어긋나지 않음.
+  (테스트 후 biz-b는 원상복구)
+- 스코어 fail-closed 검증: `"8점 만점에 5점"`·`"GPT-4 기준 낮음"`·`"1.5"`·`""` 전부 0 → 임계값 미달로 드롭
+  (수정 전 클램프 구현에서는 이들이 전부 1.0으로 **통과**했다).
 - RLS 네거티브 테스트: pipeline_runner의 `trade` 키 INSERT는 정책 위반으로 거부, DELETE는 권한 없음.
 
 ## 활성화 전 교체할 것

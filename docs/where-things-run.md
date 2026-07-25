@@ -67,7 +67,21 @@ ssh nas 'sudo docker exec agent-backbone-trading-loop-1 cat /data/status.json'
   → 멈추면 모니터가 자동으로 빨간불. 조용한 정지를 막는 장치.
 - 실측 드릴: 킬스위치 ON → 8초 내 `paused`, OFF → 자동 `active` 복귀(재시작 불필요).
 
+## Kuma 모니터 4종 (http://100.86.100.119:3001)
+
+| 모니터 | 방식 | 무엇을 잡는가 |
+|---|---|---|
+| studio-ollama | HTTP | Studio 로컬 티어 다운 |
+| n8n | HTTP | n8n 웹 다운 |
+| litellm | HTTP | 게이트웨이 다운 |
+| **trading-loop(push)** | **Push** | **"컨테이너는 Up인데 주문을 안 내는" 상태** |
+
+push 방식인 이유: 매매 엔진은 킬스위치·대사 미완 시 **의도적으로 살아있되 멈춘다**.
+HTTP 감시로는 이걸 못 잡는다. 엔진이 `active`일 때만 핑을 보내므로, 멈추면 핑이 끊겨 빨간불이 된다.
+- 실측 왕복(2026-07-25): 킬스위치 ON → `No heartbeat in the time window`(빨강) → OFF → `OK`(초록).
+
 ## 관측 공백 (알고 있을 것)
 - n8n 워크플로가 inactive면 아무 일도 안 일어난다 — Executions가 비어 있는 게 정상.
-- Kuma는 아직 `trading-loop`을 감시하지 않는다 → 위 `TRADE_HEARTBEAT_URL`에 Kuma push 모니터 URL을
-  넣는 것이 후속 과제(모니터 생성은 Kuma GUI).
+  **현재 워크플로 7종 전부 inactive**(placeholder를 실물로 바꾸기 전엔 켜도 무의미하거나 비용만 든다).
+- Kuma → Slack 알림 미연결: 빨간불이 떠도 **아무도 안 부른다**. 웹훅 등록이 남은 사용자 작업.
+- n8n 워크플로 실패는 Executions에만 남고 #ops로 안 간다(Slack 크레덴셜 대기).
