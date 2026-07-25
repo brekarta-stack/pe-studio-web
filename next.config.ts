@@ -113,10 +113,8 @@ const nextConfig: NextConfig = {
         destination: "https://www.papercraft.kr/:path*",
         permanent: true,
       },
-      // 무료도면(/studio) 비공개 — 품질 정비 전까지 홈으로 임시 리다이렉트(permanent:false=307,
-      // 검색엔진이 영구 캐시 안 함). 복구 시 이 두 항목만 삭제. (/api/studio·/admin/* 는 미영향)
-      { source: "/studio", destination: "/", permanent: false },
-      { source: "/studio/:path*", destination: "/", permanent: false },
+      // 무료도면(/studio) 비공개 게이트는 정적 redirect 로는 관리자까지 홈으로
+      // 돌려보내 관리자 열람이 막혔다 → src/proxy.ts 로 이관(세션 보고 갈라줌).
     ];
   },
   async headers() {

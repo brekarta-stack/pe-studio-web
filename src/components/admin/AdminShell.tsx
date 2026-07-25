@@ -85,6 +85,20 @@ const NAV_GROUPS = [
           </svg>
         ),
       },
+      {
+        // 종이모형 스튜디오는 아직 공개 메뉴에서 숨겼지만, 관리자는 새 탭으로
+        // 실제 카탈로그를 확인할 수 있다(프록시가 관리자 세션만 통과시킴).
+        href: "/studio",
+        exact: false,
+        external: true,
+        label: "종이모형 스튜디오",
+        icon: (
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M4 3a2 2 0 00-2 2v1h16V5a2 2 0 00-2-2H4z" />
+            <path fillRule="evenodd" d="M18 8H2v7a2 2 0 002 2h12a2 2 0 002-2V8zM6 11a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clipRule="evenodd" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -109,10 +123,28 @@ function NavLink({
   item,
   onClick,
 }: {
-  item: { href: string; exact?: boolean; label: string; icon: React.ReactNode };
+  item: { href: string; exact?: boolean; external?: boolean; label: string; icon: React.ReactNode };
   onClick?: () => void;
 }) {
   const pathname = usePathname();
+
+  // 외부/새 탭 링크(예: 공개 사이트의 /studio) — 활성 표시 없이 새 탭으로 연다.
+  if (item.external) {
+    return (
+      <a
+        href={item.href}
+        onClick={onClick}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+      >
+        <span className="flex-shrink-0">{item.icon}</span>
+        <span className="flex-1">{item.label}</span>
+        <span className="text-slate-300 text-xs">↗</span>
+      </a>
+    );
+  }
+
   const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
 
   return (
