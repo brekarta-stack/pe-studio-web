@@ -59,7 +59,7 @@ KS=$(sudo -n docker exec agent-backbone-trading-loop-1 sh -c 'test -f /data/KILL
 [ "$KS" = "OFF" ] && ok "킬스위치 OFF" || bad "킬스위치 $KS (의도한 것인가?)"
 
 echo "== 6. 백업 =="
-LAST=$(sudo -n sh -c 'ls -1d /volume2/backup/agent-backbone/daily/*/ 2>/dev/null | tail -1')
+LAST=$(sudo -n sh -c 'ls -1d /volume3/backup/agent-backbone/daily/*/ 2>/dev/null | tail -1')
 if [ -n "$LAST" ]; then
   AGE=$(( ( $(date +%s) - $(sudo -n stat -c %Y "$LAST") ) / 3600 ))
   [ "$AGE" -le 30 ] && ok "최신 백업 ${AGE}시간 전" || bad "최신 백업이 ${AGE}시간 전 — cron 확인"

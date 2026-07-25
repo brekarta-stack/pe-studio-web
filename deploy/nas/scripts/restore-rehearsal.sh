@@ -16,7 +16,7 @@ set -u
 umask 077
 
 COMPOSE_DIR="${COMPOSE_DIR:-$HOME/agent-backbone}"
-BACKUP_ROOT="${BACKUP_ROOT:-/volume2/backup/agent-backbone}"
+BACKUP_ROOT="${BACKUP_ROOT:-/volume3/backup/agent-backbone}"
 NET=agent-backbone_default
 PG_IMG=pgvector/pgvector:0.8.5-pg17-bookworm
 N8N_IMG=n8nio/n8n:2.32.2

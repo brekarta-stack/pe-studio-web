@@ -8,7 +8,7 @@ NAS_TS_IP=100.86.100.119
 STUDIO_OLLAMA_BASE=http://100.65.201.6:11434
 NAS SSH: Studio에서 `ssh nas` (~/.ssh/config 별칭, ed25519 키 등록됨, 무비밀번호 sudo=/etc/sudoers.d/claude-ops)
   ※ 한글 계정명은 명령줄 인용 문제로 반드시 별칭 사용. LAN 172.30.1.10 / TS 100.86.100.119(nas-ts)
-NAS 백업 목적지: /volume2/backup/agent-backbone (pool2 — docker의 pool1과 분리)
+NAS 백업 목적지: /volume3/backup/agent-backbone (pool3 = RAID1 미러 [2/2][UU]. pool1·2는 단일 NVMe라 리던던시 0 — 2026-07-25 이전)
 NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실발화 확인)
 ```
 
@@ -21,7 +21,7 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 | 삼성 노트북 | node | 100.104.71.7 | 접속용 |
 
 ## ✅ 완료 (2026-07-24 로컬 세션)
-- **HANDOFF #4 백업 3-2-1 로컬 파트**: `/etc/cron.d/agent-backbone` 매일 03:30 KST → `/volume2/backup/agent-backbone/daily/<ts>/`
+- **HANDOFF #4 백업 3-2-1 로컬 파트**: `/etc/cron.d/agent-backbone` 매일 03:30 KST → `/volume3/backup/agent-backbone/daily/<ts>/`
   - 내용: pg_dump(--create)+글로벌 / n8n 워크플로·크리덴셜(암호화)·런타임설정 / Kuma 데이터 / .env+N8N_ENCRYPTION_KEY 사본 / SHA256SUMS. 14일 보존, 실패 시 보존삭제 스킵.
   - **복원 리허설 통과**: 스크래치 컨테이너에 globals+본덤프 로드, ON_ERROR_STOP 무오류, 테이블 대조 일치, 키 3원(해시) 일치.
   - 스크립트는 `/usr/local/sbin/ab-*.sh`(root 소유) 사본 실행. 수정 시 `install-cron.sh` 재실행 필수.

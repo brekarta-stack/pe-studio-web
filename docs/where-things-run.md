@@ -11,7 +11,7 @@
 | 매매 분석가(장전 08:20) | **n8n** 워크플로 | n8n UI → Executions | n8n UI |
 | n8n↔LiteLLM 스모크 | **n8n** 워크플로 | n8n UI | 수동 실행 |
 | **매매 주문 실행** | NAS 도커 `trading-loop` | `docker logs`, `trade_orders` 테이블 | 킬스위치 파일 / compose |
-| 일일 백업(03:30) | NAS cron | `/volume2/backup/agent-backbone/backup.log` | `install-cron.sh` |
+| 일일 백업(03:30) | NAS cron | `/volume3/backup/agent-backbone/backup.log` | `install-cron.sh` |
 | 생존 하트비트(5분) | NAS cron | healthchecks.io(가입 후) | `heartbeat.url` 파일 |
 | 부팅 복구 | NAS cron `@reboot` | `/var/log/agent-backbone-boot.log` | — |
 | 컨테이너 감시 | Uptime Kuma | `http://100.86.100.119:3001` | Kuma UI |
@@ -51,7 +51,7 @@ ssh nas 'sudo docker ps --format "{{.Names}}\t{{.Status}}"'
 ssh nas 'sudo docker logs agent-backbone-trading-loop-1 --tail 20'
 ```
 ```bash
-ssh nas 'sudo tail -20 /volume2/backup/agent-backbone/backup.log'
+ssh nas 'sudo tail -20 /volume3/backup/agent-backbone/backup.log'
 ```
 
 ## 매매 엔진 상태 확인 ("Up"과 "주문 처리 중"은 다르다)

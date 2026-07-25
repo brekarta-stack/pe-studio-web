@@ -11,7 +11,7 @@ set -u
 umask 077
 
 COMPOSE_DIR="${COMPOSE_DIR:-$HOME/agent-backbone}"
-REPORT_DIR="${REPORT_DIR:-/volume2/backup/agent-backbone/selfcheck}"
+REPORT_DIR="${REPORT_DIR:-/volume3/backup/agent-backbone/selfcheck}"
 NO_LLM=""
 case "${1:-}" in --no-llm) NO_LLM=1 ;; esac
 
@@ -39,7 +39,7 @@ RESTARTS=$(sudo -n docker ps -q 2>/dev/null | xargs -r sudo -n docker inspect -f
 
 echo
 echo "## 2. 디스크 (무한 증가 감시)"
-df -h /volume1 /volume2 2>/dev/null | awk 'NR>1 {print "- " $6 " " $5 " 사용 (" $4 " 여유)"}'
+df -h /volume1 /volume2 /volume3 2>/dev/null | awk 'NR>1 {print "- " $6 " " $5 " 사용 (" $4 " 여유)"}'
 echo "- docker 전체: $(sudo -n docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | tr '\n' ' ')"
 
 echo

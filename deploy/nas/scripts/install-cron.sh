@@ -1,7 +1,7 @@
 #!/bin/sh
 # install-cron.sh — NAS에 하트비트+백업 cron 설치 (root로 1회 실행, 재실행 안전)
 # 사용: sudo sh install-cron.sh <COMPOSE_DIR> <BACKUP_ROOT>
-#   예: sudo sh install-cron.sh /home/user/agent-backbone /volume2/backup/agent-backbone
+#   예: sudo sh install-cron.sh /home/user/agent-backbone /volume3/backup/agent-backbone
 # 보안: 스크립트를 /usr/local/sbin에 root 소유로 복사해 cron이 그 사본만 실행
 #       (root cron이 사용자 소유 파일을 실행하는 권한상승 경로 차단).
 # UGOS 업데이트 후엔 /etc/cron.d/agent-backbone 존재를 재확인할 것(없으면 재실행).

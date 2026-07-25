@@ -572,7 +572,7 @@ cat > "$D/scripts/install-cron.sh" <<'___EOF_scripts_install_cron_sh___'
 #!/bin/sh
 # install-cron.sh — NAS에 하트비트+백업 cron 설치 (root로 1회 실행, 재실행 안전)
 # 사용: sudo sh install-cron.sh <COMPOSE_DIR> <BACKUP_ROOT>
-#   예: sudo sh install-cron.sh /home/user/agent-backbone /volume2/backup/agent-backbone
+#   예: sudo sh install-cron.sh /home/user/agent-backbone /volume3/backup/agent-backbone
 # 보안: 스크립트를 /usr/local/sbin에 root 소유로 복사해 cron이 그 사본만 실행
 #       (root cron이 사용자 소유 파일을 실행하는 권한상승 경로 차단).
 # UGOS 업데이트 후엔 /etc/cron.d/agent-backbone 존재를 재확인할 것(없으면 재실행).
@@ -665,7 +665,7 @@ set -u
 umask 077
 
 COMPOSE_DIR="${COMPOSE_DIR:-$HOME/agent-backbone}"
-REPORT_DIR="${REPORT_DIR:-/volume2/backup/agent-backbone/selfcheck}"
+REPORT_DIR="${REPORT_DIR:-/volume3/backup/agent-backbone/selfcheck}"
 NO_LLM=""
 case "${1:-}" in --no-llm) NO_LLM=1 ;; esac
 
@@ -693,7 +693,7 @@ RESTARTS=$(sudo -n docker ps -q 2>/dev/null | xargs -r sudo -n docker inspect -f
 
 echo
 echo "## 2. 디스크 (무한 증가 감시)"
-df -h /volume1 /volume2 2>/dev/null | awk 'NR>1 {print "- " $6 " " $5 " 사용 (" $4 " 여유)"}'
+df -h /volume1 /volume2 /volume3 2>/dev/null | awk 'NR>1 {print "- " $6 " " $5 " 사용 (" $4 " 여유)"}'
 echo "- docker 전체: $(sudo -n docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | tr '\n' ' ')"
 
 echo
@@ -816,7 +816,7 @@ set -u
 umask 077
 
 COMPOSE_DIR="${COMPOSE_DIR:-$HOME/agent-backbone}"
-BACKUP_ROOT="${BACKUP_ROOT:-/volume2/backup/agent-backbone}"
+BACKUP_ROOT="${BACKUP_ROOT:-/volume3/backup/agent-backbone}"
 NET=agent-backbone_default
 PG_IMG=pgvector/pgvector:0.8.5-pg17-bookworm
 N8N_IMG=n8nio/n8n:2.32.2
@@ -1001,7 +1001,7 @@ KS=$(sudo -n docker exec agent-backbone-trading-loop-1 sh -c 'test -f /data/KILL
 [ "$KS" = "OFF" ] && ok "킬스위치 OFF" || bad "킬스위치 $KS (의도한 것인가?)"
 
 echo "== 6. 백업 =="
-LAST=$(sudo -n sh -c 'ls -1d /volume2/backup/agent-backbone/daily/*/ 2>/dev/null | tail -1')
+LAST=$(sudo -n sh -c 'ls -1d /volume3/backup/agent-backbone/daily/*/ 2>/dev/null | tail -1')
 if [ -n "$LAST" ]; then
   AGE=$(( ( $(date +%s) - $(sudo -n stat -c %Y "$LAST") ) / 3600 ))
   [ "$AGE" -le 30 ] && ok "최신 백업 ${AGE}시간 전" || bad "최신 백업이 ${AGE}시간 전 — cron 확인"
@@ -3168,7 +3168,7 @@ cat <<'NEXT'
    printf 'net.ipv4.ip_nonlocal_bind=1\nnet.ipv6.ip_nonlocal_bind=1\n' | sudo tee /etc/sysctl.d/99-agent-backbone.conf
    sudo sysctl -p /etc/sysctl.d/99-agent-backbone.conf
 3) sudo docker compose up -d
-4) sudo sh scripts/install-cron.sh "$PWD" /volume2/backup/agent-backbone
+4) sudo sh scripts/install-cron.sh "$PWD" /volume3/backup/agent-backbone
 5) sudo docker compose --profile trading run --rm trading     # 매매 스키마 적용 + 셀프테스트
 6) sh pipelines/sync-parts.sh                                  # 파트 정의 동기화(YAML 별도 배치 필요)
 7) sh scripts/smoke-all.sh                                     # 24항목 통합 검증

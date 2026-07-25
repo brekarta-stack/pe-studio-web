@@ -70,7 +70,7 @@ cat <<'NEXT'
    printf 'net.ipv4.ip_nonlocal_bind=1\nnet.ipv6.ip_nonlocal_bind=1\n' | sudo tee /etc/sysctl.d/99-agent-backbone.conf
    sudo sysctl -p /etc/sysctl.d/99-agent-backbone.conf
 3) sudo docker compose up -d
-4) sudo sh scripts/install-cron.sh "$PWD" /volume2/backup/agent-backbone
+4) sudo sh scripts/install-cron.sh "$PWD" /volume3/backup/agent-backbone
 5) sudo docker compose --profile trading run --rm trading     # 매매 스키마 적용 + 셀프테스트
 6) sh pipelines/sync-parts.sh                                  # 파트 정의 동기화(YAML 별도 배치 필요)
 7) sh scripts/smoke-all.sh                                     # 24항목 통합 검증
