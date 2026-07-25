@@ -120,6 +120,7 @@ services:
       TRADE_DAILY_LOSS_LIMIT_KRW: ${TRADE_DAILY_LOSS_LIMIT_KRW:-200000}
       TRADE_ALLOWED_MARKETS: ${TRADE_ALLOWED_MARKETS:-KR}
       TRADE_KILL_SWITCH: /data/KILL
+      TRADE_HEARTBEAT_URL: ${TRADE_HEARTBEAT_URL:-}   # Kuma push/healthchecks — 활성일 때만 핑(정지=적색)
       TZ: Asia/Seoul
     volumes:
       - tradingdata:/data

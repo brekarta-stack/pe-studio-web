@@ -11,19 +11,45 @@
  - **킬스위치**: 매 사이클 확인(가드레일 내부에서도 재확인). ON이면 주문 없이 대기만.
  - 종료: SIGTERM/SIGINT에 현재 제안 처리를 마치고 정지(부분 상태 최소화).
 """
+import json
 import os
 import signal
 import sys
 import time
-
-import psycopg
+import urllib.request
 
 from .core import apply_schema, db_connect, load_limits, process_proposal, stale_sweep
 from .guardrails import GuardrailViolation, check_kill_switch, validate_kill_switch_dir
 from .ratelimit import TokenBucket
 
 ADVISORY_LOCK_KEY = 0x7472616465  # 'trade'
+STATUS_PATH = os.environ.get("TRADE_STATUS_FILE", "/data/status.json")
 _stop = False
+
+
+def publish_status(state: str, detail: str = "", processed: int = 0):
+    """상태를 파일로 남기고, 활성(active)일 때만 외부 하트비트를 친다.
+
+    '컨테이너 Up'과 '주문 처리 중'을 구분하기 위한 장치 — HALT/킬스위치로 멈춘 동안엔
+    하트비트를 **일부러 끊어** 모니터가 빨간불이 되게 한다(조용한 정지가 가장 위험).
+    URL은 `TRADE_HEARTBEAT_URL`(Kuma push 또는 healthchecks.io) — 미설정이면 파일만 쓴다.
+    """
+    payload = {"state": state, "detail": detail, "processed": processed,
+               "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    try:
+        tmp = STATUS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+        os.replace(tmp, STATUS_PATH)
+    except OSError as e:
+        print(f"[main] WARN status write failed: {e}", flush=True)
+
+    url = os.environ.get("TRADE_HEARTBEAT_URL")
+    if url and state == "active":
+        try:
+            urllib.request.urlopen(url, timeout=10).close()
+        except Exception as e:                       # 하트비트 실패가 매매를 막으면 안 된다
+            print(f"[main] WARN heartbeat failed: {e}", flush=True)
 
 
 def _handle_stop(signum, _frame):
@@ -74,6 +100,7 @@ def main() -> int:
 
         print(f"[main] broker={broker_name} poll={interval}s limits={limits}", flush=True)
         cycles = 0
+        processed = 0
         while not _stop:
             cycles += 1
             paused_reason = None
@@ -98,6 +125,7 @@ def main() -> int:
 
             if paused_reason and (cycles == 1 or cycles % 12 == 0):
                 print(f"[main] {paused_reason}", flush=True)
+            publish_status("paused" if paused_reason else "active", paused_reason or "", processed)
 
             if paused_reason is None:
                 while not _stop:
@@ -106,6 +134,7 @@ def main() -> int:
                         break
                     try:
                         res = process_proposal(conn, prop, broker_name, limits, bucket)
+                        processed += 1
                         print(f"[main] proposal {prop['id']} → {res}", flush=True)
                     except Exception as e:                      # 처리 실패해도 루프는 살린다
                         conn.rollback()
@@ -124,6 +153,7 @@ def main() -> int:
                     break
                 time.sleep(0.1)
 
+    publish_status("stopped", "graceful shutdown", processed)
     print("[main] stopped", flush=True)
     return 0
 

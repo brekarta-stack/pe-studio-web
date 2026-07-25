@@ -54,7 +54,20 @@ ssh nas 'sudo docker logs agent-backbone-trading-loop-1 --tail 20'
 ssh nas 'sudo tail -20 /volume2/backup/agent-backbone/backup.log'
 ```
 
+## 매매 엔진 상태 확인 ("Up"과 "주문 처리 중"은 다르다)
+
+```bash
+ssh nas 'sudo docker exec agent-backbone-trading-loop-1 cat /data/status.json'
+```
+```json
+{"state":"active|paused|stopped","detail":"멈춘 이유","processed":3,"ts":"..."}
+```
+- `paused`는 킬스위치 ON 또는 대사 미완(HALT). **컨테이너는 Up인 채로 주문만 안 낸다.**
+- `.env`에 `TRADE_HEARTBEAT_URL`(Kuma push 또는 healthchecks)을 넣으면 **active일 때만** 핑을 보낸다
+  → 멈추면 모니터가 자동으로 빨간불. 조용한 정지를 막는 장치.
+- 실측 드릴: 킬스위치 ON → 8초 내 `paused`, OFF → 자동 `active` 복귀(재시작 불필요).
+
 ## 관측 공백 (알고 있을 것)
-- `trading-loop`이 **HALT/킬스위치로 멈춰도 컨테이너는 Up** — "살아있음"과 "주문 처리 중"은 다르다.
-  로그를 봐야 구분된다. (Kuma 감시 대상 추가는 후속 과제.)
 - n8n 워크플로가 inactive면 아무 일도 안 일어난다 — Executions가 비어 있는 게 정상.
+- Kuma는 아직 `trading-loop`을 감시하지 않는다 → 위 `TRADE_HEARTBEAT_URL`에 Kuma push 모니터 URL을
+  넣는 것이 후속 과제(모니터 생성은 Kuma GUI).
