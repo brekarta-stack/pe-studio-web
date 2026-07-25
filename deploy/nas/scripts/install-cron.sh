@@ -22,6 +22,7 @@ SRC_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ -f "$SRC_DIR/hc-ping.sh" ] || { echo "FATAL: $SRC_DIR/hc-ping.sh missing"; exit 1; }
 [ -f "$SRC_DIR/backup-daily.sh" ] || { echo "FATAL: $SRC_DIR/backup-daily.sh missing"; exit 1; }
 [ -f "$SRC_DIR/ab-boot-up.sh" ] || { echo "FATAL: $SRC_DIR/ab-boot-up.sh missing"; exit 1; }
+[ -f "$SRC_DIR/weekly-selfcheck.sh" ] || { echo "FATAL: $SRC_DIR/weekly-selfcheck.sh missing"; exit 1; }
 
 # root 소유 사본 설치
 BIN_DIR=/usr/local/sbin
@@ -29,8 +30,9 @@ mkdir -p "$BIN_DIR"
 cp "$SRC_DIR/hc-ping.sh" "$BIN_DIR/ab-hc-ping.sh"
 cp "$SRC_DIR/backup-daily.sh" "$BIN_DIR/ab-backup-daily.sh"
 cp "$SRC_DIR/ab-boot-up.sh" "$BIN_DIR/ab-boot-up.sh"
-chown root:root "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh"
-chmod 755 "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh"
+cp "$SRC_DIR/weekly-selfcheck.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
+chown root:root "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
+chmod 755 "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
 
 # 백업 목적지: root 소유(사용자 계정 침해 시 심볼릭링크 스왑 방지)
 mkdir -p "$BACKUP_ROOT/daily"
@@ -54,6 +56,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 @reboot root sh $BIN_DIR/ab-boot-up.sh '$COMPOSE_DIR' >> /var/log/agent-backbone-boot.log 2>&1
 */5 * * * * root sh $BIN_DIR/ab-hc-ping.sh '$COMPOSE_DIR/heartbeat.url' >/dev/null 2>&1
 $BK_MIN $BK_HOUR * * * root COMPOSE_DIR='$COMPOSE_DIR' BACKUP_ROOT='$BACKUP_ROOT' sh $BIN_DIR/ab-backup-daily.sh >> '$BACKUP_ROOT/backup.log' 2>&1
+0 9 * * 1 root COMPOSE_DIR='$COMPOSE_DIR' REPORT_DIR='$BACKUP_ROOT/selfcheck' sh $BIN_DIR/ab-weekly-selfcheck.sh >> '$BACKUP_ROOT/selfcheck.log' 2>&1
 EOF
 chmod 644 "$CRON_FILE"
 chown root:root "$CRON_FILE" 2>/dev/null || true
