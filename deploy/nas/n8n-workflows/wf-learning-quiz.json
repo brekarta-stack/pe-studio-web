@@ -1,0 +1,113 @@
+{
+  "id": "tblearnquiz00001",
+  "name": "학습: 간격반복 퀴즈 (아침 발송)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "k0", "name": "설계 규칙",
+      "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
+      "position": [-60, -300],
+      "parameters": {
+        "height": 280, "width": 760,
+        "content": "## 간격반복 퀴즈 (미니 learning-quiz의 이식)\n**스케줄은 LLM이 정하지 않는다.** `learning_schedule_next()` 함수가 결정적으로 계산한다\n(정답 → 1·3·7·16·35·90일 순으로 간격 확대, 오답 → 처음부터, 마지막 통과 → retired).\nLLM은 \"저장된 노트를 회상 질문으로 다듬는\" 한 스텝만 맡는다.\n\n- 오늘 due인 항목만, `max_items_per_day`(기본 7)까지\n- `learning_reviews`에 발송 기록 → 같은 항목을 같은 날 두 번 보내지 않는다(UNIQUE)\n- 답변 수집은 Slack 버튼(미연결) — 지금은 발송 직전까지만 동작한다\n\n**활성화 전 교체**: '→ 발송' noOp → Slack 노드. 응답 처리용 워크플로는 별도(버튼 콜백 → `learning_schedule_next` 호출)."
+      }
+    },
+    {
+      "id": "k1", "name": "매일 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [0, 40],
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 8 * * *" } ] } }
+    },
+    {
+      "id": "k1m", "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
+      "position": [0, 200], "parameters": {}
+    },
+    {
+      "id": "k2", "name": "오늘 due 항목 로드",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [240, 120],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT i.id, i.item_key, i.topic, i.note, i.rep, i.block FROM learning_items i WHERE NOT i.retired AND i.next_due <= CURRENT_DATE AND NOT EXISTS (SELECT 1 FROM learning_reviews r WHERE r.item_id = i.id AND r.sent_on = CURRENT_DATE) ORDER BY i.next_due, i.id LIMIT (SELECT (value)::int FROM learning_config WHERE key='max_items_per_day')",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "k3", "name": "due 있는지",
+      "type": "n8n-nodes-base.filter", "typeVersion": 2.2,
+      "position": [480, 120],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [ {
+            "id": "d1", "leftValue": "={{ $json.item_key }}", "rightValue": "",
+            "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+          } ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "k4", "name": "회상 질문 생성 (로컬 summarize)",
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [720, 120],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "parameters": {
+        "method": "POST",
+        "url": "http://litellm:4000/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'summarize', messages:[{role:'system', content:'너는 학습 코치다. 주어진 노트를 **한 문장 회상 질문**으로 바꿔라. 답을 말하지 마라. 질문만 출력.'},{role:'user', content: '주제: ' + $json.topic + '\\n노트: ' + String($json.note ?? '')}], stream:false, max_tokens:200}) }}",
+        "options": { "timeout": 120000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" } }
+    },
+    {
+      "id": "k5", "name": "문항 정리",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [960, 120],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "q1", "name": "item_id", "type": "number", "value": "={{ $('오늘 due 항목 로드').item.json.id }}" },
+          { "id": "q2", "name": "topic", "type": "string", "value": "={{ $('오늘 due 항목 로드').item.json.topic }}" },
+          { "id": "q3", "name": "rep", "type": "number", "value": "={{ $('오늘 due 항목 로드').item.json.rep }}" },
+          { "id": "q4", "name": "question", "type": "string",
+            "value": "={{ String($json.choices?.[0]?.message?.content ?? '').trim() || $('오늘 due 항목 로드').item.json.note }}" }
+        ] }
+      }
+    },
+    {
+      "id": "k6", "name": "발송 기록 (같은 날 재발송 차단)",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [1200, 120],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO learning_reviews (item_id, sent_on) VALUES ($1, CURRENT_DATE) ON CONFLICT (item_id, sent_on) DO NOTHING RETURNING id, item_id",
+        "options": { "queryReplacement": "={{ [$json.item_id] }}" }
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "k7", "name": "→ 발송 (#inbox, Slack 노드로 교체)",
+      "type": "n8n-nodes-base.noOp", "typeVersion": 1,
+      "position": [1440, 120], "parameters": {}
+    }
+  ],
+  "connections": {
+    "매일 08:00": { "main": [[ { "node": "오늘 due 항목 로드", "type": "main", "index": 0 } ]] },
+    "수동 테스트": { "main": [[ { "node": "오늘 due 항목 로드", "type": "main", "index": 0 } ]] },
+    "오늘 due 항목 로드": { "main": [[ { "node": "due 있는지", "type": "main", "index": 0 } ]] },
+    "due 있는지": { "main": [[ { "node": "회상 질문 생성 (로컬 summarize)", "type": "main", "index": 0 } ]] },
+    "회상 질문 생성 (로컬 summarize)": { "main": [[ { "node": "문항 정리", "type": "main", "index": 0 } ]] },
+    "문항 정리": { "main": [[ { "node": "발송 기록 (같은 날 재발송 차단)", "type": "main", "index": 0 } ]] },
+    "발송 기록 (같은 날 재발송 차단)": { "main": [[ { "node": "→ 발송 (#inbox, Slack 노드로 교체)", "type": "main", "index": 0 } ]] }
+  }
+}
