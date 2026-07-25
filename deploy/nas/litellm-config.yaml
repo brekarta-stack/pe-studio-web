@@ -8,14 +8,21 @@ model_list:
     litellm_params:
       model: ollama_chat/qwen2.5:7b
       api_base: os.environ/STUDIO_OLLAMA_BASE
+  # ⚠️ qwen3.6:35b-a3b는 **추론형**이다. think를 끄지 않으면 사고 과정에 토큰을 다 쓰고
+  #    max_tokens 안에서 본문(content)을 한 글자도 못 내는 일이 생긴다(실측: 3000토큰에도 빈 응답).
+  #    무제한으로 두면 같은 결과에 7092토큰(≈85초)을 쓴다 — think:false면 82토큰(1초). 86배 차이.
+  #    필요하면 호출 측에서 think:true로 되돌릴 수 있다(하드 케이스용).
+  #    (classify-fast=qwen2.5:7b, code-fast=qwen3-coder:30b는 비추론형이라 무관 — 실측 확인)
   - model_name: summarize
     litellm_params:
       model: ollama_chat/qwen3.6:35b-a3b     # T1 실측 83 tok/s
       api_base: os.environ/STUDIO_OLLAMA_BASE
+      think: false
   - model_name: write-ko-draft         # 블로그·SNS 초안(한국어)
     litellm_params:
       model: ollama_chat/qwen3.6:35b-a3b
       api_base: os.environ/STUDIO_OLLAMA_BASE
+      think: false
   - model_name: code-fast              # n8n 노드·스크립트·표준 리팩터링
     litellm_params:
       model: ollama_chat/qwen3-coder:30b

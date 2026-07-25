@@ -29,3 +29,13 @@ GRANT SELECT ON part_definitions TO pipeline_runner;
 GRANT SELECT, INSERT, UPDATE ON leads TO pipeline_runner;
 GRANT USAGE ON SEQUENCE leads_id_seq TO pipeline_runner;
 -- (매매 테이블에는 권한 없음 — 사업 파이프라인과 매매는 서로 못 건드린다)
+
+-- 발행·이메일 멱등성(GD-2)은 매매와 **같은 키 테이블**을 쓴다는 것이 확정 결정이다.
+-- 그래서 파이프라인에 이 테이블 권한을 주되, RLS로 kind를 가둔다 —
+-- 그러지 않으면 침해된 n8n이 trade 키를 지우거나 심어 매매 멱등성을 무너뜨릴 수 있다.
+-- 테이블 소유자(agent=엔진 접속 계정)는 RLS를 우회하므로 매매 엔진 동작에는 영향이 없다.
+ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS pipeline_kinds_only ON idempotency_keys;
+CREATE POLICY pipeline_kinds_only ON idempotency_keys FOR ALL TO pipeline_runner
+  USING (kind IN ('publish','email')) WITH CHECK (kind IN ('publish','email'));
+GRANT SELECT, INSERT, UPDATE ON idempotency_keys TO pipeline_runner;

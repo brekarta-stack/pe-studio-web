@@ -1,0 +1,137 @@
+{
+  "id": "tbblog0000000001",
+  "name": "공용: 블로그 초안→퇴고→승인 (파트 순회)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "b0", "name": "설계 규칙",
+      "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
+      "position": [-60, -320],
+      "parameters": {
+        "height": 300, "width": 780,
+        "content": "## 공용 블로그 플로우 (파트 정의 테이블 순회)\n**대외 산출물 = 프런티어 고정**(설계 §F T1): 로컬 35B가 초안을 쓰고, **최종 퇴고는 Claude**가 한다.\nT1 실측에서 로컬 모델이 대외 문서에 가격 10배 오류·사실 날조를 냈기 때문 — 이 2단 구조는 타협 대상이 아니다.\n\n- 초안 `write-ko-draft`(로컬, 무료) → 퇴고 `write-ko-final`(Claude, 유료) → 승인 → 발행\n- **멱등성(GD-2)**: `publish:{part}:{날짜}` 키를 먼저 심는다 → 같은 날 재실행해도 재발행 없음\n- 승인 게이트: 파트의 `blog.approval: required`면 사람 승인 후에만 발행\n\n**활성화 전 교체**: '승인 대기'(→ Slack 승인 노드), '발행'(→ WordPress 노드).\n네이버는 글쓰기 API가 폐지돼 자동 발행 불가 — 초안까지만 만들고 사람이 붙여넣는다."
+      }
+    },
+    {
+      "id": "b1", "name": "주 2회 10:00",
+      "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 10 * * 2,4" } ] } }
+    },
+    {
+      "id": "b1m", "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
+      "position": [0, 180], "parameters": {}
+    },
+    {
+      "id": "b2", "name": "블로그 활성 파트 로드",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [230, 90],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT part_key, name, COALESCE(config->'blog'->>'platform','?') AS platform, COALESCE((config->'blog'->>'approval') = 'required', true) AS approval_required, COALESCE(config->'lead_gen'->>'keywords','[]') AS keywords FROM part_definitions WHERE active AND COALESCE((config->'blog'->>'enabled')::boolean, false) ORDER BY part_key",
+        "options": {}
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "b3", "name": "멱등키 선점 (publish:파트:날짜)",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [470, 90],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO idempotency_keys (key, kind, status) VALUES ($1,'publish','pending') ON CONFLICT (key) DO NOTHING RETURNING key",
+        "options": {
+          "queryReplacement": "={{ ['publish:' + $json.part_key + ':' + $now.toFormat('yyyy-MM-dd')] }}"
+        }
+      },
+      "credentials": { "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" } }
+    },
+    {
+      "id": "b3f", "name": "신규 키만 통과 (멱등 게이트)",
+      "type": "n8n-nodes-base.filter", "typeVersion": 2.2,
+      "position": [590, 90],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [ {
+            "id": "g1",
+            "leftValue": "={{ $json.key }}",
+            "rightValue": "",
+            "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+          } ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b4", "name": "초안 (로컬 write-ko-draft)",
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [710, 90],
+      "parameters": {
+        "method": "POST",
+        "url": "http://litellm:4000/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'write-ko-draft', messages:[{role:'system', content:'너는 한국어 블로그 초안 작성자다. 마크다운 소제목 2개와 본문 250자 내외. 과장·허위 금지, 확인되지 않은 수치 금지.'},{role:'user', content: $('블로그 활성 파트 로드').item.json.name + ' 사업 블로그 초안. 키워드: ' + $('블로그 활성 파트 로드').item.json.keywords}], stream:false, max_tokens:800}) }}",
+        "options": { "timeout": 180000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" } }
+    },
+    {
+      "id": "b5", "name": "퇴고 (프런티어 write-ko-final)",
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [950, 90],
+      "parameters": {
+        "method": "POST",
+        "url": "http://litellm:4000/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'write-ko-final', messages:[{role:'system', content:'너는 대외 발행물 편집자다. 아래 초안의 사실 오류·과장·어색한 표현을 고쳐 발행 가능한 글로 다듬어라. 없는 수치나 사례를 만들지 마라. 본문만 출력.'},{role:'user', content: $json.choices[0].message.content}], stream:false, max_tokens:1000}) }}",
+        "options": { "timeout": 180000 }
+      },
+      "credentials": { "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" } }
+    },
+    {
+      "id": "b6", "name": "결과 정리",
+      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
+      "position": [1190, 90],
+      "parameters": {
+        "assignments": { "assignments": [
+          { "id": "r1", "name": "part_key", "type": "string", "value": "={{ $('블로그 활성 파트 로드').item.json.part_key }}" },
+          { "id": "r2", "name": "platform", "type": "string", "value": "={{ $('블로그 활성 파트 로드').item.json.platform }}" },
+          { "id": "r3", "name": "approval_required", "type": "boolean", "value": "={{ $('블로그 활성 파트 로드').item.json.approval_required }}" },
+          { "id": "r4", "name": "final_text", "type": "string", "value": "={{ $json.choices[0].message.content }}" },
+          { "id": "r5", "name": "idem_key", "type": "string", "value": "={{ 'publish:' + $('블로그 활성 파트 로드').item.json.part_key + ':' + $now.toFormat('yyyy-MM-dd') }}" }
+        ] }
+      }
+    },
+    {
+      "id": "b7", "name": "→ 승인 대기 (#approvals, Slack 노드로 교체)",
+      "type": "n8n-nodes-base.noOp", "typeVersion": 1,
+      "position": [1430, 90], "parameters": {}
+    },
+    {
+      "id": "b8", "name": "→ 발행 (WordPress 노드로 교체)",
+      "type": "n8n-nodes-base.noOp", "typeVersion": 1,
+      "position": [1660, 90], "parameters": {}
+    }
+  ],
+  "connections": {
+    "주 2회 10:00": { "main": [[ { "node": "블로그 활성 파트 로드", "type": "main", "index": 0 } ]] },
+    "수동 테스트": { "main": [[ { "node": "블로그 활성 파트 로드", "type": "main", "index": 0 } ]] },
+    "블로그 활성 파트 로드": { "main": [[ { "node": "멱등키 선점 (publish:파트:날짜)", "type": "main", "index": 0 } ]] },
+    "멱등키 선점 (publish:파트:날짜)": { "main": [[ { "node": "신규 키만 통과 (멱등 게이트)", "type": "main", "index": 0 } ]] },
+    "신규 키만 통과 (멱등 게이트)": { "main": [[ { "node": "초안 (로컬 write-ko-draft)", "type": "main", "index": 0 } ]] },
+    "초안 (로컬 write-ko-draft)": { "main": [[ { "node": "퇴고 (프런티어 write-ko-final)", "type": "main", "index": 0 } ]] },
+    "퇴고 (프런티어 write-ko-final)": { "main": [[ { "node": "결과 정리", "type": "main", "index": 0 } ]] },
+    "결과 정리": { "main": [[ { "node": "→ 승인 대기 (#approvals, Slack 노드로 교체)", "type": "main", "index": 0 } ]] },
+    "→ 승인 대기 (#approvals, Slack 노드로 교체)": { "main": [[ { "node": "→ 발행 (WordPress 노드로 교체)", "type": "main", "index": 0 } ]] }
+  }
+}
