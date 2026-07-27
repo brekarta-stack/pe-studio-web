@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  재부팅 후 무인 복구 자동 검증. 로그인 시 1회 실행하고 종료한다(KeepAlive 없음).
+  결과: ~/Library/Logs/post-boot-verify.log (최근 것이 맨 위)
+  설치:
+    cp com.agent.post-boot-verify.plist ~/Library/LaunchAgents/
+    cp post-boot-verify.sh ~/bin/ && chmod +x ~/bin/post-boot-verify.sh
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agent.post-boot-verify.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.agent.post-boot-verify</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/seakimacultra/bin/post-boot-verify.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/seakimacultra/Library/Logs/post-boot-verify.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/seakimacultra/Library/Logs/post-boot-verify.err.log</string>
+</dict>
+</plist>
