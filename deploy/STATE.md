@@ -123,8 +123,8 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 
 ## ⬜ 남은 것 — [사람] 필요 (2026-07-25 기준 최신)
 1. **도메인 게이트 3문항** — `docs/domain-definition-DRAFT.md` 말미. 답하면 D10~14 전부 착수 가능.
-2. **healthchecks.io** 가입 → 체크 2개 → NAS의 `heartbeat.url`·`heartbeat-backup.url`에 기록.
-   (cron은 이미 5분마다 돌고 URL만 기다린다. **NAS 자체 다운을 알 유일한 수단**)
+2. ~~healthchecks.io~~ ✅ **완료(2026-07-27)** — nas-alive(5분)·backup-daily(1일) 체크 2개 등록,
+   양쪽 `OK` 응답 실측. 이제 NAS 자체가 죽으면 외부에서 감지된다.
 3. **Kuma에 Slack 웹훅** 등록 → 5모니터 연결. *지금은 빨간불이 떠도 아무도 안 부른다.*
 4. **B2 계정** → `restic.env`(root:600) → 오프사이트 활성. RESTIC_PASSWORD는 NAS 밖 에스크로 필수.
    *현재 3-2-1이 아니라 로컬 사본뿐 — NAS 전손 시 전부 소실.*
