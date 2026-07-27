@@ -1,22 +1,22 @@
 {
   "id": "tbbrief000000001",
-  "name": "업무·일정: 아침 브리핑 (08:30 KST) — 골격",
+  "name": "업무·일정: 아침 브리핑 (08:30 KST)",
   "active": false,
   "settings": { "executionOrder": "v1" },
   "nodes": [
     {
-      "id": "b0", "name": "골격 안내",
+      "id": "b0", "name": "이관 메모",
       "type": "n8n-nodes-base.stickyNote", "typeVersion": 1,
-      "position": [-40, -220],
+      "position": [-420, -60],
       "parameters": {
-        "height": 190, "width": 620,
-        "content": "## 아침 브리핑 골격 (§3-1)\n활성화 전 사용자 연결 2개:\n1) Google Calendar 노드 추가 + OAuth 크레덴셜 (아래 '오늘 일정 placeholder' 교체)\n2) Slack 크레덴셜/웹훅 (#inbox) — 마지막 노드 교체\nLLM 요약은 LiteLLM(n8n-ops 키)로 이미 동작. 완료 후 워크플로 Active ON."
+        "height": 420, "width": 480,
+        "content": "## 미니 `morning-brief` 이관본\n\n**미니 원본은 최소 18일간 매일 실패하고 있었다**(로그 전부 `ok=False`).\n원인: 코드가 `#daily-brief-아침브리핑`을 노리는데 그런 채널이 없다.\n실제 채널은 `#daily-브리핑`(`C0B6QEB47M1`) — 이름이 바뀐 뒤 아무도 몰랐다.\n\n### 그래서 여기서 지키는 것\n1. **채널은 ID로 지정한다.** 이름은 바뀌고, 바뀌면 조용히 죽는다.\n2. Slack 노드를 쓴다. HTTP로 직접 치면 Slack이 거부해도 **HTTP 200**을 돌려줘\n   실패가 성공으로 보인다(Kuma 알림에서 같은 함정을 밟았다).\n3. LiteLLM 노드는 `onError: continueRegularOutput` —\n   게이트웨이가 죽어도 **숫자 브리핑은 나간다**. LLM은 덧붙이는 한 줄일 뿐 본문이 아니다.\n\n### 원본에 있었으나 옮기지 않은 것\n미니의 할 일 스토어·목표 보드는 **둘 다 비어 있었다**(today_tasks=0, goals open=0).\n빈 껍데기를 옮기는 대신, 실제 데이터가 있는 소스(어학 복습 큐·리드·파트)로 채웠다.\nGoogle Calendar 일정은 OAuth 연결 후 추가한다."
       }
     },
     {
       "id": "b1", "name": "매일 08:30",
       "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
-      "position": [0, 0],
+      "position": [120, -60],
       "parameters": {
         "rule": { "interval": [ { "field": "cronExpression", "expression": "30 8 * * *" } ] }
       }
@@ -24,23 +24,29 @@
     {
       "id": "b1m", "name": "수동 테스트",
       "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
-      "position": [0, 170], "parameters": {}
+      "position": [120, 120], "parameters": {}
     },
     {
-      "id": "b2", "name": "오늘 일정 placeholder",
-      "type": "n8n-nodes-base.set", "typeVersion": 3.4,
-      "position": [220, 0],
+      "id": "b2", "name": "브리핑 데이터",
+      "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
+      "position": [380, 20],
+      "credentials": {
+        "postgres": { "id": "pgpipelinerunner1", "name": "PG pipeline_runner (파트 읽기·리드 쓰기)" }
+      },
       "parameters": {
-        "assignments": { "assignments": [ {
-          "id": "a1", "name": "schedule_raw", "type": "string",
-          "value": "[Google Calendar 연결 전 데모] 10:00 팀 미팅 / 14:00 papercraft 고객 통화 / 미처리: 견적서 2건"
-        } ] }
+        "operation": "executeQuery",
+        "query": "SELECT\n  to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD') AS today,\n  (ARRAY['일','월','화','수','목','금','토'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1] AS weekday,\n  (SELECT count(*) FROM learning_items WHERE NOT retired AND next_due <= current_date) AS due_reviews,\n  (SELECT count(*) FROM learning_items WHERE NOT retired) AS active_items,\n  (SELECT count(*) FROM leads WHERE created_at >= now() - interval '1 day') AS new_leads,\n  (SELECT count(*) FROM leads WHERE status = 'new') AS open_leads,\n  (SELECT count(*) FROM part_definitions WHERE active) AS active_parts",
+        "options": {}
       }
     },
     {
-      "id": "b3", "name": "브리핑 생성 (LiteLLM)",
+      "id": "b3", "name": "한 줄 코멘트 (LiteLLM)",
       "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
-      "position": [440, 0],
+      "position": [640, 20],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" }
+      },
       "parameters": {
         "method": "POST",
         "url": "http://litellm:4000/v1/chat/completions",
@@ -48,23 +54,35 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: 'write-ko-draft', messages: [{role:'user', content: '다음 일정·업무를 3줄 아침 브리핑으로. 존댓말, 이모지 없이:\\n' + $json.schedule_raw}], stream: false}) }}",
-        "options": { "timeout": 120000 }
-      },
-      "credentials": {
-        "httpHeaderAuth": { "id": "litellmkey000001", "name": "LiteLLM n8n-ops" }
+        "jsonBody": "={{ JSON.stringify({model: 'write-ko-draft', max_tokens: 200, messages: [{role:'user', content: '오늘 상황: 어학 복습 대기 ' + $json.due_reviews + '건, 신규 리드 ' + $json.new_leads + '건, 미처리 리드 ' + $json.open_leads + '건. 이 숫자를 근거로 오늘 무엇부터 손대면 좋을지 한국어 한 문장으로만 조언해라. 숫자를 그대로 나열하지 말고, 인사말·머리말 없이 문장 하나만 출력해라.'}], stream: false}) }}",
+        "options": { "timeout": 60000 }
       }
     },
     {
-      "id": "b4", "name": "→ Slack #inbox (크레덴셜 연결 후 교체)",
-      "type": "n8n-nodes-base.noOp", "typeVersion": 1,
-      "position": [660, 0], "parameters": {}
+      "id": "b4", "name": "Slack #daily-브리핑",
+      "type": "n8n-nodes-base.slack", "typeVersion": 2.5,
+      "position": [900, 20],
+      "credentials": {
+        "slackApi": { "id": "slackbotcred0001", "name": "Slack (봇 토큰)" }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": { "__rl": true, "value": "C0B6QEB47M1", "mode": "id" },
+        "text": "={{ (() => {\n  const d = $('브리핑 데이터').item.json;\n  const c = $json && $json.choices && $json.choices[0] && $json.choices[0].message ? $json.choices[0].message.content : '';\n  const llm = (typeof c === 'string' ? c : '').trim();\n  const L = [];\n  L.push('☀️ *아침 브리핑* — ' + d.today + ' (' + d.weekday + ')');\n  L.push('');\n  L.push('📚 어학 복습 대기 *' + d.due_reviews + '건*  (활성 항목 ' + d.active_items + ')');\n  L.push('🔎 신규 리드 *' + d.new_leads + '건*  · 미처리 ' + d.open_leads + '건');\n  L.push('🧩 활성 파트 ' + d.active_parts + '개');\n  if (llm) { L.push(''); L.push('💡 _' + llm.replace(/\\n+/g, ' ') + '_'); }\n  L.push('');\n  L.push('_일정(Google Calendar)은 OAuth 연결 후 이 브리핑에 추가됩니다._');\n  return L.join('\\n');\n})() }}",
+        "otherOptions": {
+          "mrkdwn": true,
+          "unfurl_links": false,
+          "includeLinkToWorkflow": false
+        }
+      }
     }
   ],
   "connections": {
-    "매일 08:30": { "main": [[ { "node": "오늘 일정 placeholder", "type": "main", "index": 0 } ]] },
-    "수동 테스트": { "main": [[ { "node": "오늘 일정 placeholder", "type": "main", "index": 0 } ]] },
-    "오늘 일정 placeholder": { "main": [[ { "node": "브리핑 생성 (LiteLLM)", "type": "main", "index": 0 } ]] },
-    "브리핑 생성 (LiteLLM)": { "main": [[ { "node": "→ Slack #inbox (크레덴셜 연결 후 교체)", "type": "main", "index": 0 } ]] }
+    "매일 08:30": { "main": [[ { "node": "브리핑 데이터", "type": "main", "index": 0 } ]] },
+    "수동 테스트": { "main": [[ { "node": "브리핑 데이터", "type": "main", "index": 0 } ]] },
+    "브리핑 데이터": { "main": [[ { "node": "한 줄 코멘트 (LiteLLM)", "type": "main", "index": 0 } ]] },
+    "한 줄 코멘트 (LiteLLM)": { "main": [[ { "node": "Slack #daily-브리핑", "type": "main", "index": 0 } ]] }
   }
 }
