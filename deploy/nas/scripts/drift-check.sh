@@ -11,6 +11,7 @@ DIFF=0
 files="docker-compose.yml litellm-config.yaml init-db.sql
 scripts/hc-ping.sh scripts/backup-daily.sh scripts/ab-boot-up.sh scripts/install-cron.sh
 scripts/weekly-selfcheck.sh scripts/restore-rehearsal.sh scripts/smoke-all.sh
+scripts/kuma-notify-slack.sh
 pipelines/init-parts.sql pipelines/load-parts.py pipelines/sync-parts.sh
 pipelines/sync-roles.sh pipelines/init-learning.sql
 trading/Dockerfile trading/init-trading.sql trading/engine/core.py trading/engine/main.py

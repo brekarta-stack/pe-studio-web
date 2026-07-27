@@ -77,6 +77,25 @@ echo "$MON" | while IFS= read -r L; do
 done
 echo "$MON" | grep -q '=0' && FAIL=$((FAIL+1))
 [ -s "$COMPOSE_DIR/heartbeat.url" ] && ok "외부 하트비트 설정됨" || echo "  [WARN] 외부 하트비트 미설정 — NAS 자체 다운을 아무도 모른다"
+
+# 알림 경로 — "빨간불이 떠도 아무도 안 부르는" 상태를 막는다.
+# Slack은 실패해도 HTTP 200을 주고 Kuma는 그걸 성공으로 보므로, Kuma 로그만으로는 절대 못 잡는다.
+NT=$(sudo -n docker exec agent-backbone-uptime-kuma-1 sqlite3 /app/data/kuma.db \
+     "SELECT count(*) FROM monitor m WHERE NOT EXISTS (SELECT 1 FROM monitor_notification mn
+        JOIN notification n ON n.id=mn.notification_id AND n.active=1 WHERE mn.monitor_id=m.id)" 2>/dev/null)
+[ "${NT:-9}" = "0" ] && ok "모든 모니터에 알림 연결됨" || bad "알림 없는 모니터 ${NT}개 — 장애가 나도 조용하다"
+sudo -n docker exec agent-backbone-uptime-kuma-1 sqlite3 /app/data/kuma.db \
+  "SELECT json_extract(config,'\$.webhookAdditionalHeaders') FROM notification WHERE active=1" 2>/dev/null \
+  | grep -qi 'content-type' \
+  && ok "알림 Content-Type 헤더 존재" \
+  || bad "알림에 Content-Type 없음 — Slack이 거부하는데 Kuma는 성공으로 보고한다(조용한 실패)"
+SB=$(grep '^SLACK_BOT_TOKEN=' "$COMPOSE_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d ' \r')
+if [ -n "$SB" ]; then
+  curl -s -m 10 -H "Authorization: Bearer $SB" https://slack.com/api/auth.test | grep -q '"ok":true' \
+    && ok "Slack 봇 토큰 유효" || bad "Slack 봇 토큰 무효/만료 — 알림이 전부 조용히 버려진다"
+else
+  echo "  [WARN] SLACK_BOT_TOKEN 없음 — 알림 경로 검증 불가"
+fi
 [ -f "$COMPOSE_DIR/restic.env" ] && ok "오프사이트 설정됨" || echo "  [WARN] 오프사이트 미설정 — 로컬 사본뿐"
 
 echo
