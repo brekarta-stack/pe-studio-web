@@ -45,6 +45,8 @@ chmod 644 "$ANCHOR"
 echo "  $ANCHOR"
 
 echo "== 2. 부팅 시 자가복구 스크립트 =="
+# macOS에는 /usr/local/sbin 이 기본으로 없다(Homebrew가 만들기 전엔 부재) — 직접 만든다.
+mkdir -p "$(dirname "$APPLY")"
 cat > "$APPLY" <<'EOF'
 #!/bin/sh
 # 부팅마다 실행: pf.conf가 초기화됐으면 앵커 등록을 되살리고, pf를 켜고, 규칙을 로드한다.
