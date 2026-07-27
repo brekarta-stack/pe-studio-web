@@ -22,6 +22,8 @@ from .guardrails import GuardrailViolation, check_kill_switch, validate_kill_swi
 from .ratelimit import TokenBucket
 
 ADVISORY_LOCK_KEY = 0x7472616465  # 'trade'
+# 주의: 이 서비스는 compose profile 'trading'에 속한다. 부팅 복구 스크립트(ab-boot-up.sh)가
+#       `--profile trading`을 주지 않으면 재부팅 후 **되살아나지 않는다**(2026-07-26 감사에서 적발).
 STATUS_PATH = os.environ.get("TRADE_STATUS_FILE", "/data/status.json")
 HEARTBEAT_MIN_INTERVAL = 60.0     # 매매 핫패스에서 매 사이클 동기 HTTP는 지연 위험 → 스로틀
 _stop = False

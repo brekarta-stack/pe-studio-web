@@ -29,11 +29,13 @@ if [ -n "$TS_IP" ]; then
 fi
 
 # 3) compose up (3회 재시도)
+#    ★ --profile trading 필수: 매매 엔진(trading-loop)이 profile에 속해 있어, 이걸 빼면
+#      재부팅 후 되살아나지 않는다(감사에서 dry-run으로 적발 — 복구 계획에 아예 없었다).
 cd "$COMPOSE_DIR" || exit 1
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
 k=1
 while [ "$k" -le 3 ]; do
-  if $DC up -d; then log "compose up OK (attempt $k)"; exit 0; fi
+  if $DC --profile trading up -d; then log "compose up OK (attempt $k, profile=trading 포함)"; exit 0; fi
   log "WARN: compose up failed (attempt $k)"; k=$((k+1)); sleep 10
 done
 log "FATAL: compose up failed after 3 attempts"

@@ -83,7 +83,8 @@ services:
       TZ: Asia/Seoul
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
-    mem_limit: 1g                           # 메모리릭 방어(주기 재시작은 restart 정책이 커버)
+    mem_limit: 2g                           # 메모리릭 방어. 1g였을 때 유휴 상태에서 이미 60%(619MiB)를
+                                            # 쓰고 있어 여유가 40%뿐이었다(감사 실측) → 2g로.
     ports:
       - "${NAS_TS_IP}:4000:4000"            # Tailscale IP 전용(H1)
 
@@ -126,9 +127,9 @@ services:
     build: ./trading
     image: agent-backbone-trading:local     # trading과 동일 이미지(빌드 1회 → 두 서비스 동일 코드)
     profiles: ["trading"]                   # 명시 기동만: docker compose --profile trading up -d trading-loop
-    restart: unless-stopped                 # HALT는 프로세스를 죽이지 않으므로 재시작과 무관.
-                                            # 재시작 대상은 exit 3(락 경합)/5(스키마 없음)/미포착 예외 —
-                                            # 백오프로 자가치유되며, 원인은 status.json과 로그에 남는다.
+    restart: always                         # unless-stopped였을 때: 한 번 stop하면 재부팅해도 안 돌아오고
+                                            # ab-boot-up.sh도 profile 밖이라 못 살렸다(감사 적발) → always로.
+                                            # HALT는 프로세스를 죽이지 않으므로 재시작 정책과 무관하다.
     stop_grace_period: 60s                  # 브로커 제출 중 SIGKILL 방지(대사 대상 최소화)
     depends_on:
       postgres:
@@ -577,11 +578,13 @@ if [ -n "$TS_IP" ]; then
 fi
 
 # 3) compose up (3회 재시도)
+#    ★ --profile trading 필수: 매매 엔진(trading-loop)이 profile에 속해 있어, 이걸 빼면
+#      재부팅 후 되살아나지 않는다(감사에서 dry-run으로 적발 — 복구 계획에 아예 없었다).
 cd "$COMPOSE_DIR" || exit 1
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
 k=1
 while [ "$k" -le 3 ]; do
-  if $DC up -d; then log "compose up OK (attempt $k)"; exit 0; fi
+  if $DC --profile trading up -d; then log "compose up OK (attempt $k, profile=trading 포함)"; exit 0; fi
   log "WARN: compose up failed (attempt $k)"; k=$((k+1)); sleep 10
 done
 log "FATAL: compose up failed after 3 attempts"
@@ -1893,6 +1896,8 @@ from .guardrails import GuardrailViolation, check_kill_switch, validate_kill_swi
 from .ratelimit import TokenBucket
 
 ADVISORY_LOCK_KEY = 0x7472616465  # 'trade'
+# 주의: 이 서비스는 compose profile 'trading'에 속한다. 부팅 복구 스크립트(ab-boot-up.sh)가
+#       `--profile trading`을 주지 않으면 재부팅 후 **되살아나지 않는다**(2026-07-26 감사에서 적발).
 STATUS_PATH = os.environ.get("TRADE_STATUS_FILE", "/data/status.json")
 HEARTBEAT_MIN_INTERVAL = 60.0     # 매매 핫패스에서 매 사이클 동기 HTTP는 지연 위험 → 스로틀
 _stop = False

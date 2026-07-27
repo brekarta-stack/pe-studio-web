@@ -67,7 +67,8 @@ services:
       TZ: Asia/Seoul
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
-    mem_limit: 1g                           # 메모리릭 방어(주기 재시작은 restart 정책이 커버)
+    mem_limit: 2g                           # 메모리릭 방어. 1g였을 때 유휴 상태에서 이미 60%(619MiB)를
+                                            # 쓰고 있어 여유가 40%뿐이었다(감사 실측) → 2g로.
     ports:
       - "${NAS_TS_IP}:4000:4000"            # Tailscale IP 전용(H1)
 
@@ -110,9 +111,9 @@ services:
     build: ./trading
     image: agent-backbone-trading:local     # trading과 동일 이미지(빌드 1회 → 두 서비스 동일 코드)
     profiles: ["trading"]                   # 명시 기동만: docker compose --profile trading up -d trading-loop
-    restart: unless-stopped                 # HALT는 프로세스를 죽이지 않으므로 재시작과 무관.
-                                            # 재시작 대상은 exit 3(락 경합)/5(스키마 없음)/미포착 예외 —
-                                            # 백오프로 자가치유되며, 원인은 status.json과 로그에 남는다.
+    restart: always                         # unless-stopped였을 때: 한 번 stop하면 재부팅해도 안 돌아오고
+                                            # ab-boot-up.sh도 profile 밖이라 못 살렸다(감사 적발) → always로.
+                                            # HALT는 프로세스를 죽이지 않으므로 재시작 정책과 무관하다.
     stop_grace_period: 60s                  # 브로커 제출 중 SIGKILL 방지(대사 대상 최소화)
     depends_on:
       postgres:
