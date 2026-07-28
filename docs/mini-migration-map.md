@@ -88,13 +88,41 @@
 `agent-review`가 지금도 매일 04:00에 정상 발송 중임을 실측 확인했다 — 지도가 "검증된 자산"이라 한 판단이 맞다.
 **미니 제거 전에 반드시 이식해야 하는 1순위**는 이것이다.
 
+### ✅ 4단계 일부 완료 (2026-07-28) — `bd-daily` 선별 이관 + 18일짜리 사망 복구
+
+**지도의 전제가 틀렸다.** `bd-daily`는 "수집 노드"가 아니라 Claude Code 에이전트를 부르는
+파이프라인이다(웹 리서치 → 기관 심층분석 → 사례 매칭 → 8섹션 제안서 → 슬랙 검토 발행).
+n8n으로 재구축하면 웹 리서치와 사례 매칭 능력을 잃는다 — 그게 이 자산의 실제 가치다.
+
+**그리고 이미 죽어 있었다.** 마지막 성공 제안서가 2026-07-10, 미니의 claude CLI가
+2026-07-11에 갱신됐고, 그 뒤 18일간 매일 돌면서 `WebSearch`/`Write` 권한 거부로 산출 0건이었다.
+`--print`(비대화형)에서는 프로젝트 `settings.json`의 `permissions.allow`가 적용되지 않는다.
+에이전트가 "추측 금지" 원칙대로 지어내는 대신 정직하게 멈춘 탓에 **실패가 정상 종료로 보였다.**
+
+- 이관: `~/agents` 5.1GB 중 제안서 서브시스템 **약 140MB만** → Studio `~/agents-bd`.
+  채널 에이전트 50종·대시보드·큐는 C-1 폐기 대상이라 안 가져왔다.
+- 수정: `bin/ask`의 claude 호출에 `--permission-mode acceptEdits` + `--allowed-tools` 명시.
+  `--dangerously-skip-permissions`는 Bash·삭제까지 열리므로 쓰지 않았다.
+- 검증: launchd 환경에서 실제 웹 리서치 성공(고양시청 신임 시장 2026-07-01 취임 등
+  학습 데이터로는 알 수 없는 사실을 찾아냄) → 유효한 8섹션 제안서 1건 산출.
+- 검증 후 미니 `bd-daily` OFF. Studio `com.agent.bd-daily` 매일 09:30.
+- 상세: `deploy/studio/bd/README.md`
+
+> ⚠️ **미니에 남은 헤드리스 에이전트 잡 전부에 같은 함정이 있다.**
+> `sns-daily`·`learning-*`·`council-*`·`agent-review` 모두 `claude --print`를 쓴다면
+> 지금 이 순간에도 조용히 0건을 내고 있을 수 있다. 이관 시 이 플래그부터 확인할 것.
+
+**부수 발견**: `machines.json`의 `ultra.standby=true` 때문에 2026-06-11부터 모든 ultra(Studio)
+작업이 미니 로컬로 강등돼 있었다(`logs/system/ask-ultra-fallback.log`). 24GB 미니가 96GB
+Studio 몫을 대신 돌고 있었다. 이관으로 제자리를 찾았다.
+
 ## 이관 순서 (권장)
 
 1. ~~관제 잡 OFF~~ ✅ 완료(위 참조)
 2. 마이크 이동 → `voicebridge` OFF ⏸ **사용자 물리 작업 대기**(USB 마이크를 Studio로)
 3. ~~Slack 연결 → `morning-brief` OFF~~ ✅ 완료 · 죽은 잡 5종 OFF ·
    남은 것: `proactive-nudge`(돌고 있음 — 대체 필요), Google Calendar OAuth 연결
-4. 수집 노드 교체 → `bd-daily`·`sns-daily` OFF
+4. ~~수집 노드 교체 → `bd-daily` OFF~~ ✅ 완료(아래 4단계 참조) · 남은 것: `sns-daily`
 5. 학습 워크플로 작성 → `learning-*` OFF
 6. 자기점검 축소 이식 → `agent-*`·`qc-eval` OFF
 7. KIS 연결 → `invest-*` OFF

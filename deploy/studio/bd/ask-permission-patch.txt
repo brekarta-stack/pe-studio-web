@@ -1,0 +1,15 @@
+    # engine == "claude"
+    # ⚠️ 2026-07-28 수정 — 이게 없으면 헤드리스 에이전트가 아무 일도 못 한다.
+    #   증상: WebSearch/WebFetch/Write 전부 "권한이 승인되지 않았습니다"로 거부.
+    #   시점: 미니의 마지막 성공 제안서가 2026-07-10, claude CLI가 2026-07-11에 2.1.206으로
+    #        갱신됐다. 그 뒤 18일간 bd-daily는 매일 돌면서 산출물 0건이었고 아무도 몰랐다.
+    #   원인: --print(비대화형)에서는 프로젝트 `.claude/settings.json`의 permissions.allow가
+    #        그대로 적용되지 않는다. 대화형이면 프롬프트가 뜨지만 헤드리스는 그냥 거부된다.
+    #   대응: 허용 도구를 **명령줄에서 명시**한다. settings.json의 allow 목록과 같은 범위이며,
+    #        --dangerously-skip-permissions 같은 전면 우회는 쓰지 않는다(Bash·삭제까지 열린다).
+    cmd = ["claude", "--print", "--output-format", "text",
+           "--mcp-config", str(ROOT / ".mcp.json"),
+           "--permission-mode", "acceptEdits",
+           "--allowed-tools",
+           "Read", "Glob", "Grep", "TodoWrite", "Task", "WebSearch", "WebFetch",
+           "Write", "Edit", "NotebookEdit"]
