@@ -18,7 +18,9 @@ export default async function AdminQuotesPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
-  const quotes: QuoteSubmission[] = error ? [] : (data ?? []).map(quoteFromRow);
+  // Drop(제외) 처리된 문의는 목록에서 빼고 운영 > Drop 에서만 본다.
+  const allQuotes: QuoteSubmission[] = error ? [] : (data ?? []).map(quoteFromRow);
+  const quotes = allQuotes.filter((q) => !q.droppedAt);
 
   /* 아티스트 목록 + 배정 현황.
      assignments 테이블이 아직 없으면 listAssignments 가 빈 배열로 폴백하므로,

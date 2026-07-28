@@ -70,3 +70,42 @@ export async function assignArtist(quoteId: string, artistId: string): Promise<A
     return fail(e);
   }
 }
+
+/**
+ * Drop(제외) 처리 — 제작 문의 목록에서 빼고 운영 > Drop 으로 보낸다.
+ * dropped_at 에 현재 시각을 찍는다. 배정/단계는 건드리지 않아 복구 시 그대로 살아난다.
+ */
+export async function dropQuote(id: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const { error } = await supabaseAdmin
+      .from("quotes")
+      .update({ dropped_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+    revalidatePath("/admin/quotes");
+    revalidatePath("/admin/drops");
+    revalidatePath("/admin/works");
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Drop 복구 — dropped_at 을 비워 제작 문의 목록으로 되돌린다 */
+export async function restoreQuote(id: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const { error } = await supabaseAdmin
+      .from("quotes")
+      .update({ dropped_at: null })
+      .eq("id", id);
+    if (error) throw error;
+    revalidatePath("/admin/quotes");
+    revalidatePath("/admin/drops");
+    revalidatePath("/admin/works");
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}

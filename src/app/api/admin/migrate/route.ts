@@ -30,6 +30,7 @@ const ALLOWED_FILES = new Set([
   "migrations/20260607_artists.sql",
   "migrations/20260707_studio_reviews.sql",
   "migrations/20260728_quote_pipeline.sql",
+  "migrations/20260729_quote_dropped.sql",
 ]);
 
 const SQL_DIR = "supabase";

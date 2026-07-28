@@ -52,6 +52,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260728_quote_pipeline.sql",
     note: "quotes.in_progress / quotes.stage (진행 여부·단계)",
   },
+  {
+    table: "quotes",
+    column: "dropped_at",
+    sql: "migrations/20260729_quote_dropped.sql",
+    note: "quotes.dropped_at (Drop 제외 처리)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

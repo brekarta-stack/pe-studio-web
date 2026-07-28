@@ -322,6 +322,7 @@ export async function POST(request: Request) {
     acquisition:  data.acquisition ?? null,
     inProgress:   false,
     stage:        "new",
+    droppedAt:    null,
     createdAt:    new Date().toISOString(),
   };
 

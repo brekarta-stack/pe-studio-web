@@ -25,7 +25,10 @@ import {
   CUSTOM_DESIGN_LABELS,
   label,
 } from "@/lib/quote-labels";
-import { setQuoteProgress, setQuoteStage, assignArtist } from "@/app/admin/quotes/actions";
+import { setQuoteProgress, setQuoteStage, assignArtist, dropQuote } from "@/app/admin/quotes/actions";
+
+/** 담당 아티스트 셀렉트의 특수 선택지 값 — 아티스트가 아니라 Drop(제외) 동작 */
+const DROP_VALUE = "__drop__";
 
 export interface ArtistOption {
   id: string;
@@ -191,10 +194,45 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
   };
 
+  /* Drop(제외) — 목록에서 즉시 감추고(낙관적) 서버에 dropped_at 을 찍는다. 실패 시 복원 */
+  const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set());
+
+  const onDrop = (q: QuoteSubmission) => {
+    if (
+      !window.confirm(
+        `'${q.name || "이 문의"}'를 Drop 처리할까요?\n제작 문의 목록에서 빠지고, 운영 > Drop 에서 볼 수 있습니다. (복구 가능)`,
+      )
+    )
+      return;
+    setDroppedIds((s) => new Set(s).add(q.id));
+    setError(null);
+    startTransition(async () => {
+      const res = await dropQuote(q.id);
+      if (!res.ok) {
+        setDroppedIds((s) => {
+          const n = new Set(s);
+          n.delete(q.id);
+          return n;
+        });
+        setError(res.error);
+      }
+    });
+  };
+
+  /** 담당 아티스트 셀렉트 변경 — 특수값이면 Drop, 아니면 배정 */
+  const onArtistSelect = (q: QuoteSubmission, value: string) => {
+    if (value === DROP_VALUE) {
+      onDrop(q);
+      return;
+    }
+    onChangeArtist(q, value);
+  };
+
   /* ── 필터링 ── */
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return quotes.filter((row) => {
+      if (droppedIds.has(row.id)) return false; // Drop 낙관적 제거
       if (stageFilter !== "all" && curStage(row) !== stageFilter) return false;
       if (progressFilter === "on" && !curProgress(row)) return false;
       if (progressFilter === "off" && curProgress(row)) return false;
@@ -208,7 +246,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
     // curStage/curProgress 는 오버레이 state 에 의존하므로 함께 재계산되어야 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quotes, search, stageFilter, progressFilter, stageOv, progressOv]);
+  }, [quotes, search, stageFilter, progressFilter, stageOv, progressOv, droppedIds]);
 
   const visible = COLUMNS.filter((c) => !hidden.has(c.key));
 
@@ -402,7 +440,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               <td key={c.key} className={td} onClick={(e) => e.stopPropagation()}>
                                 <select
                                   value={curArtistId(q)}
-                                  onChange={(e) => onChangeArtist(q, e.target.value)}
+                                  onChange={(e) => onArtistSelect(q, e.target.value)}
                                   disabled={!assignmentsReady}
                                   aria-label={`${q.name} 담당 아티스트`}
                                   className="w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
@@ -411,6 +449,8 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                   {artists.map((a) => (
                                     <option key={a.id} value={a.id}>{a.name}</option>
                                   ))}
+                                  <option disabled>──────────</option>
+                                  <option value={DROP_VALUE}>⛔ Drop (목록에서 제외)</option>
                                 </select>
                                 {extra > 0 && (
                                   <span className="mt-1 block text-[11px] text-slate-400">외 {extra}명</span>

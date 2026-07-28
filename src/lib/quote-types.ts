@@ -47,6 +47,8 @@ export interface QuoteSubmission {
   inProgress: boolean;
   /** 진행 단계 — QUOTE_STAGES 참고 (마이그레이션 20260728) */
   stage: QuoteStage;
+  /** Drop(제외) 처리 시각 (ISO). null 이면 활성 문의 (마이그레이션 20260729) */
+  droppedAt: string | null;
   createdAt: string;
 }
 
@@ -83,6 +85,7 @@ export function quoteFromRow(r: any): QuoteSubmission {
     acquisition:  r.acquisition ?? null,
     inProgress:   !!r.in_progress,
     stage:        isQuoteStage(r.stage) ? r.stage : "new",
+    droppedAt:    r.dropped_at ?? null,
     createdAt:    r.created_at,
   };
 }
