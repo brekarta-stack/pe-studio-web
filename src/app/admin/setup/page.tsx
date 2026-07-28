@@ -7,11 +7,52 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import Link from "next/link";
 import { readFileSync } from "fs";
 import path from "path";
+import MigrateButton from "@/components/admin/MigrateButton";
 
-const TABLES = ["portfolio_items", "posts", "quotes", "analytics_events", "studio_reviews"] as const;
+const TABLES = [
+  "portfolio_items",
+  "posts",
+  "quotes",
+  "analytics_events",
+  "studio_reviews",
+  "artists",
+  "assignments",
+] as const;
+
+type TableName = (typeof TABLES)[number];
 
 // studio_reviews 는 id 컬럼이 없고 skey 가 PK → 테이블별 존재 확인용 컬럼 매핑
 const PROBE_COL: Record<string, string> = { studio_reviews: "skey" };
+
+/**
+ * 테이블 → 그 테이블을 만드는 SQL 파일 (supabase/ 기준 상대경로).
+ * 누락된 것만 골라 실행하므로, 이미 있는 테이블의 SQL 을 다시 돌리지 않는다.
+ * (모든 구문이 IF NOT EXISTS 라 재실행 자체는 안전하다)
+ *
+ * 경로를 supabase/ 아래로 고정하는 이유는 /api/admin/migrate 와 같다 —
+ * process.cwd() 를 그대로 join 하면 Next 가 프로젝트 전체를 트레이싱한다.
+ */
+const SQL_DIR = "supabase";
+
+const TABLE_SQL: Record<TableName, string> = {
+  portfolio_items:  "schema.sql",
+  posts:            "schema.sql",
+  quotes:           "schema.sql",
+  analytics_events: "schema.sql",
+  studio_reviews:   "migrations/20260707_studio_reviews.sql",
+  artists:          "migrations/20260607_artists.sql",
+  assignments:      "migrations/20260728_quote_pipeline.sql",
+};
+
+/** 테이블은 있는데 나중에 추가된 컬럼만 없는 경우 — 컬럼 단위로도 확인한다 */
+const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: string }[] = [
+  {
+    table: "quotes",
+    column: "in_progress",
+    sql: "migrations/20260728_quote_pipeline.sql",
+    note: "quotes.in_progress / quotes.stage (진행 여부·단계)",
+  },
+];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {
   try {
@@ -22,12 +63,25 @@ async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {
       error.message.includes("does not exist") ||
       error.message.includes("schema cache") ||
       error.code === "PGRST204" ||
+      error.code === "PGRST205" ||
       error.code === "42P01"
     )
       return "missing";
     return "error";
   } catch {
     return "error";
+  }
+}
+
+/** 컬럼 존재 확인 — 테이블이 없으면 판단 불가(null) */
+async function checkColumn(table: string, column: string): Promise<boolean | null> {
+  try {
+    const { error } = await supabaseAdmin.from(table).select(column).limit(1);
+    if (!error) return true;
+    if (error.message.includes("does not exist") || error.message.includes("schema cache")) return false;
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -39,21 +93,37 @@ export default async function SetupPage() {
     TABLES.map(async (t) => ({ name: t, status: await checkTable(t) }))
   );
 
-  const allOk = results.every((r) => r.status === "ok");
+  const statusOf = new Map(results.map((r) => [r.name, r.status]));
   const missing = results.filter((r) => r.status === "missing").map((r) => r.name);
 
-  // 누락 테이블에 맞는 SQL 만 보여준다 — studio_reviews 만 없으면 그 마이그레이션만,
-  // 그 외가 섞여 있으면 전체 schema.sql(모든 구문이 IF NOT EXISTS 라 재실행 안전).
-  const onlyStudioReviews = missing.length > 0 && missing.every((n) => n === "studio_reviews");
-  const sqlFile = onlyStudioReviews
-    ? path.join("supabase", "migrations", "20260707_studio_reviews.sql")
-    : path.join("supabase", "schema.sql");
-  let sql = "";
-  try {
-    sql = readFileSync(path.join(process.cwd(), sqlFile), "utf-8");
-  } catch {
-    sql = `-- ${sqlFile} 파일을 읽을 수 없습니다.`;
+  // 테이블은 있는데 컬럼만 없는 경우도 "적용 필요"로 잡는다
+  const missingColumns: typeof COLUMN_CHECKS = [];
+  for (const c of COLUMN_CHECKS) {
+    if (statusOf.get(c.table) !== "ok") continue;
+    if ((await checkColumn(c.table, c.column)) === false) missingColumns.push(c);
   }
+
+  const allOk = missing.length === 0 && missingColumns.length === 0 &&
+    results.every((r) => r.status === "ok");
+
+  /* 실행해야 할 SQL 파일 (중복 제거, 정의 순서 유지) */
+  const files = [
+    ...new Set([
+      ...missing.map((n) => TABLE_SQL[n]),
+      ...missingColumns.map((c) => c.sql),
+    ]),
+  ];
+
+  const sqlByFile = files.map((f) => {
+    try {
+      return { file: f, sql: readFileSync(path.join(process.cwd(), SQL_DIR, f), "utf-8") };
+    } catch {
+      return { file: f, sql: `-- ${SQL_DIR}/${f} 파일을 읽을 수 없습니다.` };
+    }
+  });
+  const combinedSql = sqlByFile
+    .map((s) => `-- ═══ ${SQL_DIR}/${s.file} ═══\n${s.sql}`)
+    .join("\n\n");
 
   const statusLabel = (s: string) => {
     if (s === "ok")      return { text: "✅ 정상", cls: "text-green-600 bg-green-50 border-green-200" };
@@ -84,6 +154,17 @@ export default async function SetupPage() {
             );
           })}
         </div>
+
+        {missingColumns.length > 0 && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            테이블은 있지만 아래 컬럼이 없습니다 — 마이그레이션이 필요합니다.
+            <ul className="mt-1 ml-4 list-disc text-xs">
+              {missingColumns.map((c) => (
+                <li key={`${c.table}.${c.column}`}><code className="font-mono">{c.note}</code></li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {allOk ? (
@@ -97,31 +178,32 @@ export default async function SetupPage() {
       ) : (
         <>
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
-            <p className="font-bold text-amber-800 mb-1">
-              ❌ 없음: {missing.map((n) => <code key={n} className="font-mono">{n} </code>)}
-              — 아래 SQL 로 생성하세요 (딱 이 테이블용 SQL 만 표시)
+            <p className="font-bold text-amber-800 mb-1">적용이 필요한 마이그레이션</p>
+            <ul className="text-sm text-amber-700 ml-4 list-disc space-y-0.5">
+              {sqlByFile.map((s) => (
+                <li key={s.file}><code className="font-mono text-xs">{SQL_DIR}/{s.file}</code></li>
+              ))}
+            </ul>
+            <p className="mt-3 text-sm text-amber-700">
+              아래 <strong>마이그레이션 실행</strong> 버튼으로 바로 적용할 수 있습니다.
+              환경변수 <code className="font-mono text-xs">SUPABASE_ACCESS_TOKEN</code> 이 없으면
+              자동 실행이 불가하니, <strong>SQL 복사</strong> 후 Supabase SQL Editor 에 붙여넣어 실행하세요.
+              (모든 구문이 <code className="font-mono text-xs">IF NOT EXISTS</code> 라 여러 번 실행해도 안전합니다)
             </p>
-            <ol className="text-sm text-amber-700 list-decimal ml-4 space-y-0.5">
-              <li>
-                <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer"
-                   className="underline font-semibold">Supabase 대시보드</a>
-                에서 <strong>이 사이트의 프로젝트</strong>를 선택
-              </li>
-              <li>왼쪽 메뉴 <strong>SQL Editor</strong> → <strong>New query</strong></li>
-              <li>아래 SQL 전체를 복사해 붙여넣고 <strong>Run</strong> (모든 구문이
-                  IF NOT EXISTS 라 여러 번 실행해도 안전합니다)</li>
-              <li>이 페이지를 새로고침 → ✅ 정상 확인</li>
-            </ol>
           </div>
+
+          <MigrateButton files={files} sql={combinedSql} />
 
           {/* SQL 코드 블록 */}
           <div className="bg-slate-900 rounded-2xl overflow-hidden mb-6">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-              <span className="text-xs text-slate-400 font-mono">{sqlFile.replaceAll("\\", "/")}</span>
+              <span className="text-xs text-slate-400 font-mono">
+                {sqlByFile.map((s) => `${SQL_DIR}/${s.file}`).join(", ")}
+              </span>
               <span className="text-xs text-slate-500">복사하여 Supabase SQL Editor에 붙여넣기</span>
             </div>
-            <pre className="p-4 text-xs text-green-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">
-              {sql}
+            <pre className="p-4 text-xs text-green-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[32rem]">
+              {combinedSql}
             </pre>
           </div>
 

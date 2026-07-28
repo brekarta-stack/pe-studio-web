@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { Resend } from "resend";
-import type { QuoteSubmission } from "@/lib/quote-types";
+import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
@@ -320,6 +320,8 @@ export async function POST(request: Request) {
     rushed:       data.rushed,
     packaging:    data.packaging,
     acquisition:  data.acquisition ?? null,
+    inProgress:   false,
+    stage:        "new",
     createdAt:    new Date().toISOString(),
   };
 
@@ -407,30 +409,7 @@ export async function GET() {
     return NextResponse.json({ error: "데이터를 불러오지 못했습니다." }, { status: 500 });
   }
 
-  const submissions: QuoteSubmission[] = (data ?? []).map((r) => ({
-    id:           r.id,
-    product:      r.product,
-    quantity:     r.quantity,
-    deliveryDate: r.delivery_date,
-    purpose:      r.purpose,
-    customDesign: r.custom_design,
-    styleType:    r.style_type ?? "",
-    productText:  r.product_text ?? "",
-    colorRequest: r.color_request,
-    notes:        r.notes,
-    name:         r.name,
-    email:        r.email,
-    phone:        r.phone,
-    fileName:     r.file_name,
-    fileUrl:      r.file_url ?? "",
-    logoFileName: r.logo_file_name ?? "",
-    logoFileUrl:  r.logo_file_url ?? "",
-    sampling:     !!r.sampling,
-    rushed:       !!r.rushed,
-    packaging:    r.packaging ?? "",
-    acquisition:  r.acquisition ?? null,
-    createdAt:    r.created_at,
-  }));
+  const submissions: QuoteSubmission[] = (data ?? []).map(quoteFromRow);
 
   return NextResponse.json(submissions);
 }

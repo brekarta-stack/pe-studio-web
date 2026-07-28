@@ -33,7 +33,8 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "콘텐츠",
+    // 수주 파이프라인 — 리드가 들어와서 아티스트에게 배정되고 납품·정산되기까지
+    label: "운영",
     items: [
       {
         href: "/admin/quotes",
@@ -45,6 +46,21 @@ const NAV_GROUPS = [
           </svg>
         ),
       },
+      {
+        href: "/admin/works",
+        exact: false,
+        label: "작업 관리",
+        icon: (
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zM4 8v8h12V8H4zm2.7 3.3a1 1 0 011.4 0l.9.9 2.9-2.9a1 1 0 111.4 1.4l-3.6 3.6a1 1 0 01-1.4 0l-1.6-1.6a1 1 0 010-1.4z" clipRule="evenodd" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    label: "콘텐츠",
+    items: [
       {
         href: "/admin/portfolio",
         exact: false,

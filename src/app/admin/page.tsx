@@ -5,7 +5,7 @@ import { getPosts } from "@/lib/blog";
 import { getItems } from "@/lib/portfolio";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import Link from "next/link";
-import type { QuoteSubmission } from "@/lib/quote-types";
+import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { getReviewMap, mergeItems, computeStats, pickTodayTarget } from "@/lib/studio-review";
 
 const PRODUCT_LABELS: Record<string, string> = {
@@ -42,29 +42,7 @@ export default async function AdminDashboard() {
 
   const publishedPosts      = posts.filter((p) => p.published);
   const publishedPortfolio  = portfolioItems.filter((i) => i.published);
-  const recentQuotes: QuoteSubmission[] = (quotesResult.data ?? []).map((r) => ({
-    id: r.id,
-    product: r.product,
-    quantity: r.quantity,
-    deliveryDate: r.delivery_date,
-    purpose: r.purpose,
-    customDesign: r.custom_design,
-    styleType:    r.style_type ?? "",
-    productText:  r.product_text ?? "",
-    colorRequest: r.color_request,
-    notes: r.notes,
-    name: r.name,
-    email: r.email,
-    phone: r.phone,
-    fileName: r.file_name,
-    fileUrl: r.file_url ?? "",
-    logoFileName: r.logo_file_name ?? "",
-    logoFileUrl: r.logo_file_url ?? "",
-    sampling:     !!r.sampling,
-    rushed:       !!r.rushed,
-    packaging:    r.packaging ?? "",
-    createdAt: r.created_at,
-  }));
+  const recentQuotes: QuoteSubmission[] = (quotesResult.data ?? []).map(quoteFromRow);
 
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "short",

@@ -59,9 +59,22 @@ CREATE TABLE IF NOT EXISTS quotes (
   email         TEXT NOT NULL DEFAULT '',
   phone         TEXT NOT NULL DEFAULT '',
   file_name     TEXT,
+  file_url      TEXT,                                   -- 참고자료 공개 URL (마이그레이션 20260710)
+  logo_file_name TEXT,                                  -- 회사 로고 (마이그레이션 20260604)
+  logo_file_url  TEXT,                                  -- 회사 로고 공개 URL (마이그레이션 20260710)
+  style_type    TEXT,                                   -- 디자인 스타일 (마이그레이션 20260604)
+  product_text  TEXT,                                   -- 제품 삽입 문구 (마이그레이션 20260604)
+  sampling      BOOLEAN NOT NULL DEFAULT FALSE,         -- 샘플링 희망 (마이그레이션 20260605)
+  rushed        BOOLEAN NOT NULL DEFAULT FALSE,         -- 최대한 빠르게 (마이그레이션 20260605)
+  packaging     TEXT,                                   -- 포장 방식 (마이그레이션 20260605)
   acquisition   JSONB,                                  -- 광고 유입정보 {gclid,utm…} (마이그레이션 20260609)
+  in_progress   BOOLEAN NOT NULL DEFAULT FALSE,         -- 진행 여부 체크 (마이그레이션 20260728)
+  stage         TEXT NOT NULL DEFAULT 'new',            -- 진행 단계 (마이그레이션 20260728)
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS quotes_stage_idx       ON quotes (stage);
+CREATE INDEX IF NOT EXISTS quotes_in_progress_idx ON quotes (in_progress);
 
 -- 4. 유입·클릭 분석 이벤트
 --    (외부 GA 없이 자체 수집 → /admin/analytics. IP·UA·쿠키 미사용)
@@ -137,3 +150,61 @@ CREATE INDEX IF NOT EXISTS studio_reviews_reviewed_at_idx ON studio_reviews (rev
 
 ALTER TABLE studio_reviews ENABLE ROW LEVEL SECURITY;
 -- studio_reviews: anon 접근 전면 차단 — 모든 접근은 service_role(어드민) 경유
+
+-- ============================================================
+-- assignments — 리드(quote) ↔ 아티스트 업무 배정 (2026-07-28)
+-- /admin/works 에서 진행률·작업비·납기·지급상태를 관리한다.
+-- 한 리드에 아티스트가 둘 이상 붙을 수 있어 별도 테이블로 둔다.
+-- 상세 주석: supabase/migrations/20260728_quote_pipeline.sql
+-- ============================================================
+CREATE TABLE IF NOT EXISTS assignments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id      UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  artist_id     TEXT NOT NULL,   -- artists.id (FK 는 아래 DO 블록에서 조건부)
+  status        TEXT    NOT NULL DEFAULT 'assigned',  -- assigned|working|review|done|cancelled
+  progress      INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+  artist_fee    BIGINT,          -- 아티스트 작업비 (원, 원가)
+  client_amount BIGINT,          -- 고객 청구금액 (원, 매출)
+  payout_status TEXT NOT NULL DEFAULT 'unpaid',       -- unpaid|partial|paid
+  paid_at       TIMESTAMPTZ,
+  due_date      DATE,
+  started_at    DATE,
+  memo          TEXT NOT NULL DEFAULT '',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS assignments_quote_idx  ON assignments (quote_id);
+CREATE INDEX IF NOT EXISTS assignments_artist_idx ON assignments (artist_id);
+CREATE INDEX IF NOT EXISTS assignments_due_idx    ON assignments (due_date);
+CREATE UNIQUE INDEX IF NOT EXISTS assignments_quote_artist_unique
+  ON assignments (quote_id, artist_id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_name = 'artists')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints
+                     WHERE constraint_schema = 'public'
+                       AND constraint_name = 'assignments_artist_id_fkey')
+  THEN
+    ALTER TABLE assignments
+      ADD CONSTRAINT assignments_artist_id_fkey
+      FOREIGN KEY (artist_id) REFERENCES artists (id) ON DELETE RESTRICT;
+  END IF;
+END $$;
+
+ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+-- assignments: anon 접근 전면 차단 — 모든 접근은 service_role(어드민) 경유
+
+CREATE OR REPLACE FUNCTION set_assignments_updated_at() RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS assignments_set_updated_at ON assignments;
+CREATE TRIGGER assignments_set_updated_at
+  BEFORE UPDATE ON assignments
+  FOR EACH ROW EXECUTE FUNCTION set_assignments_updated_at();
