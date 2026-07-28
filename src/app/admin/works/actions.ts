@@ -17,6 +17,7 @@ import {
 import {
   derivePayoutStatus,
   isAssignmentStatus,
+  isFeeTaxMode,
   type AssignmentInput,
 } from "@/lib/assignment-types";
 
@@ -45,6 +46,8 @@ export async function createWork(input: {
   artistFee: number | null;
   clientAmount: number | null;
   depositAmount: number | null;
+  feeTaxMode: string;
+  clientVat: boolean;
   dueDate: string | null;
   memo: string;
 }): Promise<ActionResult> {
@@ -67,6 +70,8 @@ export async function createWork(input: {
       progress: 0,
       artistFee: input.artistFee,
       clientAmount: input.clientAmount,
+      feeTaxMode: isFeeTaxMode(input.feeTaxMode) ? input.feeTaxMode : "none",
+      clientVat: !!input.clientVat,
       depositAmount: input.depositAmount,
       depositPaidAt: null,
       balancePaidAt: null,
@@ -98,6 +103,8 @@ export async function updateWork(
     progress?: number;
     artistFee?: number | null;
     clientAmount?: number | null;
+    feeTaxMode?: string;
+    clientVat?: boolean;
     depositAmount?: number | null;
     depositPaidAt?: string | null;
     balancePaidAt?: string | null;
@@ -121,6 +128,11 @@ export async function updateWork(
     }
     if (patch.artistFee !== undefined) next.artistFee = patch.artistFee;
     if (patch.clientAmount !== undefined) next.clientAmount = patch.clientAmount;
+    if (patch.feeTaxMode !== undefined) {
+      if (!isFeeTaxMode(patch.feeTaxMode)) throw new Error(`알 수 없는 세금 처리입니다: ${patch.feeTaxMode}`);
+      next.feeTaxMode = patch.feeTaxMode;
+    }
+    if (patch.clientVat !== undefined) next.clientVat = !!patch.clientVat;
     if (patch.depositAmount !== undefined) next.depositAmount = patch.depositAmount;
     if (patch.depositPaidAt !== undefined) next.depositPaidAt = patch.depositPaidAt || null;
     if (patch.balancePaidAt !== undefined) next.balancePaidAt = patch.balancePaidAt || null;

@@ -70,6 +70,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260731_work_billing.sql",
     note: "assignments.deposit_amount / paid_at (선금·잔금 지급)",
   },
+  {
+    table: "assignments",
+    column: "fee_tax_mode",
+    sql: "migrations/20260801_work_tax_mode.sql",
+    note: "assignments.fee_tax_mode / client_vat (부가세·원천징수)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

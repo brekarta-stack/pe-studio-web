@@ -25,6 +25,10 @@ import {
   paidFee,
   unpaidFee,
   derivePayoutStatus,
+  feeNetOf,
+  feeTaxAmountOf,
+  withholdingOf,
+  isFeeTaxMode,
 } from "../src/lib/assignment-types.ts";
 
 /** 테스트 기준일 — 로컬 자정 (실제 실행 시각의 영향을 받지 않게 고정) */
@@ -117,6 +121,47 @@ test("vatOf / withVat — 공급가액의 10%, 원 미만은 절사", () => {
   assert.equal(vatOf(0), 0);
   assert.equal(vatOf(null), null, "미입력은 계산하지 않는다");
   assert.equal(withVat(null), null);
+});
+
+/* ── 작업비 세금 처리 (켠 경우에만 계산) ── */
+
+test("feeNetOf — 세금 없음이 기본, 금액을 건드리지 않는다", () => {
+  assert.equal(feeNetOf(2_000_000, "none"), 2_000_000);
+  assert.equal(feeTaxAmountOf(2_000_000, "none"), 0);
+  assert.equal(feeNetOf(null, "none"), null);
+});
+
+test("feeNetOf — 사업자(vat)는 부가세를 더해 지급", () => {
+  assert.equal(feeNetOf(2_000_000, "vat"), 2_200_000);
+  assert.equal(feeTaxAmountOf(2_000_000, "vat"), 200_000, "가산은 +");
+});
+
+test("feeNetOf — 프리랜서(withholding)는 3.3% 를 떼고 지급", () => {
+  // 문재호 같은 프리랜서: 2,000,000 × 3.3% = 66,000 원천징수 → 1,934,000 입금
+  assert.equal(withholdingOf(2_000_000), 66_000);
+  assert.equal(feeNetOf(2_000_000, "withholding"), 1_934_000);
+  assert.equal(feeTaxAmountOf(2_000_000, "withholding"), -66_000, "공제는 −");
+});
+
+test("withholdingOf — 원 미만은 절사", () => {
+  assert.equal(withholdingOf(1_000_000), 33_000);
+  assert.equal(withholdingOf(1_234_567), 40_740, "40,740.7 → 절사");
+  assert.equal(withholdingOf(null), null);
+});
+
+test("isFeeTaxMode — 알 수 없는 값을 거른다", () => {
+  assert.equal(isFeeTaxMode("withholding"), true);
+  assert.equal(isFeeTaxMode("vat"), true);
+  assert.equal(isFeeTaxMode("none"), true);
+  assert.equal(isFeeTaxMode("3.3"), false);
+  assert.equal(isFeeTaxMode(null), false);
+});
+
+test("마진은 세전 작업비 기준 — 원천징수분도 결국 내가 납부한다", () => {
+  // 실지급이 1,934,000 이어도 3.3% 는 내가 세무서에 내므로 비용은 2,000,000 전액
+  const m = margin({ artistFee: 2_000_000, clientAmount: 3_850_000 });
+  assert.equal(m, 1_850_000);
+  assert.notEqual(m, 3_850_000 - feeNetOf(2_000_000, "withholding"));
 });
 
 /* ── 선금 / 잔금 ── */

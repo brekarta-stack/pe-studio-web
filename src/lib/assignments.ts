@@ -14,6 +14,7 @@ import { getAllArtists } from "./artists";
 import type { Assignment, AssignmentInput, AssignmentView } from "./assignment-types";
 import {
   isAssignmentStatus,
+  isFeeTaxMode,
   isPayoutStatus,
   isQuoteStage,
 } from "./assignment-types";
@@ -42,6 +43,8 @@ function toAssignment(row: any): Assignment {
     progress: typeof row.progress === "number" ? row.progress : 0,
     artistFee: row.artist_fee == null ? null : Number(row.artist_fee),
     clientAmount: row.client_amount == null ? null : Number(row.client_amount),
+    feeTaxMode: isFeeTaxMode(row.fee_tax_mode) ? row.fee_tax_mode : "none",
+    clientVat: !!row.client_vat,
     depositAmount: row.deposit_amount == null ? null : Number(row.deposit_amount),
     depositPaidAt: row.deposit_paid_at ?? null,
     balancePaidAt: row.balance_paid_at ?? null,
@@ -63,6 +66,8 @@ function toRow(input: AssignmentInput) {
     progress: input.progress,
     artist_fee: input.artistFee,
     client_amount: input.clientAmount,
+    fee_tax_mode: input.feeTaxMode,
+    client_vat: input.clientVat,
     deposit_amount: input.depositAmount,
     deposit_paid_at: input.depositPaidAt,
     balance_paid_at: input.balancePaidAt,
@@ -168,6 +173,8 @@ export async function updateAssignment(
   if (patch.progress !== undefined) row.progress = patch.progress;
   if (patch.artistFee !== undefined) row.artist_fee = patch.artistFee;
   if (patch.clientAmount !== undefined) row.client_amount = patch.clientAmount;
+  if (patch.feeTaxMode !== undefined) row.fee_tax_mode = patch.feeTaxMode;
+  if (patch.clientVat !== undefined) row.client_vat = patch.clientVat;
   if (patch.depositAmount !== undefined) row.deposit_amount = patch.depositAmount;
   if (patch.depositPaidAt !== undefined) row.deposit_paid_at = patch.depositPaidAt;
   if (patch.balancePaidAt !== undefined) row.balance_paid_at = patch.balancePaidAt;
@@ -220,6 +227,8 @@ export async function setQuoteArtist(quoteId: string, artistId: string | null): 
     progress: 0,
     artistFee: null,
     clientAmount: null,
+    feeTaxMode: "none",
+    clientVat: false,
     depositAmount: null,
     depositPaidAt: null,
     balancePaidAt: null,

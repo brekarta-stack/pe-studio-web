@@ -16,10 +16,14 @@ import {
   ASSIGNMENT_STATUS_LABELS,
   PAYOUT_STATUS_COLORS,
   PAYOUT_STATUS_LABELS,
+  FEE_TAX_MODES,
+  FEE_TAX_LABELS,
   balanceOf,
   daysUntil,
   derivePayoutStatus,
   dueUrgency,
+  feeNetOf,
+  feeTaxAmountOf,
   formatWon,
   isActive,
   margin,
@@ -28,6 +32,7 @@ import {
   withVat,
   type AssignmentStatus,
   type AssignmentView,
+  type FeeTaxMode,
 } from "@/lib/assignment-types";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
 import { createWork, updateWork, deleteWork } from "@/app/admin/works/actions";
@@ -64,14 +69,79 @@ function todayISO(): string {
   return new Date().toLocaleDateString("en-CA");
 }
 
-/** 공급가액 아래에 붙는 부가세·합계 안내 */
-function VatHint({ supply }: { supply: number | null }) {
-  if (supply == null) return <p className="mt-1 text-[11px] text-slate-300">부가세 —</p>;
+/**
+ * 매출 부가세 토글 — 켠 경우에만 10% 를 더해 청구한다.
+ * (부가세는 내 돈이 아니라 나중에 납부할 돈이라 매출·마진 집계에는 넣지 않는다)
+ */
+function VatToggle({
+  on, amount, quoteName, onToggle,
+}: {
+  on: boolean;
+  amount: number | null;
+  quoteName: string;
+  onToggle: (next: boolean) => void;
+}) {
   return (
-    <p className="mt-1 text-[11px] text-slate-400 whitespace-nowrap">
-      VAT {formatWon(vatOf(supply))} · 합계{" "}
-      <b className="text-slate-500">{formatWon(withVat(supply))}</b>
-    </p>
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => onToggle(!on)}
+        aria-pressed={on}
+        aria-label={`${quoteName} 매출 부가세 ${on ? "제외" : "포함"}`}
+        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+          on
+            ? "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            : "border-slate-200 text-slate-400 hover:bg-slate-50"
+        }`}
+      >
+        {on ? "✓ VAT 포함" : "VAT 포함"}
+      </button>
+      {on && amount != null && (
+        <p className="mt-1 text-[11px] text-slate-400 whitespace-nowrap">
+          +VAT {formatWon(vatOf(amount))} · 청구{" "}
+          <b className="text-slate-500">{formatWon(withVat(amount))}</b>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 작업비 세금 처리(사업자 +VAT / 프리랜서 −3.3% / 없음) 선택 + 실지급액 안내 */
+function FeeTaxPicker({
+  mode, amount, quoteName, onChange,
+}: {
+  mode: FeeTaxMode;
+  amount: number | null;
+  quoteName: string;
+  onChange: (next: FeeTaxMode) => void;
+}) {
+  const net = feeNetOf(amount, mode);
+  const diff = feeTaxAmountOf(amount, mode);
+  return (
+    <div className="mt-1">
+      <select
+        value={mode}
+        onChange={(e) => onChange(e.target.value as FeeTaxMode)}
+        aria-label={`${quoteName} 작업비 세금 처리`}
+        className={`w-28 cursor-pointer rounded-full border px-2 py-0.5 text-[11px] font-semibold outline-none ${
+          mode === "withholding"
+            ? "border-amber-200 bg-amber-50 text-amber-700"
+            : mode === "vat"
+              ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+              : "border-slate-200 text-slate-400"
+        }`}
+      >
+        {FEE_TAX_MODES.map((m) => (
+          <option key={m} value={m}>{FEE_TAX_LABELS[m]}</option>
+        ))}
+      </select>
+      {mode !== "none" && amount != null && (
+        <p className="mt-1 text-[11px] text-slate-400 whitespace-nowrap">
+          {diff >= 0 ? "+" : "−"}
+          {formatWon(Math.abs(diff))} · 실지급 <b className="text-slate-500">{formatWon(net)}</b>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -97,35 +167,42 @@ function StatCard({
 }
 
 /**
- * 선금·잔금 지급 토글 — 누르면 오늘 날짜를 찍고, 다시 누르면 지운다.
- * 날짜를 직접 고르게 하지 않는 이유는 "오늘 보냈다"가 실무의 거의 전부이기 때문.
- * (금액이 0이면 지급할 것이 없으므로 비활성)
+ * 선금·잔금 지급일 — 날짜를 넣으면 그날 지급된 것으로 본다(비우면 미지급).
+ * 언제 나갔는지가 정산에서 중요하므로 날짜 자체를 기록·수정할 수 있게 한다.
+ * "오늘" 버튼은 방금 송금한 흔한 경우를 한 번에 처리하기 위한 지름길.
  */
-function PaidToggle({
-  label, quoteName, paidAt, disabled, onToggle,
+function PaidDate({
+  label, quoteName, paidAt, disabled, onChange,
 }: {
   label: string;
   quoteName: string;
   paidAt: string | null;
   disabled: boolean;
-  onToggle: (next: string | null) => void;
+  onChange: (next: string | null) => void;
 }) {
-  const paid = !!paidAt;
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onToggle(paid ? null : todayISO())}
-      title={paid ? `${paidAt} 지급 — 누르면 취소` : `${label} 지급 처리`}
-      aria-label={`${quoteName} ${label} 지급 ${paid ? "취소" : "처리"}`}
-      className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-50 disabled:text-slate-300 ${
-        paid
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          : "border-slate-200 text-slate-500 hover:bg-slate-50"
-      }`}
-    >
-      {paid ? "✓ 지급" : "미지급"}
-    </button>
+    <div className="flex items-center gap-1">
+      <input
+        type="date"
+        value={paidAt ?? ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value || null)}
+        aria-label={`${quoteName} ${label} 지급일`}
+        className={`w-32 rounded-lg border px-1.5 py-0.5 text-xs outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300 ${
+          paidAt ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"
+        }`}
+      />
+      {!paidAt && !disabled && (
+        <button
+          type="button"
+          onClick={() => onChange(todayISO())}
+          aria-label={`${quoteName} ${label} 오늘 지급 처리`}
+          className="flex-shrink-0 rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500 hover:bg-slate-50"
+        >
+          오늘
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -186,6 +263,8 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
           progress: d.progress,
           artistFee: d.artistFee,
           clientAmount: d.clientAmount,
+          feeTaxMode: d.feeTaxMode,
+          clientVat: d.clientVat,
           depositAmount: d.depositAmount,
           depositPaidAt: d.depositPaidAt,
           balancePaidAt: d.balancePaidAt,
@@ -213,33 +292,37 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
   );
 
   /* ── 요약 지표 (필터와 무관하게 전체 기준) ──
-     금액은 전부 공급가액으로 저장돼 있으므로, 합산한 뒤 부가세를 얹어 보여준다. */
+     구조: 내가 프로젝트를 수주(매출)하고 아티스트에게 하청(작업비)을 준다.
+           매출 − 작업비 = 내 마진. 부가세는 나중에 납부할 돈이라 어느 쪽에도 더하지 않는다. */
   const stats = useMemo(() => {
     const active = works.filter(isActive);
+    const live = works.filter((w) => w.status !== "cancelled");
     const thisMonth = todayISO().slice(0, 7); // 로컬(KST) 기준 YYYY-MM
-    const monthly = works.filter(
-      (w) =>
-        w.status !== "cancelled" &&
-        (w.dueDate ?? w.createdAt).slice(0, 7) === thisMonth
-    );
-    // 이번 달 매출 — 공급가액 합계에서 부가세·총액을 파생
-    const revenueSupply = monthly.reduce((sum, w) => sum + (w.clientAmount ?? 0), 0);
-    const revenueVat = vatOf(revenueSupply) ?? 0;
-    const revenueTotal = revenueSupply + revenueVat;
-    // 미지급 작업비 — 선금/잔금 중 아직 안 나간 금액만 (실제 송금액이라 VAT 포함)
-    const unpaidSupply = works
-      .filter((w) => w.status !== "cancelled")
-      .reduce((sum, w) => sum + unpaidFee(w), 0);
+
+    // 총 매출 = 매출 열에 입력된 금액의 단순 합계 (부가세 제외)
+    const revenue = live.reduce((sum, w) => sum + (w.clientAmount ?? 0), 0);
+    // 총 작업비 = 아티스트에게 나가는 하청 원가 (세전)
+    const cost = live.reduce((sum, w) => sum + (w.artistFee ?? 0), 0);
+    const monthlyRevenue = live
+      .filter((w) => (w.dueDate ?? w.createdAt).slice(0, 7) === thisMonth)
+      .reduce((sum, w) => sum + (w.clientAmount ?? 0), 0);
+
+    // 미지급 작업비 — 아직 안 나간 회차만, 실제 송금액(세금 처리 반영) 기준
+    const unpaidNet = live.reduce((sum, w) => {
+      const remain = unpaidFee(w);
+      return sum + (feeNetOf(remain, w.feeTaxMode) ?? 0);
+    }, 0);
+
     const urgent = works.filter((w) => dueUrgency(w) !== "none");
     const overdue = urgent.filter((w) => dueUrgency(w) === "overdue").length;
     return {
       activeCount: active.length,
-      revenueSupply,
-      revenueVat,
-      revenueTotal,
-      monthlyCount: monthly.length,
-      unpaidSupply,
-      unpaidTotal: withVat(unpaidSupply) ?? 0,
+      revenue,
+      cost,
+      margin: revenue - cost,
+      monthlyRevenue,
+      projectCount: live.length,
+      unpaidNet,
       urgent: urgent.length,
       overdue,
     };
@@ -251,12 +334,13 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
       .map((a) => {
         const mine = works.filter((w) => w.artistId === a.id);
         const active = mine.filter(isActive);
+        /* 아티스트 기준 지표는 "내가 이 사람에게 줄 돈" — 매출이 아니라 작업비다 */
         const unpaidSum = mine
           .filter((w) => w.status !== "cancelled")
-          .reduce((s, w) => s + unpaidFee(w), 0);
+          .reduce((s, w) => s + (feeNetOf(unpaidFee(w), w.feeTaxMode) ?? 0), 0);
         const billed = mine
           .filter((w) => w.status !== "cancelled")
-          .reduce((s, w) => s + (w.clientAmount ?? 0), 0);
+          .reduce((s, w) => s + (w.artistFee ?? 0), 0);
         const nextDue = active
           .map((w) => w.dueDate)
           .filter((d): d is string => !!d)
@@ -274,18 +358,24 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
   return (
     <div>
       {/* ── 요약 ── */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard title="진행중 작업" value={`${stats.activeCount}건`} hint="배정·작업중·검수" />
         <StatCard
-          title="이번 달 총 매출 (프로젝트 총액)"
-          value={`${formatWon(stats.revenueTotal)}원`}
-          hint={`공급가 ${formatWon(stats.revenueSupply)} + VAT ${formatWon(stats.revenueVat)} · ${stats.monthlyCount}건 (납기 기준, 취소 제외)`}
+          title="총 매출 (프로젝트 총액)"
+          value={`${formatWon(stats.revenue)}원`}
+          hint={`부가세 제외 · ${stats.projectCount}건 · 이번 달 납기 ${formatWon(stats.monthlyRevenue)}원`}
+        />
+        <StatCard
+          title="총 마진"
+          value={`${formatWon(stats.margin)}원`}
+          hint={`매출 − 작업비 ${formatWon(stats.cost)} (부가세 제외)`}
+          tone={stats.margin < 0 ? "danger" : "good"}
         />
         <StatCard
           title="미지급 작업비"
-          value={`${formatWon(stats.unpaidTotal)}원`}
-          hint={`공급가 ${formatWon(stats.unpaidSupply)} + VAT · 선금·잔금 미지급분`}
-          tone={stats.unpaidSupply > 0 ? "warn" : "default"}
+          value={`${formatWon(stats.unpaidNet)}원`}
+          hint="선금·잔금 미지급분 · 실지급 기준"
+          tone={stats.unpaidNet > 0 ? "warn" : "default"}
         />
         <StatCard
           title="납기 임박·초과"
@@ -319,8 +409,8 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  매출 {formatWon(withVat(l.billed))}원 · 미지급 {formatWon(withVat(l.unpaidSum))}원
-                  <span className="ml-1 text-slate-400">(VAT 포함)</span>
+                  작업비 {formatWon(l.billed)}원 · 미지급 {formatWon(l.unpaidSum)}원
+                  <span className="ml-1 text-slate-400">(실지급 기준)</span>
                 </p>
                 <p className="mt-0.5 text-xs text-slate-400">
                   {l.nextDue ? `가장 임박한 납기 ${l.nextDue}` : "예정된 납기 없음"}
@@ -416,6 +506,8 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                 const deposit = val(w, "depositAmount");
                 const depositPaidAt = val(w, "depositPaidAt");
                 const balancePaidAt = val(w, "balancePaidAt");
+                const feeTaxMode = val(w, "feeTaxMode");
+                const clientVat = val(w, "clientVat");
                 const payoutParts = {
                   artistFee: fee,
                   depositAmount: deposit,
@@ -480,21 +572,31 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                         onChange={(e) => setDraftValue(w.id, "artistFee", parseWon(e.target.value))}
                         placeholder="공급가액"
                         inputMode="numeric"
-                        aria-label={`${w.quoteName} 작업비 공급가액`}
+                        aria-label={`${w.quoteName} 작업비`}
                         className={`${input} w-28 text-right`}
                       />
-                      <VatHint supply={fee} />
+                      <FeeTaxPicker
+                        mode={feeTaxMode}
+                        amount={fee}
+                        quoteName={w.quoteName}
+                        onChange={(next) => setDraftValue(w.id, "feeTaxMode", next)}
+                      />
                     </td>
                     <td className={td}>
                       <input
                         value={amount == null ? "" : amount.toLocaleString("ko-KR")}
                         onChange={(e) => setDraftValue(w.id, "clientAmount", parseWon(e.target.value))}
-                        placeholder="공급가액"
+                        placeholder="—"
                         inputMode="numeric"
-                        aria-label={`${w.quoteName} 매출 공급가액`}
+                        aria-label={`${w.quoteName} 매출`}
                         className={`${input} w-28 text-right`}
                       />
-                      <VatHint supply={amount} />
+                      <VatToggle
+                        on={clientVat}
+                        amount={amount}
+                        quoteName={w.quoteName}
+                        onToggle={(next) => setDraftValue(w.id, "clientVat", next)}
+                      />
                     </td>
                     <td className={`${td} whitespace-nowrap text-right font-semibold ${m != null && m < 0 ? "text-red-600" : "text-slate-700"}`}>
                       {m == null ? "—" : `${formatWon(m)}원`}
@@ -503,7 +605,7 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                       )}
                     </td>
                     <td className={td}>
-                      {/* 선금 — 금액 직접 입력, 잔금은 작업비에서 자동 계산 */}
+                      {/* 선금 — 금액 + 지급일. 잔금은 작업비 − 선금으로 자동 계산 */}
                       <div className="flex items-center gap-1.5">
                         <span className="w-7 flex-shrink-0 text-[11px] font-semibold text-slate-400">선금</span>
                         <input
@@ -511,15 +613,15 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                           onChange={(e) => setDraftValue(w.id, "depositAmount", parseWon(e.target.value))}
                           placeholder="0"
                           inputMode="numeric"
-                          aria-label={`${w.quoteName} 선금 공급가액`}
+                          aria-label={`${w.quoteName} 선금`}
                           className={`${input} w-24 text-right`}
                         />
-                        <PaidToggle
+                        <PaidDate
                           label="선금"
                           quoteName={w.quoteName}
                           paidAt={depositPaidAt}
                           disabled={(deposit ?? 0) <= 0}
-                          onToggle={(next) => setDraftValue(w.id, "depositPaidAt", next)}
+                          onChange={(next) => setDraftValue(w.id, "depositPaidAt", next)}
                         />
                       </div>
 
@@ -529,23 +631,23 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                         <span className="w-24 rounded-lg bg-slate-50 px-2 py-1 text-right text-sm tabular-nums text-slate-600">
                           {balance == null ? "—" : formatWon(balance)}
                         </span>
-                        <PaidToggle
+                        <PaidDate
                           label="잔금"
                           quoteName={w.quoteName}
                           paidAt={balancePaidAt}
                           disabled={(balance ?? 0) <= 0}
-                          onToggle={(next) => setDraftValue(w.id, "balancePaidAt", next)}
+                          onChange={(next) => setDraftValue(w.id, "balancePaidAt", next)}
                         />
                       </div>
 
-                      {/* 상태 배지 + 실제 송금 기준(VAT 포함) 잔여 */}
+                      {/* 상태 배지 + 남은 실지급액(세금 처리 반영) */}
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${PAYOUT_STATUS_COLORS[payout]}`}>
                           {PAYOUT_STATUS_LABELS[payout]}
                         </span>
                         {remaining > 0 && (
                           <span className="text-[11px] text-slate-400 whitespace-nowrap">
-                            잔여 {formatWon(withVat(remaining))}원 (VAT 포함)
+                            남은 실지급 {formatWon(feeNetOf(remaining, feeTaxMode))}원
                           </span>
                         )}
                       </div>
@@ -621,6 +723,7 @@ function NewWorkModal({
     quoteId: string; artistId: string;
     artistFee: number | null; clientAmount: number | null;
     depositAmount: number | null;
+    feeTaxMode: FeeTaxMode; clientVat: boolean;
     dueDate: string | null; memo: string;
   }) => void;
 }) {
@@ -629,6 +732,8 @@ function NewWorkModal({
   const [fee, setFee] = useState("");
   const [amount, setAmount] = useState("");
   const [deposit, setDeposit] = useState("");
+  const [feeTaxMode, setFeeTaxMode] = useState<FeeTaxMode>("none");
+  const [clientVat, setClientVat] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
 
@@ -673,19 +778,36 @@ function NewWorkModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={lbl}>작업비 · 원가 (공급가액)</label>
+              <label className={lbl}>작업비 · 아티스트 지급 (세전)</label>
               <input value={fee} onChange={(e) => setFee(e.target.value)} inputMode="numeric" placeholder="예: 1500000" className={field} />
-              <VatHint supply={feeWon} />
+              <FeeTaxPicker
+                mode={feeTaxMode}
+                amount={feeWon}
+                quoteName="새 배정"
+                onChange={setFeeTaxMode}
+              />
             </div>
             <div>
-              <label className={lbl}>매출 (공급가액)</label>
+              <label className={lbl}>매출 · 내 수주액</label>
               <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder="예: 2500000" className={field} />
-              <VatHint supply={amountWon} />
+              <VatToggle
+                on={clientVat}
+                amount={amountWon}
+                quoteName="새 배정"
+                onToggle={setClientVat}
+              />
             </div>
           </div>
 
+          {feeWon != null && amountWon != null && (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              마진 <b className="text-slate-900">{formatWon(amountWon - feeWon)}원</b>
+              <span className="text-slate-400"> = 매출 − 작업비 (부가세 제외)</span>
+            </p>
+          )}
+
           <div>
-            <label className={lbl}>선금 (공급가액, 선택)</label>
+            <label className={lbl}>선금 (세전, 선택)</label>
             <input
               value={deposit}
               onChange={(e) => setDeposit(e.target.value)}
@@ -698,7 +820,7 @@ function NewWorkModal({
             ) : (
               <p className="mt-1 text-[11px] text-slate-400">
                 잔금 {feeWon == null ? "—" : formatWon(Math.max(0, feeWon - (depositWon ?? 0)))}원
-                {" · "}금액은 모두 부가세 별도(공급가액)로 입력합니다.
+                {" · "}금액은 세전 기준으로 입력하고, 세금은 위 버튼으로 켠 경우에만 계산합니다.
               </p>
             )}
           </div>
@@ -726,6 +848,8 @@ function NewWorkModal({
                 artistFee: feeWon,
                 clientAmount: amountWon,
                 depositAmount: depositWon,
+                feeTaxMode,
+                clientVat,
                 dueDate: dueDate || null,
                 memo,
               })

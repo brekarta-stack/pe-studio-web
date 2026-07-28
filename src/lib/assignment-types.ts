@@ -98,11 +98,15 @@ export interface Assignment {
   status: AssignmentStatus;
   /** 0~100 */
   progress: number;
-  /** 아티스트 작업비 원가 — **공급가액(부가세 별도)**. 미입력이면 null */
+  /** 아티스트에게 줄 작업비(하청 원가) — **세전**. 미입력이면 null */
   artistFee: number | null;
-  /** 고객 매출 — **공급가액(부가세 별도)**. 미입력이면 null */
+  /** 내 매출 — **부가세 별도**. 미입력이면 null */
   clientAmount: number | null;
-  /** 선금 (공급가액). null/0 이면 선금 없이 잔금 일괄 지급 */
+  /** 작업비 세금 처리 — 사업자(vat) / 프리랜서(withholding) / 없음 */
+  feeTaxMode: FeeTaxMode;
+  /** 매출에 부가세 10%를 더해 청구하는지 (켠 경우에만 계산) */
+  clientVat: boolean;
+  /** 선금 (세전). null/0 이면 선금 없이 잔금 일괄 지급 */
   depositAmount: number | null;
   /** 선금 지급일 (YYYY-MM-DD). null 이면 미지급 */
   depositPaidAt: string | null;
@@ -141,13 +145,23 @@ export function margin(a: Pick<Assignment, "artistFee" | "clientAmount">): numbe
   return a.clientAmount - a.artistFee;
 }
 
-/* ── 부가가치세 ──────────────────────────────────────────────
- * 저장되는 금액(artistFee·clientAmount·depositAmount)은 전부 **공급가액**이고,
- * 부가세와 합계는 아래 함수로 그때그때 계산한다. 세액을 저장해 두면 세율이
- * 바뀌었을 때 과거 데이터가 어긋나므로 파생값으로만 다룬다. */
+/* ── 세금 ────────────────────────────────────────────────────
+ * 저장되는 금액(artistFee·clientAmount·depositAmount)은 전부 **세전 기준**이고,
+ * 세액은 아래 함수로 그때그때 계산한다. 세액을 저장해 두면 세율이 바뀌었을 때
+ * 과거 데이터가 어긋나므로 파생값으로만 다룬다.
+ *
+ * 세금은 **켠 경우에만** 계산한다(기본 없음):
+ *   · 매출  — clientVat 를 켜면 고객에게 부가세 10% 를 더해 청구한다.
+ *   · 작업비 — 아티스트에 따라 다르다.
+ *       vat         : 사업자 → 작업비 + 부가세 10% 를 지급 (세금계산서 수취)
+ *       withholding : 프리랜서 → 작업비 − 원천징수 3.3% 를 지급 (문재호 등)
+ *       none        : 세금 처리 없이 액면 그대로 지급 */
 
 /** 부가가치세율 (10%) */
 export const VAT_RATE = 0.1;
+
+/** 프리랜서 원천징수율 (3.3% = 소득세 3% + 지방소득세 0.3%) */
+export const WITHHOLDING_RATE = 0.033;
 
 /** 공급가액 → 부가세. 원 미만은 절사(세금계산서 관행) */
 export function vatOf(supply: number | null | undefined): number | null {
@@ -159,6 +173,53 @@ export function vatOf(supply: number | null | undefined): number | null {
 export function withVat(supply: number | null | undefined): number | null {
   if (supply == null) return null;
   return supply + (vatOf(supply) ?? 0);
+}
+
+/** 작업비 세금 처리 방식 — 아티스트의 사업자 형태에 따라 고른다 */
+export const FEE_TAX_MODES = ["none", "vat", "withholding"] as const;
+export type FeeTaxMode = (typeof FEE_TAX_MODES)[number];
+
+export const FEE_TAX_LABELS: Record<FeeTaxMode, string> = {
+  none:        "세금 없음",
+  vat:         "부가세 +10%",
+  withholding: "원천징수 −3.3%",
+};
+
+/** 표에서 쓰는 짧은 라벨 */
+export const FEE_TAX_SHORT: Record<FeeTaxMode, string> = {
+  none:        "세금 없음",
+  vat:         "+VAT",
+  withholding: "−3.3%",
+};
+
+export function isFeeTaxMode(v: unknown): v is FeeTaxMode {
+  return typeof v === "string" && (FEE_TAX_MODES as readonly string[]).includes(v);
+}
+
+/** 원천징수액 (원 미만 절사) */
+export function withholdingOf(amount: number | null | undefined): number | null {
+  if (amount == null) return null;
+  return Math.floor(amount * WITHHOLDING_RATE);
+}
+
+/**
+ * 세전 작업비 → 실제로 계좌에 넣어 줄 금액.
+ *   vat         : +부가세   (아티스트가 세금계산서를 발행)
+ *   withholding : −원천징수 (내가 3.3% 를 떼어 대신 납부)
+ */
+export function feeNetOf(amount: number | null | undefined, mode: FeeTaxMode): number | null {
+  if (amount == null) return null;
+  if (mode === "vat") return amount + (vatOf(amount) ?? 0);
+  if (mode === "withholding") return amount - (withholdingOf(amount) ?? 0);
+  return amount;
+}
+
+/** 실지급액과 세전 금액의 차이 (가산은 +, 공제는 −). 세금 없음이면 0 */
+export function feeTaxAmountOf(amount: number | null | undefined, mode: FeeTaxMode): number {
+  if (amount == null) return 0;
+  if (mode === "vat") return vatOf(amount) ?? 0;
+  if (mode === "withholding") return -(withholdingOf(amount) ?? 0);
+  return 0;
 }
 
 /* ── 선금 / 잔금 ─────────────────────────────────────────────
