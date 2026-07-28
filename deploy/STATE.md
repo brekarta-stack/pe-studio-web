@@ -122,7 +122,8 @@ NAS 호스트 TZ=KST, Debian 12, docker compose v5.1.3, /etc/cron.d 지원(실�
 확인: `sh ~/agent-backbone/scripts/smoke-all.sh`
 
 ## ⬜ 남은 것 — [사람] 필요 (2026-07-25 기준 최신)
-1. **도메인 게이트 3문항** — `docs/domain-definition-DRAFT.md` 말미. 답하면 D10~14 전부 착수 가능.
+1. ~~도메인 게이트 3문항~~ ✅ **2026-07-28 통과** → `docs/domain-definition.md`.
+   biz-b=제안서 / b·c 동급 / 분기목표=제안값 시작(08-11 실측 교정). 3파트 전부 active, 팬아웃 3 실증.
 2. ~~healthchecks.io~~ ✅ **완료(2026-07-27)** — nas-alive(5분)·backup-daily(1일) 체크 2개 등록,
    양쪽 `OK` 응답 실측. 이제 NAS 자체가 죽으면 외부에서 감지된다.
 3. **Kuma에 Slack 웹훅** 등록 → 5모니터 연결. *지금은 빨간불이 떠도 아무도 안 부른다.*

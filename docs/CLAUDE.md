@@ -80,7 +80,8 @@ LLM 직접 주문권한 · 자체 관제 대시보드 재제작 · 채널별 상
 ## G. 2주 실행 계획 (도메인 게이트 반영 재정렬 — `14-day-plan.md`)
 - **D1(대부분 완료)**: ✅인벤토리·백업4레포·좀비정리. 남음: 신청5종(LinkedIn·YouTube·KIS·Kling·Supertone).
 - **Track A 인프라(D2–D5, 도메인 무관)**: D2(금,32GB) NAS Docker(n8n+Postgres+LiteLLM+Kuma)+Studio 24/7 하드닝(pmset·ollama 서비스·모델 상주)+Tailscale MagicDNS · D3 LiteLLM 별칭·폴백·예산캡+스튜디오 로컬티어 검증 · D4 Kuma+외부모니터+Socket Mode 4채널+미니 하드코딩 감사 · D5 백업3-2-1+복원리허설+**공용 골격(파트 정의 테이블)**.
-- **🚧 GATE**: 도메인 정의(`domain-definition-template.md`) — biz-a/b/c 목표·KPI + 24채널 재편 O/X(`channel-reorg-proposal.md`).
+- ~~**🚧 GATE**: 도메인 정의~~ ✅ **통과(2026-07-28)** → `domain-definition.md`가 정의의 원본.
+  남은 것: 24채널 재편 O/X(`channel-reorg-proposal.md`).
 - **Track B-무관(D6–D9)**: 업무·일정 / 매매 엔진 스켈레톤(모의 1왕복) / 어학 보이스(voicebridge Studio 이식).
 - **Track B-종속(D10–14, 게이트 후, 이월 허용)**: 수집→퀴즈 / SNS / 리드→블로그→견적 / 영상 MVP.
 - **성공 기준**: Track 0+A+B무관 완주. 컷 순서 영상→보이스→퀴즈. 매매는 반쯤 만들 바엔 3주차로.

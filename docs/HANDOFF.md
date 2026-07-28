@@ -29,7 +29,8 @@
 ## 남은 작업
 
 ### 🔴 [사람] 이 7개가 전부다
-1. **도메인 게이트 3문항** — `docs/domain-definition-DRAFT.md` 말미.
+1. ~~도메인 게이트 3문항~~ ✅ **2026-07-28 통과** — 확정본 `docs/domain-definition.md`.
+   (구 초안 `domain-definition-DRAFT.md`는 이력용으로만 남긴다.)
    ① biz-b는 견적 사업인가 제안서 사업인가 ② biz-b/c 우선순위 ③ 분기 목표 숫자(모르면 제안값 유지).
    → 답하면 D10~14 전부 착수 가능. *증거 기반으로 미리 채워뒀으니 확인·수정만 하면 된다.*
 2. **healthchecks.io 가입** → 체크 2개 → `~/agent-backbone/heartbeat.url`·`heartbeat-backup.url`.
