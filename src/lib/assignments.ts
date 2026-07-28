@@ -42,6 +42,9 @@ function toAssignment(row: any): Assignment {
     progress: typeof row.progress === "number" ? row.progress : 0,
     artistFee: row.artist_fee == null ? null : Number(row.artist_fee),
     clientAmount: row.client_amount == null ? null : Number(row.client_amount),
+    depositAmount: row.deposit_amount == null ? null : Number(row.deposit_amount),
+    depositPaidAt: row.deposit_paid_at ?? null,
+    balancePaidAt: row.balance_paid_at ?? null,
     payoutStatus: isPayoutStatus(row.payout_status) ? row.payout_status : "unpaid",
     paidAt: row.paid_at ?? null,
     dueDate: row.due_date ?? null,
@@ -60,6 +63,9 @@ function toRow(input: AssignmentInput) {
     progress: input.progress,
     artist_fee: input.artistFee,
     client_amount: input.clientAmount,
+    deposit_amount: input.depositAmount,
+    deposit_paid_at: input.depositPaidAt,
+    balance_paid_at: input.balancePaidAt,
     payout_status: input.payoutStatus,
     paid_at: input.paidAt,
     due_date: input.dueDate,
@@ -122,6 +128,20 @@ export async function listAssignmentViews(): Promise<AssignmentView[]> {
   });
 }
 
+/** 배정 한 건 조회. 없으면 null */
+export async function getAssignment(id: string): Promise<Assignment | null> {
+  const { data, error } = await supabaseAdmin
+    .from("assignments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+  return data ? toAssignment(data) : null;
+}
+
 /** 특정 리드의 배정 목록 */
 export async function listAssignmentsByQuote(quoteId: string): Promise<Assignment[]> {
   const all = await listAssignments();
@@ -148,6 +168,9 @@ export async function updateAssignment(
   if (patch.progress !== undefined) row.progress = patch.progress;
   if (patch.artistFee !== undefined) row.artist_fee = patch.artistFee;
   if (patch.clientAmount !== undefined) row.client_amount = patch.clientAmount;
+  if (patch.depositAmount !== undefined) row.deposit_amount = patch.depositAmount;
+  if (patch.depositPaidAt !== undefined) row.deposit_paid_at = patch.depositPaidAt;
+  if (patch.balancePaidAt !== undefined) row.balance_paid_at = patch.balancePaidAt;
   if (patch.payoutStatus !== undefined) row.payout_status = patch.payoutStatus;
   if (patch.paidAt !== undefined) row.paid_at = patch.paidAt;
   if (patch.dueDate !== undefined) row.due_date = patch.dueDate;
@@ -197,6 +220,9 @@ export async function setQuoteArtist(quoteId: string, artistId: string | null): 
     progress: 0,
     artistFee: null,
     clientAmount: null,
+    depositAmount: null,
+    depositPaidAt: null,
+    balancePaidAt: null,
     payoutStatus: "unpaid",
     paidAt: null,
     dueDate: null,

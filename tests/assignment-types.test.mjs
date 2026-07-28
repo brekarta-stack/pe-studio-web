@@ -19,6 +19,12 @@ import {
   isPayoutStatus,
   STAGE_LABELS,
   QUOTE_STAGES,
+  vatOf,
+  withVat,
+  balanceOf,
+  paidFee,
+  unpaidFee,
+  derivePayoutStatus,
 } from "../src/lib/assignment-types.ts";
 
 /** 테스트 기준일 — 로컬 자정 (실제 실행 시각의 영향을 받지 않게 고정) */
@@ -99,4 +105,77 @@ test("STAGE_LABELS — 모든 단계에 한글 라벨이 있다", () => {
   for (const s of QUOTE_STAGES) {
     assert.ok(STAGE_LABELS[s], `${s} 라벨 누락`);
   }
+});
+
+/* ── 부가세 ── */
+
+test("vatOf / withVat — 공급가액의 10%, 원 미만은 절사", () => {
+  assert.equal(vatOf(3_850_000), 385_000);
+  assert.equal(withVat(3_850_000), 4_235_000);
+  assert.equal(vatOf(1_234_567), 123_456, "123,456.7 → 절사");
+  assert.equal(withVat(1_234_567), 1_358_023);
+  assert.equal(vatOf(0), 0);
+  assert.equal(vatOf(null), null, "미입력은 계산하지 않는다");
+  assert.equal(withVat(null), null);
+});
+
+/* ── 선금 / 잔금 ── */
+
+test("balanceOf — 잔금은 작업비 − 선금, 음수가 되지 않는다", () => {
+  assert.equal(balanceOf({ artistFee: 5_000_000, depositAmount: 2_000_000 }), 3_000_000);
+  assert.equal(balanceOf({ artistFee: 5_000_000, depositAmount: null }), 5_000_000, "선금 없으면 전액");
+  assert.equal(balanceOf({ artistFee: 5_000_000, depositAmount: 5_000_000 }), 0);
+  assert.equal(balanceOf({ artistFee: 1_000_000, depositAmount: 3_000_000 }), 0, "선금 초과는 0 으로 막는다");
+  assert.equal(balanceOf({ artistFee: null, depositAmount: 1_000_000 }), null);
+});
+
+test("paidFee / unpaidFee — 지급 처리된 회차만 더한다", () => {
+  const w = (o) => ({ artistFee: 5_000_000, depositAmount: 2_000_000, depositPaidAt: null, balancePaidAt: null, ...o });
+  assert.equal(paidFee(w({})), 0);
+  assert.equal(paidFee(w({ depositPaidAt: "2026-07-01" })), 2_000_000);
+  assert.equal(paidFee(w({ balancePaidAt: "2026-08-01" })), 3_000_000);
+  assert.equal(paidFee(w({ depositPaidAt: "2026-07-01", balancePaidAt: "2026-08-01" })), 5_000_000);
+  assert.equal(unpaidFee(w({ depositPaidAt: "2026-07-01" })), 3_000_000, "남은 것은 잔금");
+  assert.equal(unpaidFee(w({ depositPaidAt: "2026-07-01", balancePaidAt: "2026-08-01" })), 0);
+});
+
+test("paidFee — 금액이 0 인 회차는 지급일이 있어도 세지 않는다", () => {
+  // 선금 없이 잔금만 있는 건: 선금 지급일이 잘못 남아 있어도 금액은 0
+  const noDeposit = { artistFee: 4_000_000, depositAmount: 0, depositPaidAt: "2026-07-01", balancePaidAt: null };
+  assert.equal(paidFee(noDeposit), 0);
+  assert.equal(unpaidFee(noDeposit), 4_000_000);
+});
+
+test("derivePayoutStatus — 선금/잔금 지급 여부에서 상태를 만든다", () => {
+  const w = (o) => ({ artistFee: 5_000_000, depositAmount: 2_000_000, depositPaidAt: null, balancePaidAt: null, ...o });
+  assert.equal(derivePayoutStatus(w({})), "unpaid");
+  assert.equal(derivePayoutStatus(w({ depositPaidAt: "2026-07-01" })), "partial");
+  assert.equal(derivePayoutStatus(w({ balancePaidAt: "2026-08-01" })), "partial");
+  assert.equal(
+    derivePayoutStatus(w({ depositPaidAt: "2026-07-01", balancePaidAt: "2026-08-01" })),
+    "paid"
+  );
+});
+
+test("derivePayoutStatus — 선금 없이 잔금만 지급해도 완료", () => {
+  assert.equal(
+    derivePayoutStatus({
+      artistFee: 4_000_000, depositAmount: null,
+      depositPaidAt: null, balancePaidAt: "2026-08-01",
+    }),
+    "paid",
+    "선금을 안 잡았으면 잔금 = 전액"
+  );
+});
+
+test("derivePayoutStatus — 작업비 미입력이면 지급을 논할 수 없다", () => {
+  assert.equal(
+    derivePayoutStatus({ artistFee: null, depositAmount: null, depositPaidAt: null, balancePaidAt: null }),
+    "unpaid"
+  );
+  assert.equal(
+    derivePayoutStatus({ artistFee: 0, depositAmount: null, depositPaidAt: null, balancePaidAt: "2026-08-01" }),
+    "unpaid",
+    "0원짜리를 지급완료로 표시하지 않는다"
+  );
 });

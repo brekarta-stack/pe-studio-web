@@ -64,6 +64,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260730_quote_files.sql",
     note: "quotes.files (다중 첨부파일)",
   },
+  {
+    table: "assignments",
+    column: "deposit_amount",
+    sql: "migrations/20260731_work_billing.sql",
+    note: "assignments.deposit_amount / paid_at (선금·잔금 지급)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

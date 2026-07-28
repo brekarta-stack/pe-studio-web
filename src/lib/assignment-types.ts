@@ -98,10 +98,16 @@ export interface Assignment {
   status: AssignmentStatus;
   /** 0~100 */
   progress: number;
-  /** 아티스트 작업비 (원). 미입력이면 null */
+  /** 아티스트 작업비 원가 — **공급가액(부가세 별도)**. 미입력이면 null */
   artistFee: number | null;
-  /** 고객 청구금액 (원). 미입력이면 null */
+  /** 고객 매출 — **공급가액(부가세 별도)**. 미입력이면 null */
   clientAmount: number | null;
+  /** 선금 (공급가액). null/0 이면 선금 없이 잔금 일괄 지급 */
+  depositAmount: number | null;
+  /** 선금 지급일 (YYYY-MM-DD). null 이면 미지급 */
+  depositPaidAt: string | null;
+  /** 잔금 지급일 (YYYY-MM-DD). null 이면 미지급 */
+  balancePaidAt: string | null;
   payoutStatus: PayoutStatus;
   /** 지급 완료 시각 (ISO) */
   paidAt: string | null;
@@ -129,10 +135,72 @@ export interface AssignmentView extends Assignment {
   quoteStage: QuoteStage;
 }
 
-/** 마진 = 청구금액 − 작업비. 둘 중 하나라도 없으면 null */
+/** 마진 = 매출 − 작업비 (둘 다 공급가액 기준). 둘 중 하나라도 없으면 null */
 export function margin(a: Pick<Assignment, "artistFee" | "clientAmount">): number | null {
   if (a.clientAmount == null || a.artistFee == null) return null;
   return a.clientAmount - a.artistFee;
+}
+
+/* ── 부가가치세 ──────────────────────────────────────────────
+ * 저장되는 금액(artistFee·clientAmount·depositAmount)은 전부 **공급가액**이고,
+ * 부가세와 합계는 아래 함수로 그때그때 계산한다. 세액을 저장해 두면 세율이
+ * 바뀌었을 때 과거 데이터가 어긋나므로 파생값으로만 다룬다. */
+
+/** 부가가치세율 (10%) */
+export const VAT_RATE = 0.1;
+
+/** 공급가액 → 부가세. 원 미만은 절사(세금계산서 관행) */
+export function vatOf(supply: number | null | undefined): number | null {
+  if (supply == null) return null;
+  return Math.floor(supply * VAT_RATE);
+}
+
+/** 공급가액 → 합계(공급가액 + 부가세) */
+export function withVat(supply: number | null | undefined): number | null {
+  if (supply == null) return null;
+  return supply + (vatOf(supply) ?? 0);
+}
+
+/* ── 선금 / 잔금 ─────────────────────────────────────────────
+ * 작업비(원가)를 선금·잔금 2회로 나눠 지급한다. 잔금은 저장하지 않고
+ * 작업비 − 선금으로 계산한다 — 두 값을 따로 저장하면 합이 어긋날 수 있다. */
+
+/** 잔금 = 작업비 − 선금. 작업비 미입력이면 null (음수는 0으로 막는다) */
+export function balanceOf(a: Pick<Assignment, "artistFee" | "depositAmount">): number | null {
+  if (a.artistFee == null) return null;
+  return Math.max(0, a.artistFee - (a.depositAmount ?? 0));
+}
+
+type PayoutParts = Pick<
+  Assignment,
+  "artistFee" | "depositAmount" | "depositPaidAt" | "balancePaidAt"
+>;
+
+/** 실제로 지급 완료된 작업비 합계 (공급가액) */
+export function paidFee(a: PayoutParts): number {
+  const deposit = Math.min(a.depositAmount ?? 0, a.artistFee ?? 0);
+  const balance = balanceOf(a) ?? 0;
+  return (
+    (deposit > 0 && a.depositPaidAt ? deposit : 0) +
+    (balance > 0 && a.balancePaidAt ? balance : 0)
+  );
+}
+
+/** 아직 지급하지 않은 작업비 (공급가액) */
+export function unpaidFee(a: PayoutParts): number {
+  return Math.max(0, (a.artistFee ?? 0) - paidFee(a));
+}
+
+/**
+ * 선금·잔금 지급 여부로부터 지급 상태를 도출한다.
+ * (payout_status 컬럼은 이 값을 저장해 두는 캐시 — 판단의 근거는 항상 선금/잔금)
+ */
+export function derivePayoutStatus(a: PayoutParts): PayoutStatus {
+  const total = a.artistFee ?? 0;
+  if (total <= 0) return "unpaid"; // 작업비 미입력
+  const paid = paidFee(a);
+  if (paid >= total) return "paid";
+  return paid > 0 ? "partial" : "unpaid";
 }
 
 /**
