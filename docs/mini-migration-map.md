@@ -108,9 +108,14 @@ n8n으로 재구축하면 웹 리서치와 사례 매칭 능력을 잃는다 —
 - 검증 후 미니 `bd-daily` OFF. Studio `com.agent.bd-daily` 매일 09:30.
 - 상세: `deploy/studio/bd/README.md`
 
-> ⚠️ **미니에 남은 헤드리스 에이전트 잡 전부에 같은 함정이 있다.**
-> `sns-daily`·`learning-*`·`council-*`·`agent-review` 모두 `claude --print`를 쓴다면
-> 지금 이 순간에도 조용히 0건을 내고 있을 수 있다. 이관 시 이 플래그부터 확인할 것.
+**같은 함정에 걸린 다른 잡이 있는지 전수 확인함(2026-07-28)** — 결과: **없다.**
+미니 잡 중 claude를 부르는 것은 `agent-audit`·`learning-quiz`·`queue-worker`·`slack-bridge`
+넷뿐이고 전부 권한 거부 흔적이 0이다. `agent-review`는 ollama(`gemma3:27b`)를 쓴다.
+피해는 `bd-daily` 단독이었다.
+
+> 다만 **앞으로 만드는 헤드리스 에이전트 잡에는 이 플래그가 필요하다.**
+> `claude --print`를 launchd/cron에서 부르면 프로젝트 `settings.json`의 허용 목록이
+> 적용되지 않는다. 감사 스크립트: `deploy/mini/headless-perm-audit.sh`
 
 **부수 발견**: `machines.json`의 `ultra.standby=true` 때문에 2026-06-11부터 모든 ultra(Studio)
 작업이 미니 로컬로 강등돼 있었다(`logs/system/ask-ultra-fallback.log`). 24GB 미니가 96GB
