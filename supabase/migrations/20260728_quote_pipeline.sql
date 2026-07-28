@@ -85,3 +85,8 @@ DO $$
 BEGIN
   RAISE NOTICE 'quotes.in_progress/stage 추가 + assignments 테이블 준비 완료';
 END $$;
+
+-- PostgREST(supabase-js 가 쓰는 REST 레이어) 스키마 캐시 즉시 리로드.
+-- 이게 없으면 테이블/컬럼을 만들어도 REST 가 한동안 못 알아채(PGRST205) 어드민이
+-- "아직 없음"으로 보고 → "마이그레이션을 실행해도 그대로"인 것처럼 보이는 함정이 있다.
+NOTIFY pgrst, 'reload schema';
