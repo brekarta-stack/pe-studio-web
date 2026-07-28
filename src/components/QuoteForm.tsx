@@ -29,6 +29,10 @@ import {
 } from "@/components/icons";
 import { PaperNetBg } from "@/components/paper-art";
 import { getStoredAcquisition } from "@/lib/acquisition-client";
+import type { QuoteFile } from "@/lib/quote-types";
+
+/** 최대 첨부파일 개수 */
+const MAX_FILES = 5;
 
 type ProductType =
   | "papercraft"
@@ -58,10 +62,8 @@ interface FormState {
   name: string;
   email: string;
   phone: string;
-  /** 참고 자료 파일명 — 이미지·ai·문서 */
-  fileName: string;
-  /** 참고 자료 파일 공개 URL — 업로드 성공 시 채워짐 */
-  fileUrl: string;
+  /** 참고 자료 첨부파일 (최대 5개) — 업로드 성공한 것만 담긴다 */
+  files: QuoteFile[];
   /** 회사 로고 파일명 (선택) */
   logoFileName: string;
   /** 회사 로고 파일 공개 URL (선택) */
@@ -107,8 +109,7 @@ const INITIAL_FORM: FormState = {
   name: "",
   email: "",
   phone: "",
-  fileName: "",
-  fileUrl: "",
+  files: [],
   logoFileName: "",
   logoFileUrl: "",
   sampling: false,
@@ -237,8 +238,13 @@ export default function QuoteForm() {
         const parsed = JSON.parse(saved);
         // 구버전 초안엔 없는 키가 있을 수 있으므로 기본값과 병합(누락 키 방지)
         if (parsed.form) restoredForm = { ...INITIAL_FORM, ...parsed.form };
-        // 업로드가 끝나기 전(URL 미확보)에 저장된 파일명은 무효 — 링크 없는 파일명 제출 방지
-        if (restoredForm.fileName && !restoredForm.fileUrl) restoredForm = { ...restoredForm, fileName: "" };
+        // 업로드가 끝나기 전(URL 미확보)에 저장된 파일명은 무효 — 링크 없는 파일 제출 방지
+        restoredForm = {
+          ...restoredForm,
+          files: Array.isArray(restoredForm.files)
+            ? restoredForm.files.filter((f) => f && typeof f.url === "string" && f.url).slice(0, MAX_FILES)
+            : [],
+        };
         if (restoredForm.logoFileName && !restoredForm.logoFileUrl) restoredForm = { ...restoredForm, logoFileName: "" };
         if (typeof parsed.step === "number") {
           restoredStep =
@@ -316,29 +322,74 @@ export default function QuoteForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  /** 파일 선택 → Supabase Storage 로 실제 업로드 후 공개 URL 저장. */
-  const handlePick = async (e: ChangeEvent<HTMLInputElement>, which: "file" | "logo") => {
-    const f = e.target.files?.[0];
+  /** 단일 파일 업로드 → 공개 URL 반환 (실패 시 throw) */
+  const uploadOne = async (f: File): Promise<QuoteFile> => {
+    const prepared = await prepareImageForUpload(f);
+    const fd = new FormData();
+    fd.append("file", prepared.file, prepared.file.name);
+    const res = await fetch("/api/quote/upload", { method: "POST", body: fd });
+    const json = (await res.json().catch(() => ({}))) as { url?: string; name?: string; error?: string };
+    if (!res.ok || !json.url) throw new Error(json.error || "업로드에 실패했습니다.");
+    return { name: json.name || f.name, url: json.url };
+  };
+
+  /** 참고 자료 — 여러 파일 선택 → 순차 업로드 후 form.files 에 추가 (최대 5개) */
+  const handleFilesPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // 같은 파일 재선택 허용
-    const nameKey: keyof FormState = which === "file" ? "fileName" : "logoFileName";
-    const urlKey: keyof FormState = which === "file" ? "fileUrl" : "logoFileUrl";
-    if (!f) return;
-    setUploadErr((s) => ({ ...s, [which]: "" }));
-    setForm((prev) => ({ ...prev, [nameKey]: f.name, [urlKey]: "" }));
-    setUploading((s) => ({ ...s, [which]: true }));
+    if (picked.length === 0) return;
+    setUploadErr((s) => ({ ...s, file: "" }));
+
+    const room = MAX_FILES - form.files.length;
+    if (room <= 0) {
+      setUploadErr((s) => ({ ...s, file: `첨부는 최대 ${MAX_FILES}개까지 가능합니다.` }));
+      return;
+    }
+    const toUpload = picked.slice(0, room);
+    if (picked.length > room) {
+      setUploadErr((s) => ({ ...s, file: `최대 ${MAX_FILES}개까지만 첨부됩니다 (${picked.length - room}개 제외).` }));
+    }
+
+    setUploading((s) => ({ ...s, file: true }));
     try {
-      const prepared = await prepareImageForUpload(f);
-      const fd = new FormData();
-      fd.append("file", prepared.file, prepared.file.name);
-      const res = await fetch("/api/quote/upload", { method: "POST", body: fd });
-      const json = (await res.json().catch(() => ({}))) as { url?: string; name?: string; error?: string };
-      if (!res.ok || !json.url) throw new Error(json.error || "업로드에 실패했습니다.");
-      setForm((prev) => ({ ...prev, [nameKey]: json.name || f.name, [urlKey]: json.url as string }));
-    } catch (err) {
-      setUploadErr((s) => ({ ...s, [which]: err instanceof Error ? err.message : "업로드에 실패했습니다." }));
-      setForm((prev) => ({ ...prev, [nameKey]: "", [urlKey]: "" }));
+      for (const f of toUpload) {
+        try {
+          const uploaded = await uploadOne(f);
+          setForm((prev) =>
+            prev.files.length >= MAX_FILES ? prev : { ...prev, files: [...prev.files, uploaded] },
+          );
+        } catch (err) {
+          setUploadErr((s) => ({
+            ...s,
+            file: `${f.name}: ${err instanceof Error ? err.message : "업로드 실패"}`,
+          }));
+        }
+      }
     } finally {
-      setUploading((s) => ({ ...s, [which]: false }));
+      setUploading((s) => ({ ...s, file: false }));
+    }
+  };
+
+  const removeFile = (idx: number) => {
+    setForm((prev) => ({ ...prev, files: prev.files.filter((_, i) => i !== idx) }));
+  };
+
+  /** 회사 로고 — 단일 파일 업로드 */
+  const handleLogoPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setUploadErr((s) => ({ ...s, logo: "" }));
+    setForm((prev) => ({ ...prev, logoFileName: f.name, logoFileUrl: "" }));
+    setUploading((s) => ({ ...s, logo: true }));
+    try {
+      const uploaded = await uploadOne(f);
+      setForm((prev) => ({ ...prev, logoFileName: uploaded.name, logoFileUrl: uploaded.url }));
+    } catch (err) {
+      setUploadErr((s) => ({ ...s, logo: err instanceof Error ? err.message : "업로드에 실패했습니다." }));
+      setForm((prev) => ({ ...prev, logoFileName: "", logoFileUrl: "" }));
+    } finally {
+      setUploading((s) => ({ ...s, logo: false }));
     }
   };
 
@@ -747,45 +798,72 @@ export default function QuoteForm() {
                   {/* ── 디자인 ── */}
                   <SubsectionHeader color="#06C6C8" en="Design" ko="디자인" />
 
-                  {/* 참고 자료 업로드 — 권장 */}
+                  {/* 참고 자료 업로드 — 권장, 최대 5개 */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
                       참고 자료 업로드
                       <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-semibold align-middle">권장</span>
-                    </label>
-                    <label
-                      className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-colors ${
-                        uploading.file
-                          ? "border-[#1E22B2] bg-blue-50 cursor-wait"
-                          : form.fileUrl
-                            ? "border-emerald-400 bg-emerald-50 cursor-pointer"
-                            : "border-slate-300 cursor-pointer hover:border-[#1E22B2] hover:bg-blue-50"
-                      }`}
-                    >
-                      <BoxIcon size={28} className={form.fileUrl ? "text-emerald-500 mb-1" : "text-slate-400 mb-1"} />
-                      <span className="text-sm text-slate-700 font-medium" style={{ wordBreak: "keep-all" }}>
-                        {uploading.file
-                          ? `업로드 중… ${form.fileName}`
-                          : form.fileUrl
-                            ? `✓ ${form.fileName} — 첨부 완료`
-                            : form.fileName || "파일을 클릭하거나 드래그하여 첨부"}
+                      <span className="ml-2 text-[11px] text-slate-400 font-medium align-middle tabular-nums">
+                        {form.files.length}/{MAX_FILES}
                       </span>
-                      <span className="text-xs text-slate-400 mt-1">PNG · JPG · PDF · AI · ZIP (이미지 자동 축소 · 문서 4MB 이하)</span>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
-                        disabled={uploading.file}
-                        onChange={(e) => handlePick(e, "file")}
-                      />
                     </label>
+
+                    {/* 첨부된 파일 목록 */}
+                    {form.files.length > 0 && (
+                      <ul className="mb-2 space-y-1.5">
+                        {form.files.map((f, i) => (
+                          <li
+                            key={f.url}
+                            className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
+                          >
+                            <BoxIcon size={16} className="text-emerald-500 flex-shrink-0" />
+                            <span className="flex-1 truncate text-sm text-slate-700" title={f.name}>
+                              ✓ {f.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(i)}
+                              className="flex-shrink-0 text-slate-400 hover:text-rose-600"
+                              aria-label={`${f.name} 첨부 삭제`}
+                            >
+                              ✕
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* 드롭존 — 5개 미만일 때만 노출 */}
+                    {form.files.length < MAX_FILES && (
+                      <label
+                        className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl transition-colors ${
+                          uploading.file
+                            ? "border-[#1E22B2] bg-blue-50 cursor-wait"
+                            : "border-slate-300 cursor-pointer hover:border-[#1E22B2] hover:bg-blue-50"
+                        }`}
+                      >
+                        <BoxIcon size={28} className="text-slate-400 mb-1" />
+                        <span className="text-sm text-slate-700 font-medium" style={{ wordBreak: "keep-all" }}>
+                          {uploading.file ? "업로드 중…" : "파일을 클릭하거나 드래그하여 첨부 (여러 개 가능)"}
+                        </span>
+                        <span className="text-xs text-slate-400 mt-1">PNG · JPG · PDF · AI · ZIP (이미지 자동 축소 · 문서 4MB 이하)</span>
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
+                          disabled={uploading.file}
+                          onChange={handleFilesPick}
+                        />
+                      </label>
+                    )}
                     {uploadErr.file && (
                       <p className="text-xs text-rose-600 mt-2" style={{ wordBreak: "keep-all" }}>
-                        ⚠ {uploadErr.file} — 다시 시도해 주세요.
+                        ⚠ {uploadErr.file}
                       </p>
                     )}
                     <p className="text-xs text-slate-500 mt-2" style={{ wordBreak: "keep-all" }}>
-                      만들고자 하는 대상/캐릭터의 이미지·ai 파일·참고 문서가 있으면 견적이 훨씬 정확해집니다.
+                      만들고자 하는 대상/캐릭터의 이미지·ai 파일·참고 문서가 있으면 견적이 훨씬 정확해집니다. (최대 {MAX_FILES}개)
                     </p>
                   </div>
 
@@ -871,7 +949,7 @@ export default function QuoteForm() {
                         className="hidden"
                         accept=".svg,.png,.ai,.pdf,.jpg,.jpeg"
                         disabled={uploading.logo}
-                        onChange={(e) => handlePick(e, "logo")}
+                        onChange={handleLogoPick}
                       />
                     </label>
                     {uploadErr.logo && (
@@ -1061,7 +1139,7 @@ export default function QuoteForm() {
                     {[
                       { label: "제품", value: productDisplayName, edit: 1 },
                       { label: "디자인 스타일", value: STYLE_OPTIONS.find((s) => s.value === form.styleType)?.label ?? "", edit: 2 },
-                      { label: "참고 자료", value: form.fileUrl ? `✓ ${form.fileName}` : "", edit: 2 },
+                      { label: "참고 자료", value: form.files.length > 0 ? `✓ ${form.files.length}개 첨부` : "", edit: 2 },
                       { label: "수량", value: form.quantity ? `${form.quantity}개` : "", edit: 2 },
                       { label: "납기", value: form.rushed ? "최대한 빠르게" : form.deliveryDate, edit: 2 },
                       { label: "포장", value: PACKAGING_OPTIONS.find((p) => p.value === form.packaging)?.label ?? "", edit: 2 },

@@ -1,5 +1,11 @@
 import { isQuoteStage, type QuoteStage } from "./assignment-types";
 
+/** 첨부파일 한 건 — 표시명 + 공개 URL (Supabase Storage) */
+export interface QuoteFile {
+  name: string;
+  url: string;
+}
+
 /** 광고 유입정보 — 세션 첫 진입의 gclid/UTM (instrumentation-client.ts 가 수집). 견적 제출에 첨부 */
 export interface QuoteAcquisition {
   referrer: string;
@@ -29,8 +35,10 @@ export interface QuoteSubmission {
   email: string;
   phone: string;
   fileName: string;
-  /** 참고 자료 파일의 공개 URL (Supabase Storage) — 어드민/이메일 열람용. 마이그레이션 20260710 이후 저장 */
+  /** 참고 자료 파일의 공개 URL (Supabase Storage) — 어드민/이메일 열람용. 마이그레이션 20260710 이후 저장 (레거시 단일) */
   fileUrl: string;
+  /** 다중 첨부파일 (최대 5개) — 마이그레이션 20260730. 신규 폼은 여기에 담는다 */
+  files: QuoteFile[];
   /** 회사 로고 파일명 (선택) */
   logoFileName: string;
   /** 회사 로고 파일의 공개 URL (선택) */
@@ -77,6 +85,10 @@ export function quoteFromRow(r: any): QuoteSubmission {
     phone:        r.phone,
     fileName:     r.file_name,
     fileUrl:      r.file_url ?? "",
+    files:        Array.isArray(r.files)
+      ? r.files.filter((f: unknown): f is QuoteFile =>
+          !!f && typeof (f as QuoteFile).url === "string")
+      : [],
     logoFileName: r.logo_file_name ?? "",
     logoFileUrl:  r.logo_file_url ?? "",
     sampling:     !!r.sampling,

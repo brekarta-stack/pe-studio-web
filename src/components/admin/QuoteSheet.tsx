@@ -56,7 +56,7 @@ type ColKey =
 
 const COLUMNS: { key: ColKey; label: string; width: string }[] = [
   { key: "progress",     label: "진행",        width: "w-14"  },
-  { key: "stage",        label: "단계",        width: "w-32"  },
+  { key: "stage",        label: "단계",        width: "w-40"  },
   { key: "artist",       label: "담당 아티스트", width: "w-36" },
   { key: "createdAt",    label: "접수일",      width: "w-32"  },
   { key: "name",         label: "이름",        width: "w-28"  },
@@ -273,7 +273,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
         case "packaging":    return label(PACKAGING_LABELS, q.packaging);
         case "colorRequest": return q.colorRequest;
         case "notes":        return q.notes;
-        case "files":        return [q.fileName, q.logoFileName].filter(Boolean).join(" / ");
+        case "files":        return [...q.files.map((f) => f.name), q.fileName, q.logoFileName].filter(Boolean).join(" / ");
         case "acquisition":  return acqInfo(q)?.text ?? "";
       }
     };
@@ -427,7 +427,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                   value={stage}
                                   onChange={(e) => onChangeStage(q, e.target.value as QuoteStage)}
                                   aria-label={`${q.name} 진행 단계`}
-                                  className={`w-full cursor-pointer rounded-full border px-2 py-1 text-xs font-semibold outline-none ${STAGE_COLORS[stage]}`}
+                                  className={`w-full min-w-[6.5rem] cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold outline-none ${STAGE_COLORS[stage]}`}
                                 >
                                   {QUOTE_STAGES.map((s) => (
                                     <option key={s} value={s}>{STAGE_LABELS[s]}</option>
@@ -503,11 +503,17 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                             return <td key={c.key} className={`${td} max-w-[14rem]`}><span className="line-clamp-2">{q.colorRequest || "—"}</span></td>;
                           case "notes":
                             return <td key={c.key} className={`${td} max-w-[14rem]`}><span className="line-clamp-2">{q.notes || "—"}</span></td>;
-                          case "files":
+                          case "files": {
+                            const hasAny = q.files.length > 0 || q.fileName || (q.logoFileName && q.logoFileUrl);
                             return (
                               <td key={c.key} className={td} onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-col gap-1">
-                                  {q.fileName ? (
+                                  {/* 다중 첨부(신규) */}
+                                  {q.files.map((f, i) => (
+                                    <a key={f.url || i} href={f.url} target="_blank" rel="noreferrer" className="truncate text-xs text-blue-700 hover:underline" title={f.name}>📎 {f.name || `파일 ${i + 1}`}</a>
+                                  ))}
+                                  {/* 레거시 단일 첨부 */}
+                                  {q.files.length === 0 && q.fileName ? (
                                     q.fileUrl ? (
                                       <a href={q.fileUrl} target="_blank" rel="noreferrer" className="truncate text-xs text-blue-700 hover:underline" title={q.fileName}>📎 {q.fileName}</a>
                                     ) : (
@@ -517,10 +523,11 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                   {q.logoFileName && q.logoFileUrl && (
                                     <a href={q.logoFileUrl} target="_blank" rel="noreferrer" className="truncate text-xs text-blue-700 hover:underline" title={q.logoFileName}>🏷️ {q.logoFileName}</a>
                                   )}
-                                  {!q.fileName && !q.logoFileName && "—"}
+                                  {!hasAny && "—"}
                                 </div>
                               </td>
                             );
+                          }
                           case "acquisition":
                             return (
                               <td key={c.key} className={td}>

@@ -58,6 +58,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260729_quote_dropped.sql",
     note: "quotes.dropped_at (Drop 제외 처리)",
   },
+  {
+    table: "quotes",
+    column: "files",
+    sql: "migrations/20260730_quote_files.sql",
+    note: "quotes.files (다중 첨부파일)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

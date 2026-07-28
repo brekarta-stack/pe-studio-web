@@ -6,7 +6,8 @@
  * 작업비·청구금액·진행률·납기·지급상태가 모두 이 단위로 붙는다.
  */
 
-/** 리드 진행 단계 — quotes.stage */
+/** 리드 진행 단계 — quotes.stage
+ *  (보류·취소(on_hold)는 제거 — 제외는 Drop 기능으로 처리한다) */
 export const QUOTE_STAGES = [
   "new",
   "consulting",
@@ -15,7 +16,6 @@ export const QUOTE_STAGES = [
   "producing",
   "delivered",
   "settled",
-  "on_hold",
 ] as const;
 
 export type QuoteStage = (typeof QUOTE_STAGES)[number];
@@ -28,7 +28,6 @@ export const STAGE_LABELS: Record<QuoteStage, string> = {
   producing:  "제작중",
   delivered:  "납품완료",
   settled:    "정산완료",
-  on_hold:    "보류·취소",
 };
 
 /** 단계별 배지 색 (Tailwind 클래스 — 어드민 팔레트에 맞춘 pastel) */
@@ -40,7 +39,6 @@ export const STAGE_COLORS: Record<QuoteStage, string> = {
   producing:  "bg-amber-50 text-amber-700 border-amber-200",
   delivered:  "bg-teal-50 text-teal-700 border-teal-200",
   settled:    "bg-emerald-50 text-emerald-700 border-emerald-200",
-  on_hold:    "bg-slate-100 text-slate-500 border-slate-200",
 };
 
 export function isQuoteStage(v: unknown): v is QuoteStage {

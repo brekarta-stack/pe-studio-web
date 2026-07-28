@@ -57,6 +57,12 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
     return `${source} / ${medium}${camp}`;
   })();
 
+  // 첨부파일 — 다중(files)이 있으면 각각을, 없으면 레거시 단일(fileName/fileUrl)을 표시
+  const attachmentRows: Array<[string, string, string?]> =
+    s.files.length > 0
+      ? s.files.map((f, i) => [`참고 자료 ${i + 1}`, f.name || "파일", f.url])
+      : [["참고 자료 파일", s.fileName || "—", s.fileUrl || undefined]];
+
   // [라벨, 값, 선택적 href] — href 가 있으면 값이 클릭 가능한 링크로 렌더된다.
   const rows: Array<[string, string, string?]> = [
     ["제품 유형",         productLabel],
@@ -73,7 +79,7 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
     ["담당자 이름",       s.name],
     ["이메일",            s.email],
     ["연락처",            s.phone || "—"],
-    ["참고 자료 파일",    s.fileName || "—", s.fileUrl || undefined],
+    ...attachmentRows,
     ["회사 로고 파일",    s.logoFileName || "—", s.logoFileUrl || undefined],
     ["유입 경로",         acqText],
     ["광고 클릭ID(gclid)", s.acquisition?.gclid || "—"],
@@ -234,8 +240,13 @@ const QuoteSchema = z.object({
   email:        z.string().email("올바른 이메일을 입력하세요").max(200),
   phone:        z.string().max(30).default(""),
   fileName:     z.string().max(255).default(""),
-  // 신규: 참고 자료 파일의 공개 URL (Supabase Storage)
+  // 신규: 참고 자료 파일의 공개 URL (Supabase Storage) — 레거시 단일
   fileUrl:      QuoteFileUrl,
+  // 다중 첨부파일 (최대 5개) — 신규 폼은 여기에 담는다
+  files:        z
+    .array(z.object({ name: z.string().max(255).default(""), url: QuoteFileUrl }))
+    .max(5)
+    .default([]),
   // 신규: 회사 로고 파일명 (선택)
   logoFileName: z.string().max(255).default(""),
   // 신규: 회사 로고 파일의 공개 URL (선택)
@@ -323,6 +334,7 @@ export async function POST(request: Request) {
     inProgress:   false,
     stage:        "new",
     droppedAt:    null,
+    files:        (data.files ?? []).filter((f) => f.url),
     createdAt:    new Date().toISOString(),
   };
 
@@ -375,6 +387,18 @@ export async function POST(request: Request) {
       .eq("id", submission.id);
     if (fileErr) {
       console.warn("[api/quote] 첨부 URL 미저장 (마이그레이션 20260710 대기?):", fileErr.message);
+    }
+  }
+
+  /* 다중 첨부파일 best-effort 저장 — files 컬럼(마이그레이션 20260730)이 없으면 조용히 건너뜀.
+     별도 update 라 컬럼 부재 시에도 견적 접수(insert)에는 영향 없음. */
+  if (submission.files.length > 0) {
+    const { error: filesErr } = await supabaseAdmin
+      .from("quotes")
+      .update({ files: submission.files })
+      .eq("id", submission.id);
+    if (filesErr) {
+      console.warn("[api/quote] 다중 첨부 미저장 (마이그레이션 20260730 대기?):", filesErr.message);
     }
   }
 
