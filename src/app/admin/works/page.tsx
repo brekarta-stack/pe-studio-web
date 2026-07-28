@@ -16,15 +16,20 @@ export default async function AdminWorksPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/admin/login");
 
-  /* assignments 테이블이 없으면 보드 대신 셋업 안내를 띄운다 */
-  let ready = true;
-  try {
-    const { error } = await supabaseAdmin.from("assignments").select("id").limit(1);
-    if (error) ready = false;
-  } catch {
-    ready = false;
-  }
+  /* 독립 조회를 한 번에 병렬로 — 순차 왕복이 쌓이지 않게.
+     (테이블이 없으면 listAssignmentViews 가 빈 배열로 폴백하므로 함께 조회해도 안전) */
+  const [probeRes, works, artistsRes, quoteRowsRes] = await Promise.all([
+    supabaseAdmin.from("assignments").select("id").limit(1),
+    listAssignmentViews(),
+    getAllArtists(),
+    supabaseAdmin
+      .from("quotes")
+      .select("id, name, product, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
 
+  const ready = !probeRes.error;
   if (!ready) {
     return (
       <div className="mx-auto max-w-3xl p-6 md:p-8">
@@ -48,23 +53,12 @@ export default async function AdminWorksPage() {
     );
   }
 
-  const [works, { artists: allArtists }] = await Promise.all([
-    listAssignmentViews(),
-    getAllArtists(),
-  ]);
-
-  const artists: ArtistOption[] = allArtists.map((a) => ({ id: a.id, name: a.name }));
+  const artists: ArtistOption[] = artistsRes.artists.map((a) => ({ id: a.id, name: a.name }));
 
   /* 새 배정 모달의 선택지 — 아직 배정이 없는 리드만.
      최신 순으로 최대 100건까지 (그보다 오래된 미배정 리드는 실무상 대상이 아니다) */
   const assignedIds = new Set(works.map((w) => w.quoteId));
-  const { data: quoteRows } = await supabaseAdmin
-    .from("quotes")
-    .select("id, name, product, created_at")
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  const unassigned: UnassignedLead[] = (quoteRows ?? [])
+  const unassigned: UnassignedLead[] = (quoteRowsRes.data ?? [])
     .filter((q) => !assignedIds.has(q.id as string))
     .map((q) => ({
       id: q.id as string,
