@@ -96,7 +96,19 @@ if [ -n "$SB" ]; then
 else
   echo "  [WARN] SLACK_BOT_TOKEN 없음 — 알림 경로 검증 불가"
 fi
-[ -f "$COMPOSE_DIR/restic.env" ] && ok "오프사이트 설정됨" || echo "  [WARN] 오프사이트 미설정 — 로컬 사본뿐"
+# 오프사이트: 설정 파일 존재가 아니라 **원격에 실제로 파일이 있는지**를 본다.
+# (설정만 보고 완료로 판정하는 습관이 오늘 하루에만 3번 틀렸다: Kuma·아침브리핑·주간점검)
+if sudo -n test -f /root/.config/rclone/rclone.conf; then
+  ON=$(sudo -n rclone size gcrypt: --json 2>/dev/null | sed 's/.*"count":\([0-9]*\).*/\1/')
+  if [ -n "${ON:-}" ] && [ "${ON:-0}" -gt 0 ] 2>/dev/null; then
+    OAGE=$(sudo -n rclone lsf gcrypt:daily --dirs-only 2>/dev/null | sort | tail -1)
+    ok "오프사이트 ${ON}개 파일 (최신 ${OAGE:-?})"
+  else
+    bad "오프사이트 설정은 있는데 원격이 비었다 — 업로드가 실패하고 있다"
+  fi
+else
+  echo "  [WARN] 오프사이트 미설정 — 로컬 사본뿐"
+fi
 
 echo
 [ "$FAIL" -eq 0 ] && { echo "== 통합 스모크 통과 =="; exit 0; }

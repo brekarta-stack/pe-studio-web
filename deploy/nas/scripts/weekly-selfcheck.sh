@@ -5,15 +5,27 @@
 # (설계 §I 재활용 목록). Kuma는 인프라만 보고 "시스템이 과확장됐는지·조용히 멈췄는지"는 못 본다.
 # 원칙 유지: **읽기전용, 제안만, 실행 없음.** 삭제·구조변경은 사람이 한다.
 #
-# 실행: cron 주 1회(월 09:00). 리포트는 파일로 남기고, 웹훅 URL 파일이 있으면 요약을 보낸다.
-# 사용: COMPOSE_DIR=... sh weekly-selfcheck.sh [--no-llm]
+# 실행: cron 주 1회(월 09:00). 리포트를 파일로 남기고 **Slack #sysops로 요약을 보낸다.**
+# 사용: COMPOSE_DIR=... sh weekly-selfcheck.sh [--no-llm] [--dry-run]
+#
+# ⚠️ 2026-07-28 수정: 원래는 `selfcheck-webhook.url` 파일이 있을 때만 보냈는데,
+#    그 파일이 애초에 없어서 **리포트를 아무도 안 읽고 쌓기만 했다.**
+#    같은 날 morning-brief(죽은 채널로 18일 발송)·Kuma 알림(채널 0개)에서 본 것과 같은 부류다:
+#    "만들었다"와 "도착한다"는 다르다. 그래서 이제 봇 토큰으로 직접 보내고,
+#    Slack이 HTTP 200에 실어 보내는 `ok:false`까지 확인해 실패를 로그에 남긴다.
 set -u
 umask 077
 
 COMPOSE_DIR="${COMPOSE_DIR:-$HOME/agent-backbone}"
 REPORT_DIR="${REPORT_DIR:-/volume3/backup/agent-backbone/selfcheck}"
-NO_LLM=""
-case "${1:-}" in --no-llm) NO_LLM=1 ;; esac
+NO_LLM=""; DRY=""
+for a in "$@"; do
+  case "$a" in
+    --no-llm) NO_LLM=1 ;;
+    --dry-run) DRY=1 ;;
+  esac
+done
+SLACK_CHANNEL="${SELFCHECK_SLACK_CHANNEL:-C0B6QEAKEAF}"   # #sysops-시스템관리. **이름이 아니라 ID** — 이름은 바뀐다
 
 cd "$COMPOSE_DIR" || exit 1
 mkdir -p "$REPORT_DIR"
@@ -54,7 +66,12 @@ else
   echo "- ⚠️ **백업 없음**"
 fi
 echo "- 보관 개수: $(sudo -n sh -c "ls -1d $REPORT_DIR/../daily/*/ 2>/dev/null | wc -l")"
-[ -f "$COMPOSE_DIR/restic.env" ] || echo "- ⚠️ 오프사이트(B2) 미설정 — 현재 3-2-1이 아니라 로컬 사본뿐"
+OFF_N=$(sudo -n rclone size gcrypt: --json 2>/dev/null | sed 's/.*"count":\([0-9]*\).*/\1/')
+if [ -n "${OFF_N:-}" ] && [ "${OFF_N:-0}" -gt 0 ] 2>/dev/null; then
+  echo "- 오프사이트(Google Drive, 암호화): ${OFF_N}개 파일 · 최신 $(sudo -n rclone lsf gcrypt:daily --dirs-only 2>/dev/null | sort | tail -1)"
+else
+  echo "- ⚠️ **오프사이트가 비었거나 조회 실패 — 3-2-1이 아니라 로컬 사본뿐이다**"
+fi
 
 echo
 echo "## 4. 데이터 규모"
@@ -85,6 +102,13 @@ echo "## 7. 모델 사용·비용 (LiteLLM)"
 psql "SELECT '- ' || model || ': ' || count(*) || '회, \$' || round(sum(spend)::numeric,4) FROM \"LiteLLM_SpendLogs\" WHERE \"startTime\" > now() - interval '7 days' GROUP BY model ORDER BY sum(spend) DESC LIMIT 10" 2>/dev/null || echo "- (spend 로그 없음)"
 
 echo
+echo "## 7-1. 분기 목표 대비 실적"
+# 2026-07-28 게이트 통과로 part_definitions.config->'goals'에 숫자가 들어왔다.
+# 미니 자기점검은 "목표"라는 기준 자체가 없어(goals 배열이 비어 있었다) 이걸 못 봤다.
+psql "SELECT '- ' || p.part_key || ' 리드: 최근 30일 ' || (SELECT count(*) FROM leads l WHERE l.business=p.part_key AND l.created_at > now() - interval '30 days') || '건 / 목표 ' || COALESCE(p.config->'goals'->>'leads_per_month', p.config->'goals'->>'notices_per_week' || '(주)', p.config->'goals'->>'inquiries_per_month', '미설정') FROM part_definitions p WHERE p.active ORDER BY p.part_key" 2>/dev/null || echo "- (목표 조회 실패)"
+echo "- 판단 기준: 목표의 절반에 못 미치면 수집 소스·키워드가 틀렸을 가능성이 크다(모델 문제 아님)."
+
+echo
 echo "## 8. 과확장 점검 (미니 자기점검이 잡아냈던 종류)"
 INACTIVE_WF=$(psql "SELECT count(*) FROM workflow_entity WHERE NOT active")
 EMPTY_PARTS=$(psql "SELECT count(*) FROM part_definitions WHERE NOT active")
@@ -97,7 +121,9 @@ echo
 echo "## 9. 사람이 판단할 것"
 [ "$INACTIVE_WF" -gt 5 ] && echo "- 비활성 워크플로가 $INACTIVE_WF개다. placeholder를 실물로 바꾸거나 지울 시점."
 [ -f "$COMPOSE_DIR/heartbeat.url" ] || echo "- 외부 하트비트 미설정 — NAS 자체가 죽으면 아무도 모른다."
-[ -f "$COMPOSE_DIR/restic.env" ] || echo "- 오프사이트 백업 미설정 — NAS 전손 시 전부 소실."
+sudo -n test -f /root/.config/rclone/rclone.conf || echo "- 오프사이트 백업 미설정 — NAS 전손 시 전부 소실."
+echo "- 오프사이트 원격: $(sudo -n rclone size gcrypt: 2>/dev/null | tr '\n' ' ' || echo '조회 실패')"
+echo "- ⚠️ rclone 공유 client_id는 2026년 중 폐지 예정이다. 어느 날 갑자기 업로드가 멈추면 이것부터 의심할 것(자체 client_id 발급으로 해결)."
 echo "- (이 항목들은 제안일 뿐이다. 실행하지 않는다.)"
 } > "$OUT" 2>&1
 
@@ -127,16 +153,51 @@ fi
 find "$REPORT_DIR" -name 'selfcheck_*.md' -mtime +84 -delete 2>/dev/null
 
 echo "리포트: $OUT"
-# 웹훅 URL 파일이 있으면 요약 전송(없으면 조용히 넘어감 — 하트비트와 같은 활성화 패턴)
-HOOK="$COMPOSE_DIR/selfcheck-webhook.url"
-if [ -s "$HOOK" ]; then
-  U=$(head -n1 "$HOOK" | tr -d ' \r\n')
-  python3 - "$OUT" "$U" <<'PYEOF' 2>/dev/null || echo "WARN: 웹훅 전송 실패"
-import json, sys, urllib.request
-text = open(sys.argv[1], encoding="utf-8").read()
-tail = text[-2500:]
-req = urllib.request.Request(sys.argv[2], data=json.dumps({"text": "주간 자가점검\n```\n" + tail + "\n```"}).encode(),
-                             headers={"Content-Type": "application/json"})
-urllib.request.urlopen(req, timeout=15).close()
-PYEOF
+
+# ── Slack 전송. 봇 토큰 직접 호출(웹훅 URL이 없는 워크스페이스라 Kuma에서도 같은 방식을 썼다) ──
+[ -n "$DRY" ] && { echo "(--dry-run: 전송 생략)"; exit 0; }
+BOT=$(grep '^SLACK_BOT_TOKEN=' .env | tail -n1 | cut -d= -f2- | tr -d ' \r')
+if [ -z "$BOT" ]; then
+  echo "WARN: SLACK_BOT_TOKEN 없음 — 리포트를 아무도 읽지 못한다"
+  exit 0
 fi
+python3 - "$OUT" "$BOT" "$SLACK_CHANNEL" <<'PYEOF'
+import json, sys, urllib.request, urllib.error, re
+
+path, token, channel = sys.argv[1], sys.argv[2], sys.argv[3]
+text = open(path, encoding="utf-8").read()
+
+# 원문 전체를 붙이면 Slack 4000자 제한에 걸리고 읽히지도 않는다.
+# "사람이 판단할 것" + "총평"만 본문으로 올리고, 나머지는 파일 경로로 안내한다.
+def section(title):
+    m = re.search(r"^## .*%s.*$([\s\S]*?)(?=^## |\Z)" % re.escape(title), text, re.M)
+    return (m.group(1).strip() if m else "")
+
+body = []
+body.append("*🔎 주간 자가점검* — " + text.splitlines()[0].replace("# 주간 자가점검 — ", ""))
+for t in ("분기 목표 대비 실적", "과확장 점검", "사람이 판단할 것", "총평"):
+    s = section(t)
+    if s:
+        body.append("\n*" + t + "*\n" + s[:1100])
+body.append("\n_전문: `%s`_" % path)
+msg = "\n".join(body)[:3800]
+
+req = urllib.request.Request(
+    "https://slack.com/api/chat.postMessage",
+    data=json.dumps({"channel": channel, "text": msg, "mrkdwn": True,
+                     "unfurl_links": False}, ensure_ascii=False).encode(),
+    headers={"Authorization": "Bearer " + token,
+             "Content-Type": "application/json; charset=utf-8"},
+    method="POST")
+try:
+    r = json.loads(urllib.request.urlopen(req, timeout=20).read())
+except Exception as e:
+    print("FAIL: Slack 전송 예외 —", e); sys.exit(1)
+
+# ★ Slack은 실패해도 HTTP 200을 준다. ok를 반드시 확인해야 조용한 실패를 잡는다.
+if r.get("ok"):
+    print("Slack 전송 OK — 채널 %s" % r.get("channel"))
+else:
+    print("FAIL: Slack이 거절함 —", r.get("error"))
+    sys.exit(1)
+PYEOF

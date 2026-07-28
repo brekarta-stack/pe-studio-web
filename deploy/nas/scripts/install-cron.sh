@@ -23,6 +23,7 @@ SRC_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ -f "$SRC_DIR/backup-daily.sh" ] || { echo "FATAL: $SRC_DIR/backup-daily.sh missing"; exit 1; }
 [ -f "$SRC_DIR/ab-boot-up.sh" ] || { echo "FATAL: $SRC_DIR/ab-boot-up.sh missing"; exit 1; }
 [ -f "$SRC_DIR/weekly-selfcheck.sh" ] || { echo "FATAL: $SRC_DIR/weekly-selfcheck.sh missing"; exit 1; }
+[ -f "$SRC_DIR/offsite-sync.sh" ] || { echo "FATAL: $SRC_DIR/offsite-sync.sh missing"; exit 1; }
 
 # root 소유 사본 설치
 BIN_DIR=/usr/local/sbin
@@ -31,8 +32,10 @@ cp "$SRC_DIR/hc-ping.sh" "$BIN_DIR/ab-hc-ping.sh"
 cp "$SRC_DIR/backup-daily.sh" "$BIN_DIR/ab-backup-daily.sh"
 cp "$SRC_DIR/ab-boot-up.sh" "$BIN_DIR/ab-boot-up.sh"
 cp "$SRC_DIR/weekly-selfcheck.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
-chown root:root "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
-chmod 755 "$BIN_DIR/ab-hc-ping.sh" "$BIN_DIR/ab-backup-daily.sh" "$BIN_DIR/ab-boot-up.sh" "$BIN_DIR/ab-weekly-selfcheck.sh"
+cp "$SRC_DIR/offsite-sync.sh" "$BIN_DIR/ab-offsite-sync.sh"
+for f in ab-hc-ping.sh ab-backup-daily.sh ab-boot-up.sh ab-weekly-selfcheck.sh ab-offsite-sync.sh; do
+  chown root:root "$BIN_DIR/$f"; chmod 755 "$BIN_DIR/$f"
+done
 
 # 커널 파라미터(부팅 시 TS IP 바인딩 실패 방지) — 레포의 정본을 복사·적용해 복원 가능하게 한다.
 # (이전엔 수동 설정이라 레포·백업 어디에도 없었다 — 감사 지적)
@@ -68,6 +71,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 */5 * * * * root sh $BIN_DIR/ab-hc-ping.sh '$COMPOSE_DIR/heartbeat.url' >/dev/null 2>&1
 $BK_MIN $BK_HOUR * * * root COMPOSE_DIR='$COMPOSE_DIR' BACKUP_ROOT='$BACKUP_ROOT' sh $BIN_DIR/ab-backup-daily.sh >> '$BACKUP_ROOT/backup.log' 2>&1
 0 9 * * 1 root COMPOSE_DIR='$COMPOSE_DIR' REPORT_DIR='$BACKUP_ROOT/selfcheck' sh $BIN_DIR/ab-weekly-selfcheck.sh >> '$BACKUP_ROOT/selfcheck.log' 2>&1
+# 오프사이트: 일일백업(03:30)이 끝난 뒤에 올린다. 순서가 뒤집히면 어제 것만 올라간다.
+0 5 * * * root COMPOSE_DIR='$COMPOSE_DIR' OFFSITE_SRC='$BACKUP_ROOT/daily' HOME=/root sh $BIN_DIR/ab-offsite-sync.sh >> '$BACKUP_ROOT/offsite.log' 2>&1
 EOF
 chmod 644 "$CRON_FILE"
 chown root:root "$CRON_FILE" 2>/dev/null || true
@@ -87,4 +92,5 @@ echo "activate heartbeat : echo '<ping-url>' > $COMPOSE_DIR/heartbeat.url"
 echo "backup heartbeat   : echo '<ping-url>' > $COMPOSE_DIR/heartbeat-backup.url  (선택)"
 echo "manual backup test : sudo COMPOSE_DIR='$COMPOSE_DIR' BACKUP_ROOT='$BACKUP_ROOT' sh $BIN_DIR/ab-backup-daily.sh"
 echo "⚠️ 스크립트 수정 시 install-cron.sh 재실행(sbin 사본 갱신)."
-echo "⚠️ B2 사용 시 RESTIC_PASSWORD를 패스워드매니저 등 NAS 밖에 반드시 에스크로(분실=오프사이트 복구 불가)."
+echo "⚠️ 오프사이트(rclone crypt) 비밀번호를 패스워드매니저 등 **NAS 밖**에 반드시 보관."
+echo "   분실하면 Google Drive에 올라간 사본을 영원히 못 연다 — 오프사이트를 둔 의미가 사라진다."
