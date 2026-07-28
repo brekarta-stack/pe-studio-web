@@ -73,6 +73,17 @@ async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {
   }
 }
 
+/**
+ * 자동 실행 가능 여부 — /api/admin/migrate 와 같은 조건을 본다.
+ * 여기서 미리 알아야 눌러도 안 되는 버튼을 활성 상태로 두지 않는다.
+ */
+function canAutoRunMigration(): boolean {
+  if (!process.env.SUPABASE_ACCESS_TOKEN) return false;
+  if (process.env.SUPABASE_PROJECT_REF) return true;
+  const url = process.env.SUPABASE_URL;
+  return !!url && /^https?:\/\/([a-z0-9-]+)\.supabase\./i.test(url);
+}
+
 /** 컬럼 존재 확인 — 테이블이 없으면 판단 불가(null) */
 async function checkColumn(table: string, column: string): Promise<boolean | null> {
   try {
@@ -185,14 +196,11 @@ export default async function SetupPage() {
               ))}
             </ul>
             <p className="mt-3 text-sm text-amber-700">
-              아래 <strong>마이그레이션 실행</strong> 버튼으로 바로 적용할 수 있습니다.
-              환경변수 <code className="font-mono text-xs">SUPABASE_ACCESS_TOKEN</code> 이 없으면
-              자동 실행이 불가하니, <strong>SQL 복사</strong> 후 Supabase SQL Editor 에 붙여넣어 실행하세요.
-              (모든 구문이 <code className="font-mono text-xs">IF NOT EXISTS</code> 라 여러 번 실행해도 안전합니다)
+              모든 구문이 <code className="font-mono text-xs">IF NOT EXISTS</code> 라 여러 번 실행해도 안전합니다.
             </p>
           </div>
 
-          <MigrateButton files={files} sql={combinedSql} />
+          <MigrateButton files={files} sql={combinedSql} canAutoRun={canAutoRunMigration()} />
 
           {/* SQL 코드 블록 */}
           <div className="bg-slate-900 rounded-2xl overflow-hidden mb-6">

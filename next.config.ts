@@ -79,6 +79,9 @@ const nextConfig: NextConfig = {
     "/api/studio/class/pdf": ["./content-private/studio/**/*"],
     // DB 셋업 페이지가 누락 테이블별 SQL(schema.sql·migrations/*)을 런타임에 읽는다
     "/admin/setup": ["./supabase/**/*"],
+    // 마이그레이션 실행 API 도 같은 SQL 파일을 읽어 Management API 로 보낸다.
+    // 여기 빠뜨리면 번들에 .sql 이 없어 "파일을 읽을 수 없습니다" 로 실패한다.
+    "/api/admin/migrate": ["./supabase/**/*"],
   },
 
   /**
