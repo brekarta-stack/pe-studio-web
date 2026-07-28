@@ -121,15 +121,71 @@ n8n으로 재구축하면 웹 리서치와 사례 매칭 능력을 잃는다 —
 작업이 미니 로컬로 강등돼 있었다(`logs/system/ask-ultra-fallback.log`). 24GB 미니가 96GB
 Studio 몫을 대신 돌고 있었다. 이관으로 제자리를 찾았다.
 
+### ✅ 2단계 완료 (2026-07-28) — voicebridge
+
+USB 마이크를 Studio로 옮기고 마이크 권한(TCC)을 승인받아 상주 전환. 실제 캡처를 확인했다
+(RMS 0.0018 / 피크 0.0083 — 무음이 아님). PID 안정, Whisper large-v3-turbo 내려받는 중.
+
+함정 둘: plist가 미니 경로(`/Users/agent/...`)라 다시 썼고, 예전에 `launchctl disable`로
+꺼둔 기록이 남아 있어 plist가 아무리 정상이어도 `bootstrap: 5: Input/output error`가 났다.
+`launchctl print-disabled gui/$(id -u)`로 확인하고 `enable` 해야 한다.
+
+### ✅ 5단계 완료 (2026-07-28) — 학습 3종
+
+성격이 다른 둘을 갈라서 각자 제자리에 뒀다:
+- **간격반복**(결정적·DB) → n8n `학습: 간격반복 퀴즈` 활성화. 미니 `config/learning.json`의
+  3항목을 `learning_items`로 진행상태(rep=4, next_due 7/31)까지 동기화. 발송 경로를 실제로
+  검증했다(due 항목을 오늘로 당겨 실행 → 슬랙 도착 확인 → 원복).
+- **생성형 퀴즈**(에이전트+웹검색) → Studio `com.agent.learning-quiz` 평일 09:05.
+
+여기서도 조용한 실패를 셋 잡았다:
+1. `learning-quiz`가 `http://localhost:11434`를 하드코딩. Studio의 ollama는
+   `OLLAMA_HOST=100.65.201.6:11434`에만 바인딩돼 있어 invest 블록 5문항이 통째로 사라진다.
+   env로 뺐다(기본값은 미니와 동일).
+2. `qwen3:8b-q8_0`이 Studio에 없다. `qwen2.5:7b`는 **한국어 질문에 중국어로 답해** 탈락(실측).
+   `qwen3.6:35b-a3b`로 교체 — 한국어 정상, 빈 응답 없음.
+3. n8n 워크플로: 중복 INSERT가 0행이어도 Postgres 노드는 항목을 내보내 재발송 차단이 무력화된다
+   (아침 브리핑에서 잡았던 것과 같은 함정). 가드 노드를 넣었다. Slack 본문도 `$json`이 Postgres
+   출력이라 `undefined`가 나가고 있었다 — `$('문항 정리')` 명시 참조로 교체.
+
+미니 3종 OFF. `learning-youtube`는 **48회 실행 중 0건** — 한 번도 작동한 적이 없어 대체물 없이 폐기.
+
+`업무·일정: 아침 브리핑`은 **비활성으로 되돌렸다.** 활성인데 내용이 placeholder(가짜 일정
+"10:00 팀 미팅")이고 발송이 noOp였다. 매일 가짜 일정을 보내느니 꺼두는 게 정직하다.
+Google Calendar 연결(3단계) 후 켠다.
+
+### ✅ 6단계 완료 (2026-07-28) — 자기점검
+
+`weekly-selfcheck.sh`(월 09:00)가 이미 미니 `agent-review`의 살릴 만한 렌즈를 담고 있었다:
+§8 과확장 점검 · §9 사람이 판단할 것 · §10 로컬 모델 총평. 7/27 09:00에 실제로 돌아
+리포트를 남겼고 슬랙에도 갔다. `agent-review`의 나머지 렌즈(agent_models.json·`.claude/agents`
+점검)는 구 에이전트 시스템이 대상이라 미니와 함께 사라지는 게 맞다.
+
+**빠져 있던 한 조각을 메웠다: Studio 에이전트 잡이 산출을 냈는가.**
+오늘 겪은 실패는 전부 "정상 종료했는데 결과물이 0건"이었다 — 성공/실패가 아니라 **산출량**을
+봐야 한다. Kuma push 모니터 2개(`bd-daily(push)`·`learning-quiz(push)`, 26시간)를 만들고,
+스크립트가 **실제 산출이 있을 때만** 핑하게 했다. 산출 0 → 핑 없음 → Kuma 빨간불 → #sysops.
+
+드릴로 전 구간을 확인했다(간격 90초로 낮춰 핑을 끊음 → DOWN 150초 → 슬랙 알림 17:59:44 도착).
+
+여기서도 제 수정 안에 같은 함정이 두 개 있었다:
+- 푸시 URL의 `msg`에 **한글을 넣으면 Kuma가 하트비트를 기록하지 않는다**(`msg=test`는 되고
+  `msg=설치검증`은 안 됨). ASCII로 바꿨다.
+- `curl -f … && echo` 형태라 실패해도 로그에 아무것도 안 남아 "핑 보냈겠지"가 된다. rc를 남긴다.
+- SQLite로 모니터를 넣은 뒤 **Kuma가 실제로 평가하는지 확인해야 한다.** 재시작이 먹지 않아
+  7·8번이 타임아웃 검사에서 빠져 있었고, 한 번 더 재시작하고서야 동작했다.
+
+미니 `agent-review`·`agent-audit`·`qc-eval` OFF.
+
 ## 이관 순서 (권장)
 
 1. ~~관제 잡 OFF~~ ✅ 완료(위 참조)
-2. 마이크 이동 → `voicebridge` OFF ⏸ **사용자 물리 작업 대기**(USB 마이크를 Studio로)
+2. ~~마이크 이동 → `voicebridge` OFF~~ ✅ 완료 ⏸ **사용자 물리 작업 대기**(USB 마이크를 Studio로)
 3. ~~Slack 연결 → `morning-brief` OFF~~ ✅ 완료 · 죽은 잡 5종 OFF ·
    남은 것: `proactive-nudge`(돌고 있음 — 대체 필요), Google Calendar OAuth 연결
 4. ~~수집 노드 교체 → `bd-daily` OFF~~ ✅ 완료(아래 4단계 참조) · 남은 것: `sns-daily`
-5. 학습 워크플로 작성 → `learning-*` OFF
-6. 자기점검 축소 이식 → `agent-*`·`qc-eval` OFF
+5. ~~학습 워크플로 작성 → `learning-*` OFF~~ ✅ 완료
+6. ~~자기점검 축소 이식 → `agent-*`·`qc-eval` OFF~~ ✅ 완료
 7. KIS 연결 → `invest-*` OFF
 8. **마지막**: `backup-restic` 경로 정리 → restic-rest 컨테이너 정리 → 미니 제거
 
