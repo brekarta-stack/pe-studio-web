@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
+      "Bash(git add:*)", "Bash(git commit:*)", "Bash(git push:*)", "Bash(git pull:*)",
+      "Bash(git branch:*)", "Bash(git checkout:*)", "Bash(git stash:*)", "Bash(git fetch:*)",
+      "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)",
+      "Bash(grep:*)", "Bash(rg:*)", "Bash(find:*)", "Bash(which:*)", "Bash(echo:*)",
+      "Bash(pwd)", "Bash(cd:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)",
+      "Bash(ssh nas:*)", "Bash(ssh agent@100.67.146.83:*)",
+      "Bash(tailscale status)", "Bash(tailscale ip:*)",
+      "Bash(docker ps:*)", "Bash(docker logs:*)", "Bash(docker inspect:*)",
+      "Bash(docker compose ps:*)", "Bash(docker compose logs:*)", "Bash(docker compose config:*)",
+      "Bash(curl:*)", "Bash(ollama list)", "Bash(launchctl list:*)",
+      "Bash(npm run:*)", "Bash(npm test:*)", "Bash(python3:*)", "Bash(node:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)", "Bash(sudo rm:*)", "Bash(mkfs:*)", "Bash(dd:*)",
+      "Bash(docker rm:*)", "Bash(docker rmi:*)", "Bash(docker volume rm:*)",
+      "Bash(git push --force:*)", "Bash(git reset --hard:*)",
+      "Read(./**/.env)", "Read(./**/.env.*)", "Read(./**/*secret*)",
+      "Read(./**/*.key)", "Read(./**/*.pem)", "Read(./**/restic.env)"
+    ]
+  }
+}
