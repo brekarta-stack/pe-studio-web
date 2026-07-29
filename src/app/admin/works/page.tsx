@@ -55,9 +55,17 @@ export default async function AdminWorksPage() {
 
   const artists: ArtistOption[] = artistsRes.artists.map((a) => ({ id: a.id, name: a.name }));
 
-  /* 새 배정 모달의 선택지 — 아직 배정이 없는 리드만.
-     최신 순으로 최대 100건까지 (그보다 오래된 미배정 리드는 실무상 대상이 아니다) */
-  const assignedIds = new Set(works.map((w) => w.quoteId));
+  /* 새 배정 모달의 선택지 — 아직 "살아 있는" 배정이 없는 리드만.
+     최신 순으로 최대 100건까지 (그보다 오래된 미배정 리드는 실무상 대상이 아니다)
+
+     거절·취소된 배정은 점유로 치지 않는다. 아티스트가 거절한 리드는 다시
+     누군가에게 맡겨야 하는데, 죽은 배정이 남아 있다는 이유로 목록에서 빠지면
+     재배정 자체를 할 수 없다. */
+  const assignedIds = new Set(
+    works
+      .filter((w) => w.offerStatus !== "declined" && w.status !== "cancelled")
+      .map((w) => w.quoteId)
+  );
   const unassigned: UnassignedLead[] = (quoteRowsRes.data ?? [])
     .filter((q) => !assignedIds.has(q.id as string))
     .map((q) => ({

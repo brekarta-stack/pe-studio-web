@@ -15,9 +15,11 @@ import type { Assignment, AssignmentInput, AssignmentView } from "./assignment-t
 import {
   isAssignmentStatus,
   isFeeTaxMode,
+  isOfferStatus,
   isPayoutStatus,
   isQuoteStage,
 } from "./assignment-types";
+import type { Deliverable } from "./assignment-types";
 
 export type { Assignment, AssignmentInput, AssignmentView } from "./assignment-types";
 
@@ -31,6 +33,19 @@ function isMissingTable(error: { message?: string; code?: string } | null): bool
     (error.message ?? "").includes("does not exist") ||
     (error.message ?? "").includes("schema cache")
   );
+}
+
+/** deliverables JSONB → 화면에서 믿고 쓸 수 있는 배열 (url 없는 항목은 버린다) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toDeliverables(raw: any): Deliverable[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f: unknown): f is Deliverable => !!f && typeof (f as Deliverable).url === "string")
+    .map((f) => ({
+      name: f.name ?? "파일",
+      url: f.url,
+      uploadedAt: f.uploadedAt ?? "",
+    }));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +68,14 @@ function toAssignment(row: any): Assignment {
     dueDate: row.due_date ?? null,
     startedAt: row.started_at ?? null,
     memo: row.memo ?? "",
+    /* 마이그레이션 20260802 이전 로우에는 제안 컬럼이 없다.
+       그때의 배정은 이미 합의하고 진행 중인 건이므로 accepted 로 읽는다 —
+       기본값을 draft 로 두면 진행 중인 업무가 포털에서 통째로 사라진다. */
+    offerStatus: isOfferStatus(row.offer_status) ? row.offer_status : "accepted",
+    offeredAt: row.offered_at ?? null,
+    respondedAt: row.responded_at ?? null,
+    declineReason: row.decline_reason ?? "",
+    deliverables: toDeliverables(row.deliverables),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -76,6 +99,11 @@ function toRow(input: AssignmentInput) {
     due_date: input.dueDate,
     started_at: input.startedAt,
     memo: input.memo,
+    offer_status: input.offerStatus,
+    offered_at: input.offeredAt,
+    responded_at: input.respondedAt,
+    decline_reason: input.declineReason,
+    deliverables: input.deliverables,
   };
 }
 
@@ -153,6 +181,25 @@ export async function listAssignmentsByQuote(quoteId: string): Promise<Assignmen
   return all.filter((a) => a.quoteId === quoteId);
 }
 
+/**
+ * 특정 아티스트의 배정 목록 — 아티스트 포털의 시작점.
+ * 전체를 읽고 거르지 않고 DB 에서 좁힌다: 포털은 남의 배정을 애초에
+ * 메모리에 올리지 않는 편이 안전하고, artist_id 인덱스도 이미 있다.
+ */
+export async function listAssignmentsByArtist(artistId: string): Promise<Assignment[]> {
+  if (!artistId) return [];
+  const { data, error } = await supabaseAdmin
+    .from("assignments")
+    .select("*")
+    .eq("artist_id", artistId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (isMissingTable(error)) return [];
+    throw error;
+  }
+  return (data ?? []).map(toAssignment);
+}
+
 export async function createAssignment(input: AssignmentInput): Promise<Assignment> {
   const { data, error } = await supabaseAdmin
     .from("assignments")
@@ -184,6 +231,11 @@ export async function updateAssignment(
   if (patch.startedAt !== undefined) row.started_at = patch.startedAt;
   if (patch.memo !== undefined) row.memo = patch.memo;
   if (patch.artistId !== undefined) row.artist_id = patch.artistId;
+  if (patch.offerStatus !== undefined) row.offer_status = patch.offerStatus;
+  if (patch.offeredAt !== undefined) row.offered_at = patch.offeredAt;
+  if (patch.respondedAt !== undefined) row.responded_at = patch.respondedAt;
+  if (patch.declineReason !== undefined) row.decline_reason = patch.declineReason;
+  if (patch.deliverables !== undefined) row.deliverables = patch.deliverables;
   if (Object.keys(row).length === 0) return;
 
   const { error } = await supabaseAdmin.from("assignments").update(row).eq("id", id);
@@ -237,5 +289,12 @@ export async function setQuoteArtist(quoteId: string, artistId: string | null): 
     dueDate: null,
     startedAt: null,
     memo: "",
+    /* 시트에서 담당자만 지정한 상태 — 작업비·납기를 정하기 전이라 아직 제안하지 않는다.
+       실제 제안은 /admin/works 에서 조건을 채운 뒤 "제안 보내기"로 한다. */
+    offerStatus: "draft",
+    offeredAt: null,
+    respondedAt: null,
+    declineReason: "",
+    deliverables: [],
   });
 }

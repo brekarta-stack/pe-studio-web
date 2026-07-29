@@ -57,6 +57,17 @@ const NAV_GROUPS = [
         ),
       },
       {
+        // 아티스트 포털 로그인 계정 — 초대 발급·가입 신청 승인·아티스트 매칭
+        href: "/admin/accounts",
+        exact: false,
+        label: "아티스트 계정",
+        icon: (
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6zm-3 3a1.25 1.25 0 01.75 2.25V15a.75.75 0 01-1.5 0v-.75A1.25 1.25 0 0110 12z" clipRule="evenodd" />
+          </svg>
+        ),
+      },
+      {
         // Drop(제외) 처리한 제작 문의 — 목록에서 빠진 건을 따로 모아 본다(복구 가능)
         href: "/admin/drops",
         exact: false,

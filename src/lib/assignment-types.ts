@@ -89,6 +89,63 @@ export function isPayoutStatus(v: unknown): v is PayoutStatus {
   return typeof v === "string" && (PAYOUT_STATUSES as readonly string[]).includes(v);
 }
 
+/* ── 업무 제안 (아티스트 포털) ────────────────────────────────
+ * 배정을 만들었다고 곧바로 일이 시작되는 게 아니다. 관리자가 작업비·납기까지
+ * 정한 뒤 "제안"을 보내면 아티스트가 포털에서 수락/거절한다.
+ *   draft    관리자가 조건을 다듬는 중 — 아티스트에게 아직 안 보임
+ *   offered  제안 발송 — 아티스트 응답 대기
+ *   accepted 수락 — 이제부터 실제 작업
+ *   declined 거절 — 이 배정은 무효, 다른 아티스트에게 재배정한다
+ *
+ * 마이그레이션 20260802 이전의 배정은 전부 accepted 로 이행된다
+ * (이미 합의하고 진행 중인 건이므로). */
+export const OFFER_STATUSES = ["draft", "offered", "accepted", "declined"] as const;
+export type OfferStatus = (typeof OFFER_STATUSES)[number];
+
+export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
+  draft:    "미제안",
+  offered:  "응답 대기",
+  accepted: "수락됨",
+  declined: "거절됨",
+};
+
+export const OFFER_STATUS_COLORS: Record<OfferStatus, string> = {
+  draft:    "bg-slate-100 text-slate-500 border-slate-200",
+  offered:  "bg-amber-50 text-amber-700 border-amber-200",
+  accepted: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  declined: "bg-red-50 text-red-600 border-red-200",
+};
+
+export function isOfferStatus(v: unknown): v is OfferStatus {
+  return typeof v === "string" && (OFFER_STATUSES as readonly string[]).includes(v);
+}
+
+/** 아티스트에게 이 배정이 보여야 하는가 — draft 는 관리자만 본다 */
+export function isVisibleToArtist(offerStatus: OfferStatus): boolean {
+  return offerStatus !== "draft";
+}
+
+/** 아티스트가 지금 수락/거절할 수 있는가 — 응답 대기일 때만 */
+export function canRespondToOffer(offerStatus: OfferStatus): boolean {
+  return offerStatus === "offered";
+}
+
+/**
+ * 아티스트가 작업 내용(진행률·상태·결과물)을 만질 수 있는가.
+ * 수락한 건만 — 아직 응답 안 했거나 거절한 일을 진행할 수는 없다.
+ */
+export function canArtistWorkOn(a: Pick<Assignment, "offerStatus" | "status">): boolean {
+  return a.offerStatus === "accepted" && a.status !== "cancelled";
+}
+
+/** 아티스트가 올린 결과물 파일 한 건 */
+export interface Deliverable {
+  name: string;
+  url: string;
+  /** 업로드 시각 (ISO) */
+  uploadedAt: string;
+}
+
 export interface Assignment {
   id: string;
   /** 대상 리드 (quotes.id) */
@@ -120,6 +177,16 @@ export interface Assignment {
   /** 작업 착수일 (YYYY-MM-DD) */
   startedAt: string | null;
   memo: string;
+  /** 제안 상태 — 아티스트 포털의 수락/거절 (마이그레이션 20260802) */
+  offerStatus: OfferStatus;
+  /** 제안 발송 시각 (ISO) */
+  offeredAt: string | null;
+  /** 아티스트가 수락/거절한 시각 (ISO) */
+  respondedAt: string | null;
+  /** 거절 사유 — 아티스트가 남긴 한 줄 */
+  declineReason: string;
+  /** 아티스트가 올린 결과물 */
+  deliverables: Deliverable[];
   createdAt: string;
   updatedAt: string;
 }
@@ -296,6 +363,53 @@ export function dueUrgency(
 /** 진행중으로 간주하는 배정 상태 (부하 집계 기준) */
 export function isActive(a: Pick<Assignment, "status">): boolean {
   return a.status === "assigned" || a.status === "working" || a.status === "review";
+}
+
+/**
+ * 아티스트 포털에 보여줄 정산 요약.
+ *
+ * 이 함수를 통해서만 아티스트 화면에 금액을 내보낸다 — 매출(clientAmount)과
+ * 마진은 여기서 애초에 뽑지 않으므로, 실수로 렌더링에 끼어들 여지가 없다.
+ * (하청 구조에서 원청 매출은 공개하지 않는 게 기본)
+ */
+export interface ArtistPayout {
+  /** 세전 작업비 */
+  fee: number | null;
+  feeTaxMode: FeeTaxMode;
+  /** 세금 가감 (부가세는 +, 원천징수는 −) */
+  taxAmount: number;
+  /** 실제로 계좌에 들어오는 금액 */
+  net: number | null;
+  deposit: number | null;
+  depositPaidAt: string | null;
+  balance: number | null;
+  balancePaidAt: string | null;
+  /** 지급 완료된 금액 (세전) */
+  paid: number;
+  /** 아직 못 받은 금액 (세전) */
+  unpaid: number;
+  payoutStatus: PayoutStatus;
+}
+
+export function artistPayout(
+  a: Pick<
+    Assignment,
+    "artistFee" | "feeTaxMode" | "depositAmount" | "depositPaidAt" | "balancePaidAt"
+  >
+): ArtistPayout {
+  return {
+    fee: a.artistFee,
+    feeTaxMode: a.feeTaxMode,
+    taxAmount: feeTaxAmountOf(a.artistFee, a.feeTaxMode),
+    net: feeNetOf(a.artistFee, a.feeTaxMode),
+    deposit: a.depositAmount,
+    depositPaidAt: a.depositPaidAt,
+    balance: balanceOf(a),
+    balancePaidAt: a.balancePaidAt,
+    paid: paidFee(a),
+    unpaid: unpaidFee(a),
+    payoutStatus: derivePayoutStatus(a),
+  };
 }
 
 /** 원 단위 금액 표시 — 1234567 → "1,234,567" */

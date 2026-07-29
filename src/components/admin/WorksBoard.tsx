@@ -14,6 +14,8 @@ import {
   ASSIGNMENT_STATUSES,
   ASSIGNMENT_STATUS_COLORS,
   ASSIGNMENT_STATUS_LABELS,
+  OFFER_STATUS_COLORS,
+  OFFER_STATUS_LABELS,
   PAYOUT_STATUS_COLORS,
   PAYOUT_STATUS_LABELS,
   FEE_TAX_MODES,
@@ -35,7 +37,13 @@ import {
   type FeeTaxMode,
 } from "@/lib/assignment-types";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
-import { createWork, updateWork, deleteWork } from "@/app/admin/works/actions";
+import {
+  createWork,
+  updateWork,
+  deleteWork,
+  sendOffer,
+  withdrawOffer,
+} from "@/app/admin/works/actions";
 
 export interface ArtistOption {
   id: string;
@@ -201,6 +209,87 @@ function PaidDate({
         >
           오늘
         </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 제안 셀 — 이 배정을 아티스트 포털에 노출하고 응답을 기다릴지 조작한다.
+ *
+ * 아티스트는 draft 를 아예 보지 못한다. 그래서 "제안 보내기"를 누르는 순간이
+ * 곧 아티스트에게 업무가 보이기 시작하는 시점이다.
+ * 작업비가 비어 있으면 보낼 수 없다 — 판단 근거 없이 수락/거절을 시킬 수는 없다.
+ */
+function OfferCell({
+  work,
+  feeReady,
+  pending,
+  onSend,
+  onWithdraw,
+}: {
+  work: AssignmentView;
+  feeReady: boolean;
+  pending: boolean;
+  onSend: () => void;
+  onWithdraw: () => void;
+}) {
+  const responded = work.respondedAt?.slice(0, 10);
+  return (
+    <div className="min-w-[7.5rem]">
+      <span
+        className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+          OFFER_STATUS_COLORS[work.offerStatus]
+        }`}
+      >
+        {OFFER_STATUS_LABELS[work.offerStatus]}
+      </span>
+
+      {work.offerStatus === "draft" && (
+        <button
+          onClick={onSend}
+          disabled={pending || !feeReady}
+          title={feeReady ? undefined : "작업비를 저장해야 제안할 수 있습니다"}
+          className="mt-1.5 block w-full rounded-lg px-2 py-1 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-200"
+          style={!pending && feeReady ? { background: "#1E22B2" } : {}}
+        >
+          제안 보내기
+        </button>
+      )}
+
+      {work.offerStatus === "offered" && (
+        <>
+          <p className="mt-1 text-[11px] text-slate-400">
+            {work.offeredAt?.slice(0, 10)} 발송
+          </p>
+          <button
+            onClick={onWithdraw}
+            disabled={pending}
+            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+          >
+            회수
+          </button>
+        </>
+      )}
+
+      {work.offerStatus === "accepted" && responded && (
+        <p className="mt-1 text-[11px] text-slate-400">{responded} 수락</p>
+      )}
+
+      {work.offerStatus === "declined" && (
+        <>
+          <p className="mt-1 text-[11px] text-red-500">{responded} 거절</p>
+          {work.declineReason && (
+            <p className="mt-0.5 text-[11px] text-slate-400">{work.declineReason}</p>
+          )}
+          <button
+            onClick={onSend}
+            disabled={pending || !feeReady}
+            className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+          >
+            다시 제안
+          </button>
+        </>
       )}
     </div>
   );
@@ -475,6 +564,7 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
             <tr>
               <th className={th}>리드</th>
               <th className={th}>아티스트</th>
+              <th className={th}>제안</th>
               <th className={th}>상태</th>
               <th className={`${th} w-40`}>진행률</th>
               <th className={th}>작업비 (원가)</th>
@@ -489,7 +579,7 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-16 text-center text-slate-400">
+                <td colSpan={12} className="px-4 py-16 text-center text-slate-400">
                   {works.length === 0
                     ? "아직 배정된 작업이 없습니다. 오른쪽 위 “+ 새 배정”으로 시작하세요."
                     : "조건에 맞는 작업이 없습니다."}
@@ -528,6 +618,18 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                       </p>
                     </td>
                     <td className={`${td} whitespace-nowrap font-medium`}>{w.artistName}</td>
+                    <td className={td}>
+                      {/* 제안 가능 여부는 **저장된** 작업비로 판단한다 —
+                          입력만 하고 저장하지 않은 값으로 보내면 아티스트가
+                          빈 금액을 보게 된다 */}
+                      <OfferCell
+                        work={w}
+                        feeReady={w.artistFee != null}
+                        pending={isPending}
+                        onSend={() => run(() => sendOffer(w.id))}
+                        onWithdraw={() => run(() => withdrawOffer(w.id))}
+                      />
+                    </td>
                     <td className={td}>
                       <select
                         value={status}
@@ -725,6 +827,7 @@ function NewWorkModal({
     depositAmount: number | null;
     feeTaxMode: FeeTaxMode; clientVat: boolean;
     dueDate: string | null; memo: string;
+    sendOffer: boolean;
   }) => void;
 }) {
   const [quoteId, setQuoteId] = useState("");
@@ -736,6 +839,9 @@ function NewWorkModal({
   const [clientVat, setClientVat] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
+  /* 기본은 "바로 제안" — 조건을 다 채워 만드는 경우가 대부분이라 여기서
+     한 번에 끝내는 게 자연스럽다. 조건을 더 다듬을 때만 꺼서 미제안으로 둔다. */
+  const [offerNow, setOfferNow] = useState(true);
 
   const feeWon = parseWon(fee);
   const amountWon = parseWon(amount);
@@ -831,9 +937,36 @@ function NewWorkModal({
           </div>
 
           <div>
-            <label className={lbl}>메모</label>
+            <label className={lbl}>메모 (아티스트에게 전달됩니다)</label>
             <textarea rows={2} value={memo} onChange={(e) => setMemo(e.target.value)} className={`${field} resize-y`} />
           </div>
+
+          <label
+            className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 ${
+              offerNow ? "border-[#1E22B2] bg-[#F0F2FF]" : "border-slate-200"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={offerNow}
+              onChange={(e) => setOfferNow(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#1E22B2]"
+            />
+            <span className="text-sm">
+              <b className="text-slate-800">바로 제안 보내기</b>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                {offerNow
+                  ? "아티스트 포털에 바로 표시되고, 수락/거절 응답을 기다립니다."
+                  : "미제안 상태로 만듭니다. 아티스트에게는 보이지 않습니다."}
+              </span>
+            </span>
+          </label>
+
+          {offerNow && feeWon == null && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              작업비를 입력해야 제안할 수 있습니다. 비워 두면 미제안으로 만들어집니다.
+            </p>
+          )}
         </div>
 
         <div className="mt-5 flex gap-2">
@@ -852,6 +985,8 @@ function NewWorkModal({
                 clientVat,
                 dueDate: dueDate || null,
                 memo,
+                // 작업비 없이 제안하면 아티스트가 판단할 근거가 없다 — 미제안으로 만든다
+                sendOffer: offerNow && feeWon != null,
               })
             }
             className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200"

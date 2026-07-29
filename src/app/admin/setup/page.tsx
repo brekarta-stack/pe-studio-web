@@ -17,6 +17,7 @@ const TABLES = [
   "studio_reviews",
   "artists",
   "assignments",
+  "artist_accounts",
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -42,6 +43,7 @@ const TABLE_SQL: Record<TableName, string> = {
   studio_reviews:   "migrations/20260707_studio_reviews.sql",
   artists:          "migrations/20260607_artists.sql",
   assignments:      "migrations/20260728_quote_pipeline.sql",
+  artist_accounts:  "migrations/20260802_artist_portal.sql",
 };
 
 /** 테이블은 있는데 나중에 추가된 컬럼만 없는 경우 — 컬럼 단위로도 확인한다 */
@@ -75,6 +77,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     column: "fee_tax_mode",
     sql: "migrations/20260801_work_tax_mode.sql",
     note: "assignments.fee_tax_mode / client_vat (부가세·원천징수)",
+  },
+  {
+    table: "assignments",
+    column: "offer_status",
+    sql: "migrations/20260802_artist_portal.sql",
+    note: "assignments.offer_status / deliverables (아티스트 수락·거절, 결과물)",
   },
 ];
 

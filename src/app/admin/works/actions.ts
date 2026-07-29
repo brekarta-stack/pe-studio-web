@@ -37,6 +37,9 @@ function fail(e: unknown): ActionResult {
 function revalidate() {
   revalidatePath("/admin/works");
   revalidatePath("/admin/quotes");
+  // 아티스트 포털도 같은 데이터를 본다 — 조건이 바뀌면 바로 반영되게
+  revalidatePath("/artist");
+  revalidatePath("/artist/settlements");
 }
 
 /** 새 배정 생성 — 리드와 아티스트는 필수, 나머지는 선택 */
@@ -50,6 +53,8 @@ export async function createWork(input: {
   clientVat: boolean;
   dueDate: string | null;
   memo: string;
+  /** 만들자마자 아티스트에게 제안까지 보낼지. false 면 미제안(draft) 으로 둔다 */
+  sendOffer: boolean;
 }): Promise<ActionResult> {
   try {
     await requireAdmin();
@@ -80,6 +85,14 @@ export async function createWork(input: {
       dueDate: input.dueDate,
       startedAt: null,
       memo: input.memo,
+      /* 제안을 바로 보내면 그 시점을 offered_at 에 남긴다.
+         아티스트 포털은 draft 를 아예 보여주지 않으므로, 이 플래그가
+         "아티스트에게 노출되는가"를 그대로 결정한다. */
+      offerStatus: input.sendOffer ? "offered" : "draft",
+      offeredAt: input.sendOffer ? new Date().toISOString() : null,
+      respondedAt: null,
+      declineReason: "",
+      deliverables: [],
     };
     await createAssignment(payload);
     revalidate();
@@ -168,6 +181,56 @@ export async function updateWork(
     }
 
     await updateAssignment(id, next);
+    revalidate();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * 업무 제안 보내기 — 아티스트 포털에 노출하고 응답을 기다린다.
+ *
+ * 작업비가 정해지지 않은 채로 제안하면 아티스트가 "협의 예정"만 보고
+ * 판단해야 하므로 여기서 막는다. 조건을 다 채운 뒤 보내는 게 이 기능의 취지다.
+ */
+export async function sendOffer(id: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const current = await getAssignment(id);
+    if (!current) throw new Error("배정을 찾을 수 없습니다.");
+    if (current.offerStatus === "offered") throw new Error("이미 제안한 업무입니다.");
+    if (current.offerStatus === "accepted") throw new Error("이미 수락된 업무입니다.");
+    if (current.artistFee == null) {
+      throw new Error("작업비를 먼저 입력해야 제안할 수 있습니다.");
+    }
+
+    await updateAssignment(id, {
+      offerStatus: "offered",
+      offeredAt: new Date().toISOString(),
+      // 거절됐던 건을 조건을 바꿔 다시 제안하는 경우 — 이전 응답 기록을 지운다
+      respondedAt: null,
+      declineReason: "",
+      status: "assigned",
+    });
+    revalidate();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 제안 회수 — 아직 응답 전일 때만. 조건을 다시 손보려는 경우 */
+export async function withdrawOffer(id: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const current = await getAssignment(id);
+    if (!current) throw new Error("배정을 찾을 수 없습니다.");
+    if (current.offerStatus !== "offered") {
+      throw new Error("응답 대기 중인 제안만 회수할 수 있습니다.");
+    }
+
+    await updateAssignment(id, { offerStatus: "draft", offeredAt: null });
     revalidate();
     return { ok: true };
   } catch (e) {
