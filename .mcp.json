@@ -1,0 +1,11 @@
+{
+  "_comment": "papercraft.kr 운영 웹앱. 견적·제안서 Docs/Drive 작성과 문의 Gmail 확인용으로 google MCP만 연결한다.",
+  "_note_path": "서버 실체는 work-system-dev 리포의 mcp-servers/ 이며 ~/agents 에 설치되어 있다. 사용자명 하드코딩 금지 — ${HOME} 사용.",
+  "_note_chrome": "브라우저 확인은 claude-in-chrome 확장이 제공하므로 여기에 선언하지 않는다.",
+  "mcpServers": {
+    "google": {
+      "command": "${HOME}/agents/.venv/bin/python3",
+      "args": ["${HOME}/agents/mcp-servers/google/server.py"]
+    }
+  }
+}
