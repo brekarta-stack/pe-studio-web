@@ -146,7 +146,7 @@ export const PAGE_META = {
  * 무료 배포 프로그램 — 페이퍼크래프트 스튜디오 (Papercraft Studio)
  *
  * 배포 바이너리는 공개 GitHub 릴리스로 호스팅합니다(무료·트래픽 무제한·2GB 자산 한도).
- * 저장소: github.com/brekarta-stack/papercraft-studio-app (배포 전용 public, 소스는 별도 private).
+ * 저장소: github.com/brekarta-stack/papercraft-studio-releases (배포 전용 public, 소스는 별도 private).
  * 새 버전 배포 시: 새 릴리스(예: v1.1)에 같은 파일명으로 zip을 올리고 아래 url의 태그와
  * version/fileSize를 갱신하세요.
  */
@@ -157,6 +157,6 @@ export const DOWNLOAD = {
   platform: "Windows 10 / 11 (64-bit)",
   fileName: "PapercraftStudio-windows-x64.zip",
   fileSize: "약 126 MB",
-  url: "https://github.com/brekarta-stack/papercraft-studio-app/releases/download/v1.3/PapercraftStudio-windows-x64.zip",
+  url: "https://github.com/brekarta-stack/papercraft-studio-releases/releases/download/v1.3/PapercraftStudio-windows-x64.zip",
   price: "무료",
 } as const;
