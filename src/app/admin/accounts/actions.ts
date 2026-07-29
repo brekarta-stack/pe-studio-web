@@ -15,6 +15,7 @@ import {
   updateAccount,
 } from "@/lib/artist-accounts";
 import { isAccountStatus } from "@/lib/artist-account-types";
+import { SITE_URL } from "@/lib/site";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 export type InviteResult = { ok: true; url: string } | { ok: false; error: string };
@@ -108,10 +109,27 @@ export async function setAccountNote(id: string, note: string): Promise<ActionRe
 }
 
 /**
- * 초대 링크 발급 — 아티스트를 지정해 토큰을 만들고 전체 URL 을 돌려준다.
+ * 초대 링크의 도메인.
  *
- * URL 의 도메인은 NEXTAUTH_URL(배포 주소)에서 가져온다. 이 값이 없으면
- * 링크를 만들어도 어디로 보내야 할지 알 수 없으므로 경로만 돌려준다.
+ * 관리자가 복사해 아티스트에게 보낼 링크라 절대 URL 이어야 한다 —
+ * 상대 경로를 그대로 붙여넣으면 링크가 죽는다. 그래서 한 곳이 비어도
+ * 다음 후보로 넘어가고, 최후에는 공개 사이트 주소(papercraft.kr)를 쓴다.
+ *   NEXTAUTH_URL  배포에 설정된 정식 주소 (가장 정확)
+ *   VERCEL_URL    프리뷰 배포 — 도메인만 오므로 https 를 붙인다
+ *   SITE_URL      최후 보루 (기본값 https://www.papercraft.kr)
+ */
+function inviteBaseUrl(): string {
+  const explicit = process.env.NEXTAUTH_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+
+  return SITE_URL.replace(/\/$/, "");
+}
+
+/**
+ * 초대 링크 발급 — 아티스트를 지정해 토큰을 만들고 전체 URL 을 돌려준다.
  */
 export async function issueInvite(
   artistId: string,
@@ -124,8 +142,7 @@ export async function issueInvite(
     const account = await createInvite(artistId, artistName);
     if (!account.inviteToken) throw new Error("초대 링크 발급에 실패했습니다.");
 
-    const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "");
-    const url = `${base}/artist/join?token=${account.inviteToken}`;
+    const url = `${inviteBaseUrl()}/artist/join?token=${account.inviteToken}`;
 
     revalidate();
     return { ok: true, url };
