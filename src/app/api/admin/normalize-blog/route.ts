@@ -14,10 +14,9 @@
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getPosts, savePost } from "@/lib/blog";
 import { marked } from "marked";
+import { requireAdminApi } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +54,8 @@ function normalizeToHtml(raw: string): string {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const url = new URL(req.url);
   const save = url.searchParams.get("save") === "1";

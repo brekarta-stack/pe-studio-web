@@ -107,6 +107,9 @@ export default withAuth(
 
 export const config = {
   matcher: [
+    // 어드민 루트(/admin) — 하위 경로 패턴만 두면 여기가 통째로 빠진다.
+    // 실제로 이 누락 때문에 아티스트에게 대시보드가 그대로 열렸다.
+    "/admin",
     // /admin/login 을 제외한 모든 /admin/** 경로 보호
     "/admin/((?!login$|login/).*)",
     // 아티스트 포털 (공개 페이지는 proxy 함수가 통과시킴)

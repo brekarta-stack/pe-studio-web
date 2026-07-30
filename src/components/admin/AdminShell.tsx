@@ -5,154 +5,120 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 
-/* ─── 네비게이션 항목 ─── */
+/* ─── 아이콘 ───
+   NAV_GROUPS 안에 SVG 를 그대로 두면 메뉴 구성이 안 보인다.
+   아이콘은 여기 모아 두고, 아래에서는 순서와 그룹만 읽히게 한다. */
+const ICONS: Record<string, React.ReactNode> = {
+  dashboard: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path d="M2 10a8 8 0 1116 0A8 8 0 012 10zm8-5a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z" />
+    </svg>
+  ),
+  analytics: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+    </svg>
+  ),
+  quotes: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+    </svg>
+  ),
+  works: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zM4 8v8h12V8H4zm2.7 3.3a1 1 0 011.4 0l.9.9 2.9-2.9a1 1 0 111.4 1.4l-3.6 3.6a1 1 0 01-1.4 0l-1.6-1.6a1 1 0 010-1.4z" clipRule="evenodd" />
+    </svg>
+  ),
+  drop: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+    </svg>
+  ),
+  artist: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+    </svg>
+  ),
+  account: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6zm-3 3a1.25 1.25 0 01.75 2.25V15a.75.75 0 01-1.5 0v-.75A1.25 1.25 0 0110 12z" clipRule="evenodd" />
+    </svg>
+  ),
+  blog: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-2.207 2.207L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+    </svg>
+  ),
+  portfolio: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+    </svg>
+  ),
+  studio: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path d="M4 3a2 2 0 00-2 2v1h16V5a2 2 0 00-2-2H4z" />
+      <path fillRule="evenodd" d="M18 8H2v7a2 2 0 002 2h12a2 2 0 002-2V8zM6 11a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clipRule="evenodd" />
+    </svg>
+  ),
+  review: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+    </svg>
+  ),
+  setup: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+    </svg>
+  ),
+};
+
+/* ─── 네비게이션 항목 ───
+   그룹은 업무 흐름 순서다: 수주 파이프라인(운영) → 그 일을 하는 사람(아티스트 관리)
+   → 사이트에 싣는 것(콘텐츠) → 배포물(다운로드) → 시스템. */
 const NAV_GROUPS = [
   {
     label: null,
+    items: [{ href: "/admin", exact: true, label: "대시보드", icon: ICONS.dashboard }],
+  },
+  {
+    // 리드가 들어와서 아티스트에게 배정되고 납품·정산되기까지
+    label: "운영",
     items: [
-      {
-        href: "/admin",
-        exact: true,
-        label: "대시보드",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M2 10a8 8 0 1116 0A8 8 0 012 10zm8-5a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/admin/analytics",
-        exact: false,
-        label: "유입·클릭 분석",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-          </svg>
-        ),
-      },
+      { href: "/admin/analytics", exact: false, label: "유입·클릭 분석", icon: ICONS.analytics },
+      { href: "/admin/quotes", exact: false, label: "제작 문의", icon: ICONS.quotes },
+      { href: "/admin/works", exact: false, label: "작업 관리", icon: ICONS.works },
+      // Drop(제외) 처리한 제작 문의 — 목록에서 빠진 건을 따로 모아 본다(복구 가능)
+      { href: "/admin/drops", exact: false, label: "Drop", icon: ICONS.drop },
     ],
   },
   {
-    // 수주 파이프라인 — 리드가 들어와서 아티스트에게 배정되고 납품·정산되기까지
-    label: "운영",
+    // 사람 — 사이트에 보이는 프로필과, 포털에 로그인하는 계정
+    label: "아티스트 관리",
     items: [
-      {
-        href: "/admin/quotes",
-        exact: false,
-        label: "제작 문의",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-      {
-        href: "/admin/works",
-        exact: false,
-        label: "작업 관리",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zM4 8v8h12V8H4zm2.7 3.3a1 1 0 011.4 0l.9.9 2.9-2.9a1 1 0 111.4 1.4l-3.6 3.6a1 1 0 01-1.4 0l-1.6-1.6a1 1 0 010-1.4z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-      {
-        // 아티스트 포털 로그인 계정 — 초대 발급·가입 신청 승인·아티스트 매칭
-        href: "/admin/accounts",
-        exact: false,
-        label: "아티스트 계정",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6zm-3 3a1.25 1.25 0 01.75 2.25V15a.75.75 0 01-1.5 0v-.75A1.25 1.25 0 0110 12z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-      {
-        // Drop(제외) 처리한 제작 문의 — 목록에서 빠진 건을 따로 모아 본다(복구 가능)
-        href: "/admin/drops",
-        exact: false,
-        label: "Drop",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
+      { href: "/admin/artists", exact: false, label: "아티스트", icon: ICONS.artist },
+      { href: "/admin/accounts", exact: false, label: "아티스트 계정", icon: ICONS.account },
     ],
   },
   {
     label: "콘텐츠",
     items: [
-      {
-        href: "/admin/portfolio",
-        exact: false,
-        label: "작업 포트폴리오",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-      {
-        href: "/admin/artists",
-        exact: false,
-        label: "아티스트",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-      {
-        href: "/admin/blog",
-        exact: false,
-        label: "블로그",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-2.207 2.207L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/admin/studio-review",
-        exact: false,
-        label: "도면 검수",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-      {
-        // 종이모형 스튜디오는 아직 공개 메뉴에서 숨겼지만, 관리자는 새 탭으로
-        // 실제 카탈로그를 확인할 수 있다(프록시가 관리자 세션만 통과시킴).
-        href: "/studio",
-        exact: false,
-        external: true,
-        label: "종이모형 스튜디오",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M4 3a2 2 0 00-2 2v1h16V5a2 2 0 00-2-2H4z" />
-            <path fillRule="evenodd" d="M18 8H2v7a2 2 0 002 2h12a2 2 0 002-2V8zM6 11a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
+      { href: "/admin/blog", exact: false, label: "블로그", icon: ICONS.blog },
+      { href: "/admin/portfolio", exact: false, label: "작업 포트폴리오", icon: ICONS.portfolio },
+    ],
+  },
+  {
+    // 배포하는 도면 — 카탈로그 자체와, 그 도면의 검수
+    label: "다운로드",
+    items: [
+      // 스튜디오는 아직 공개 메뉴에서 숨겼지만 관리자는 새 탭으로 확인할 수 있다
+      // (프록시가 관리자 세션만 통과시킨다)
+      { href: "/studio", exact: false, external: true, label: "종이모형 스튜디오", icon: ICONS.studio },
+      { href: "/admin/studio-review", exact: false, label: "도면 검수", icon: ICONS.review },
     ],
   },
   {
     label: "시스템",
-    items: [
-      {
-        href: "/admin/setup",
-        exact: false,
-        label: "DB 셋업",
-        icon: (
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-          </svg>
-        ),
-      },
-    ],
+    items: [{ href: "/admin/setup", exact: false, label: "DB 셋업", icon: ICONS.setup }],
   },
 ];
 

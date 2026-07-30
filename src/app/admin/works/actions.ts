@@ -2,12 +2,12 @@
 
 /**
  * 작업 관리(/admin/works) 서버 액션 — 배정 생성·수정·삭제.
- * 모든 액션은 세션을 확인한 뒤 실행한다 (어드민 전용).
+ * 모든 액션은 관리자 권한을 확인한 뒤 실행한다.
+ * 서버 액션은 프록시·레이아웃을 거치지 않으므로 여기가 유일한 방어선이다.
  */
 
-import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin } from "@/lib/session";
 import {
   createAssignment,
   updateAssignment,
@@ -23,10 +23,6 @@ import {
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-async function requireAdmin(): Promise<void> {
-  const session = await getServerSession(authOptions);
-  if (!session) throw new Error("권한이 없습니다.");
-}
 
 function fail(e: unknown): ActionResult {
   const msg = e instanceof Error ? e.message : String(e);

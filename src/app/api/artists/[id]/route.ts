@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getArtistById, saveArtist, deleteArtist } from "@/lib/artists";
 import { normalizeArtistBody, artistDbErrorMessage } from "@/lib/artist-normalize";
+import { requireAdminApi, isAdminSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +10,11 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
+  const isAdmin = await isAdminSession();
   const { id } = await params;
   const artist = await getArtistById(id);
   if (!artist) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!artist.published && !session) {
+  if (!artist.published && !isAdmin) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   return NextResponse.json(artist);
@@ -25,8 +24,8 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const { id } = await params;
   const existing = await getArtistById(id);
@@ -58,8 +57,8 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const { id } = await params;
   try {

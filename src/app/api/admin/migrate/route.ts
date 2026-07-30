@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdminApi } from "@/lib/session";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -49,10 +48,9 @@ function projectRef(): string | null {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "권한이 없습니다." }, { status: 401 });
-  }
+  // DDL 을 실행하는 엔드포인트라 관리자만 — 세션 유무로는 아티스트도 통과한다
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   const ref = projectRef();

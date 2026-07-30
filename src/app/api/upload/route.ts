@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { randomUUID } from "crypto";
 import path from "path";
+import { requireAdminApi } from "@/lib/session";
 
 /* ── 허용 MIME 타입 + 최대 크기 ── */
 const ALLOWED_MIME_TYPES = new Set([
@@ -29,10 +28,8 @@ const MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4 MB (Vercel body limit 안쪽)
 
 export async function POST(request: Request) {
   /* ── 인증 확인 ── */
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

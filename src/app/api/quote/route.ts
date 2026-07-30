@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { Resend } from "resend";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
+import { requireAdminApi } from "@/lib/session";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
 const PRODUCT_LABEL: Record<string, string> = {
@@ -421,8 +420,8 @@ export async function POST(request: Request) {
 
 // GET /api/quote — 어드민 전용 목록 조회
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const { data, error } = await supabaseAdmin
     .from("quotes")

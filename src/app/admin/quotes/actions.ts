@@ -2,20 +2,16 @@
 
 /**
  * 제작 문의 시트의 인라인 편집용 서버 액션.
- * 모든 액션은 세션을 확인한 뒤 실행한다 (어드민 전용).
+ * 모든 액션은 관리자 권한을 확인한 뒤 실행한다.
+ * 서버 액션은 프록시·레이아웃을 거치지 않으므로 여기가 유일한 방어선이다.
  */
 
-import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
-import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { setQuoteArtist } from "@/lib/assignments";
 import { isQuoteStage } from "@/lib/assignment-types";
+import { requireAdmin } from "@/lib/session";
 
-async function requireAdmin(): Promise<void> {
-  const session = await getServerSession(authOptions);
-  if (!session) throw new Error("권한이 없습니다.");
-}
 
 /** 편집 결과 — 클라이언트가 실패를 사용자에게 보여줄 수 있게 예외 대신 값으로 돌려준다 */
 export type ActionResult = { ok: true } | { ok: false; error: string };

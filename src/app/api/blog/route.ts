@@ -1,22 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getPosts, savePost, generateSlug } from "@/lib/blog";
 import type { Post } from "@/lib/blog";
 import { randomUUID } from "crypto";
+import { requireAdminApi, isAdminSession } from "@/lib/session";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const isAdmin = await isAdminSession();
   const posts = await getPosts();
-  const visible = session ? posts : posts.filter((p) => p.published);
+  const visible = isAdmin ? posts : posts.filter((p) => p.published);
   return NextResponse.json(visible);
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const body = await request.json();
   const now = new Date().toISOString();

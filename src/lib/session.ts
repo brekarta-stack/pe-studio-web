@@ -7,6 +7,7 @@
  */
 
 import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
 import { authOptions } from "./auth";
 
 export interface ArtistSession {
@@ -44,4 +45,19 @@ export async function isAdminSession(): Promise<boolean> {
 /** 관리자 권한 강제 — 아니면 예외 */
 export async function requireAdmin(): Promise<void> {
   if (!(await isAdminSession())) throw new Error("권한이 없습니다.");
+}
+
+/**
+ * API 라우트용 관리자 가드 — 통과하면 null, 아니면 그대로 돌려줄 401 응답.
+ *
+ *     const guard = await requireAdminApi();
+ *     if (guard) return guard;
+ *
+ * "세션이 있는가"가 아니라 "관리자인가"를 묻는다는 게 핵심이다.
+ * 아티스트 포털이 생기면서 관리자가 아닌 사람도 유효한 세션을 갖게 됐고,
+ * 예전 방식(`if (!session)`)은 그 세션을 전부 통과시킨다.
+ */
+export async function requireAdminApi(): Promise<NextResponse | null> {
+  if (await isAdminSession()) return null;
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }

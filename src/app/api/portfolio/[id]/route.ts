@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getItemById, saveItem, deleteItem, ensureUniqueSlug } from "@/lib/portfolio";
 import { slugify } from "@/lib/portfolio-meta";
+import { requireAdminApi, isAdminSession } from "@/lib/session";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
+  const isAdmin = await isAdminSession();
   const { id } = await params;
   const item = await getItemById(id);
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
   // 비공개 아이템은 어드민만 접근 가능
-  if (!item.published && !session) {
+  if (!item.published && !isAdmin) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   return NextResponse.json(item);
@@ -24,8 +23,8 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const { id } = await params;
   const item = await getItemById(id);
@@ -60,8 +59,8 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const { id } = await params;
   const item = await getItemById(id);

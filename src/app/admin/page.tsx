@@ -24,16 +24,27 @@ export default async function AdminDashboard() {
   if (!session) redirect("/admin/login");
 
   /* ── 데이터 병렬 로드 ── */
-  const [posts, portfolioItems, quotesResult, reviewData] = await Promise.all([
-    getPosts(),
-    getItems(),
-    supabaseAdmin
-      .from("quotes")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(6),
-    getReviewMap(),
-  ]);
+  const [posts, portfolioItems, quotesResult, reviewData, newQuotesResult, billingResult] =
+    await Promise.all([
+      getPosts(),
+      getItems(),
+      supabaseAdmin
+        .from("quotes")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(6),
+      getReviewMap(),
+      /* 아직 손대지 않은 신규 문의 수 — 로우를 가져오지 않고 개수만 센다(head).
+         Drop 처리한 건은 목록에서도 빠지므로 여기서도 제외한다. */
+      supabaseAdmin
+        .from("quotes")
+        .select("id", { count: "exact", head: true })
+        .eq("stage", "new")
+        .is("dropped_at", null),
+      /* 이번 달 매출 — 배정 단위의 청구금액을 합산한다.
+         건수가 적어 그대로 가져와 JS 에서 집계한다. */
+      supabaseAdmin.from("assignments").select("client_amount, due_date, created_at, status"),
+    ]);
 
   /* ── 도면 검수 진행 상황 ── */
   const reviewItems = mergeItems(reviewData.map);
@@ -44,9 +55,25 @@ export default async function AdminDashboard() {
   const publishedPortfolio  = portfolioItems.filter((i) => i.published);
   const recentQuotes: QuoteSubmission[] = (quotesResult.data ?? []).map(quoteFromRow);
 
+  /* 아직 검토하지 않은 신규 문의 (stage='new').
+     마이그레이션 전이면 stage 컬럼이 없어 에러가 나므로 0 으로 떨어뜨린다. */
+  const newQuoteCount = newQuotesResult.error ? 0 : newQuotesResult.count ?? 0;
+
+  /* ── 이번 달 매출 ──
+     이번 달 1일~말일에 해당하는 배정의 청구금액 합계.
+     "이번 달"의 기준은 납기(due_date), 납기가 없으면 배정 생성일 —
+     /admin/works 의 "이번 달 납기" 지표와 같은 정의라 두 화면 숫자가 어긋나지 않는다.
+     취소된 배정과 부가세는 제외한다(부가세는 매출이 아니라 나중에 납부할 돈). */
+  const thisMonth = new Date().toLocaleDateString("en-CA").slice(0, 7); // 로컬(KST) YYYY-MM
+  const monthlyRevenue = (billingResult.data ?? [])
+    .filter((a) => a.status !== "cancelled")
+    .filter((a) => String(a.due_date ?? a.created_at ?? "").slice(0, 7) === thisMonth)
+    .reduce((sum, a) => sum + Number(a.client_amount ?? 0), 0);
+
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "short",
   });
+  const monthLabel = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long" });
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
@@ -57,8 +84,8 @@ export default async function AdminDashboard() {
         <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
       </div>
 
-      {/* ── 통계 카드 3개 ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {/* ── 통계 카드 ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link href="/admin/quotes" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#EEF0FF" }}>
@@ -70,9 +97,35 @@ export default async function AdminDashboard() {
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
           </div>
-          <p className="text-3xl font-bold text-slate-900 mb-0.5">{recentQuotes.length > 5 ? "6+" : recentQuotes.length}</p>
-          <p className="text-sm text-slate-500">제작 문의</p>
-          <p className="text-xs text-slate-400 mt-1">최근 6건 기준</p>
+          <p className={`text-3xl font-bold mb-0.5 ${newQuoteCount > 0 ? "text-[#1E22B2]" : "text-slate-900"}`}>
+            {newQuoteCount}
+          </p>
+          <p className="text-sm text-slate-500">신규 제작 문의</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {newQuoteCount > 0 ? "아직 검토하지 않은 건" : "검토 대기 없음"}
+          </p>
+        </Link>
+
+        {/* 이번 달 매출 — 1일~말일. 납기(없으면 배정일)가 이번 달인 배정의 청구금액 합계 */}
+        <Link href="/admin/works" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E8F7F0" }}>
+              <svg viewBox="0 0 20 20" fill="#0E7A5F" className="w-5 h-5">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v.5c-1.4.25-2.5 1.3-2.5 2.75 0 1.7 1.5 2.35 2.9 2.75 1.2.35 1.6.6 1.6 1.1 0 .5-.5.9-1.5.9-.9 0-1.5-.35-1.8-.9a1 1 0 00-1.75.95c.5.95 1.4 1.6 2.55 1.8v.65a1 1 0 102 0v-.65c1.5-.25 2.6-1.3 2.6-2.8 0-1.75-1.55-2.4-2.95-2.8-1.2-.35-1.55-.6-1.55-1.05 0-.45.45-.85 1.4-.85.8 0 1.35.3 1.6.8a1 1 0 001.8-.85c-.45-.95-1.3-1.55-2.4-1.75V6z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 mb-0.5 tabular-nums">
+            {monthlyRevenue.toLocaleString("ko-KR")}
+            <span className="text-lg font-semibold text-slate-400">원</span>
+          </p>
+          <p className="text-sm text-slate-500">이번 달 매출</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {monthLabel} 1일~말일 · 부가세 제외
+          </p>
         </Link>
 
         <Link href="/admin/portfolio" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">

@@ -1,26 +1,25 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getAllArtists, getArtistById, saveArtist } from "@/lib/artists";
 import { normalizeArtistBody, artistDbErrorMessage } from "@/lib/artist-normalize";
 import { slugify } from "@/lib/portfolio-meta";
 import type { Artist } from "@/lib/artist-types";
+import { requireAdminApi, isAdminSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /** 목록 — 어드민 세션이면 전체(+source), 아니면 published 만 */
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const isAdmin = await isAdminSession();
   const { artists, source } = await getAllArtists();
-  const visible = session ? artists : artists.filter((a) => a.published);
-  return NextResponse.json({ artists: visible, source: session ? source : undefined });
+  const visible = isAdmin ? artists : artists.filter((a) => a.published);
+  return NextResponse.json({ artists: visible, source: isAdmin ? source : undefined });
 }
 
 /** 신규 등록 */
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const body = await request.json();
   const fields = normalizeArtistBody(body);

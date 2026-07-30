@@ -1,22 +1,21 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getItems, saveItem, ensureUniqueSlug } from "@/lib/portfolio";
 import type { PortfolioItem } from "@/lib/portfolio";
 import { deriveSlug, slugify } from "@/lib/portfolio-meta";
 import { randomUUID } from "crypto";
+import { requireAdminApi, isAdminSession } from "@/lib/session";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const isAdmin = await isAdminSession();
   const items = await getItems();
-  const visible = session ? items : items.filter((i) => i.published);
+  const visible = isAdmin ? items : items.filter((i) => i.published);
   return NextResponse.json(visible);
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   const body = await request.json();
   const now = new Date().toISOString();

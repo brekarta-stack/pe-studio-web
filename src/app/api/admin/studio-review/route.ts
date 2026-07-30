@@ -15,16 +15,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { CATEGORY_SLUG, getStudioItem } from "@/lib/studio";
+import { requireAdminApi } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const VALID = new Set(["approved", "rejected", "pending"]);
 
 export async function POST(req: Request) {
+  const guard = await requireAdminApi();
+  if (guard) return guard;
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   let body: { skey?: string; status?: string; note?: string };
   try {
@@ -49,7 +49,8 @@ export async function POST(req: Request) {
     skey,
     status,
     note: note || null,
-    reviewer: session.user.email,
+    // 가드를 통과했으면 관리자 세션이 반드시 있다 — 타입만 좁혀 준다
+    reviewer: session?.user?.email ?? null,
     // pending(검수 취소) 이면 검수 시각을 비운다
     reviewed_at: status === "pending" ? null : nowIso,
     updated_at: nowIso,
