@@ -99,6 +99,10 @@ check "artist_accounts → artists FK" 1 \
   "$(q "SELECT count(*) FROM information_schema.table_constraints WHERE constraint_name='artist_accounts_artist_id_fkey'")"
 check "아티스트당 계정 1개 부분 유니크" 1 \
   "$(q "SELECT count(*) FROM pg_indexes WHERE indexname='artist_accounts_artist_unique'")"
+check "quotes.designs (제작 희망 디자인)" 1 \
+  "$(q "SELECT count(*) FROM information_schema.columns WHERE table_name='quotes' AND column_name='designs'")"
+check "designs 기본값 빈 배열" "[]" \
+  "$(q "SELECT designs::text FROM quotes WHERE id='11111111-1111-1111-1111-111111111111'")"
 
 echo
 echo "4단계 · 기존 배정 이행"

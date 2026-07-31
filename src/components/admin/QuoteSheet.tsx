@@ -65,7 +65,7 @@ type ColKey =
   | "progress" | "stage" | "artist" | "createdAt" | "name" | "phone" | "email"
   | "product" | "quantity" | "deliveryDate" | "purpose" | "customDesign"
   | "styleType" | "productText" | "sampling" | "rushed" | "packaging"
-  | "colorRequest" | "notes" | "files" | "acquisition";
+  | "colorRequest" | "notes" | "files" | "designs" | "acquisition";
 
 const COLUMNS: { key: ColKey; label: string; width: string }[] = [
   { key: "progress",     label: "진행",        width: "w-14"  },
@@ -77,6 +77,7 @@ const COLUMNS: { key: ColKey; label: string; width: string }[] = [
   { key: "email",        label: "이메일",      width: "w-48"  },
   { key: "product",      label: "제품",        width: "w-36"  },
   { key: "quantity",     label: "수량",        width: "w-24"  },
+  { key: "designs",      label: "디자인",      width: "w-44"  },
   { key: "deliveryDate", label: "납품 희망일",  width: "w-32"  },
   { key: "purpose",      label: "사용 목적",    width: "w-28"  },
   { key: "customDesign", label: "커스텀",      width: "w-20"  },
@@ -290,6 +291,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
         case "colorRequest": return q.colorRequest;
         case "notes":        return q.notes;
         case "files":        return [...q.files.map((f) => f.name), q.fileName, q.logoFileName].filter(Boolean).join(" / ");
+        case "designs":      return q.designs.map((d) => `${d.name || "이름없음"}(${d.quantity || "-"})`).join(" / ");
         case "acquisition":  return acqInfo(q)?.text ?? "";
       }
     };
@@ -553,6 +555,38 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               </td>
                             );
                           }
+                          case "designs":
+                            return (
+                              <td key={c.key} className={td}>
+                                {q.designs.length === 0 ? (
+                                  <span className="text-slate-300">—</span>
+                                ) : (
+                                  <div className="space-y-0.5">
+                                    <p className="text-[11px] font-semibold text-slate-500">
+                                      {q.designs.length}종
+                                    </p>
+                                    {q.designs.map((d, i) => (
+                                      <p key={d.id || i} className="truncate text-xs text-slate-600">
+                                        {d.name || "(이름 없음)"}
+                                        {d.quantity && (
+                                          <span className="text-slate-400"> · {d.quantity}부</span>
+                                        )}
+                                        {d.file?.url && (
+                                          <a
+                                            href={d.file.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="ml-1 text-[#1E22B2] underline"
+                                          >
+                                            첨부
+                                          </a>
+                                        )}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                            );
                           case "acquisition":
                             return (
                               <td key={c.key} className={td}>

@@ -84,6 +84,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260802_artist_portal.sql",
     note: "assignments.offer_status / deliverables (아티스트 수락·거절, 결과물)",
   },
+  {
+    table: "quotes",
+    column: "designs",
+    sql: "migrations/20260803_quote_designs.sql",
+    note: "quotes.designs (제작 희망 디자인 목록 — 종류·수량·참고자료)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

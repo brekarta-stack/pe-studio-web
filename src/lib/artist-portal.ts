@@ -57,6 +57,7 @@ function toBrief(q: any): WorkBrief {
     sampling: !!q?.sampling,
     rushed: !!q?.rushed,
     files,
+    designs: Array.isArray(q?.designs) ? q.designs : [],
     logoFileName: q?.logo_file_name ?? "",
     logoFileUrl: q?.logo_file_url ?? "",
     createdAt: q?.created_at ?? "",
@@ -92,7 +93,7 @@ function toWork(a: Assignment, quoteRow: unknown): ArtistWork {
  * GenericStringError 로 떨어진다.
  */
 const QUOTE_BRIEF_COLUMNS =
-  "id, product, quantity, delivery_date, purpose, custom_design, style_type, product_text, color_request, notes, packaging, sampling, rushed, files, file_name, file_url, logo_file_name, logo_file_url, created_at";
+  "id, product, quantity, delivery_date, purpose, custom_design, style_type, product_text, color_request, notes, packaging, sampling, rushed, files, designs, file_name, file_url, logo_file_name, logo_file_url, created_at";
 
 /**
  * 이 아티스트의 업무 목록.

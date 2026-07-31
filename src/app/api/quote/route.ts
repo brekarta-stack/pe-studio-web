@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Resend } from "resend";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
+import { parseQuantity } from "@/lib/quote-pricing";
 import { requireAdminApi } from "@/lib/session";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
@@ -246,6 +247,21 @@ const QuoteSchema = z.object({
     .array(z.object({ name: z.string().max(255).default(""), url: QuoteFileUrl }))
     .max(5)
     .default([]),
+  // 제작 희망 디자인 목록 — 한 줄 = { 이름, 수량, 참고 자료 1개 }
+  designs: z
+    .array(
+      z.object({
+        id:       z.string().max(64).default(""),
+        name:     z.string().max(200).default(""),
+        quantity: z.string().max(20).default(""),
+        file: z
+          .object({ name: z.string().max(255).default(""), url: QuoteFileUrl })
+          .nullable()
+          .default(null),
+      })
+    )
+    .max(20)
+    .default([]),
   // 신규: 회사 로고 파일명 (선택)
   logoFileName: z.string().max(255).default(""),
   // 신규: 회사 로고 파일의 공개 URL (선택)
@@ -308,10 +324,17 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
+
+  /* 총 수량은 클라이언트가 보낸 값을 믿지 않고 디자인 라인에서 다시 더한다 —
+     화면에 보여준 개략 견적과 접수된 수량이 어긋나면 안 된다.
+     라인이 없는 경우(구버전 폼·수동 등록)에는 보내온 quantity 를 그대로 쓴다. */
+  const designs = (data.designs ?? []).filter((d) => d.name.trim() || parseQuantity(d.quantity) > 0);
+  const totalQty = designs.reduce((sum, d) => sum + parseQuantity(d.quantity), 0);
+
   const submission: QuoteSubmission = {
     id:           randomUUID(),
     product:      data.product,
-    quantity:     data.quantity,
+    quantity:     totalQty > 0 ? String(totalQty) : data.quantity,
     deliveryDate: data.deliveryDate,
     purpose:      data.purpose,
     customDesign: data.customDesign,
@@ -334,6 +357,7 @@ export async function POST(request: Request) {
     stage:        "new",
     droppedAt:    null,
     files:        (data.files ?? []).filter((f) => f.url),
+    designs,
     createdAt:    new Date().toISOString(),
   };
 
@@ -362,6 +386,19 @@ export async function POST(request: Request) {
   if (error) {
     console.error("[api/quote] DB insert error:", error);
     return NextResponse.json({ error: "견적 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+  }
+
+  /* 제작 희망 디자인 best-effort 저장 — 'designs' 컬럼(마이그레이션 20260803)이
+     없으면 조용히 건너뛴다. 별도 update 라 컬럼 부재 시에도 접수 자체는 성공한다.
+     (총 수량은 이미 quantity 에 들어가 있어 마이그레이션 전에도 핵심 정보는 남는다) */
+  if (submission.designs.length > 0) {
+    const { error: designErr } = await supabaseAdmin
+      .from("quotes")
+      .update({ designs: submission.designs })
+      .eq("id", submission.id);
+    if (designErr) {
+      console.warn("[api/quote] designs 미저장 (마이그레이션 대기?):", designErr.message);
+    }
   }
 
   /* 광고 유입정보 best-effort 저장 — 'acquisition' 컬럼(마이그레이션 20260609)이 없으면 조용히 건너뜀.

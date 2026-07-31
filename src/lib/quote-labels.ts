@@ -16,11 +16,22 @@ export const PRODUCT_LABELS: Record<string, string> = {
   hobby:      "용도 · 취미",
 };
 
-/** 디자인 스타일 — QuoteForm 의 STYLE_OPTIONS 와 값이 일치해야 한다 */
+/**
+ * 선호 작가 — QuoteForm 의 ARTIST_OPTIONS 와 값이 일치해야 한다.
+ *
+ * 예전에는 '디자인 스타일'(리얼리즘·캐릭터라이즈·전문가 위임)이었다.
+ * 옛 값도 남겨 둔다 — 지우면 그때 접수된 문의가 어드민에서 코드로 보인다.
+ */
 export const STYLE_LABELS: Record<string, string> = {
-  realism:      "리얼리즘",
-  characterize: "캐릭터라이즈",
-  expert:       "전문가 위임",
+  // 현행 — 선호 작가
+  osegi:     "오세기",
+  cheolho:   "김철호",
+  jaeho:     "문재호",
+  recommend: "추천받기",
+  // 레거시 — 디자인 스타일 시절 값 (과거 데이터 열람용)
+  realism:      "리얼리즘 (구)",
+  characterize: "캐릭터라이즈 (구)",
+  expert:       "전문가 위임 (구)",
 };
 
 /** 포장 방식 — QuoteForm 의 PACKAGING_OPTIONS 와 값이 일치해야 한다 */

@@ -149,6 +149,47 @@ export default async function ArtistWorkDetailPage({
             </p>
           </div>
 
+          {brief.designs.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <h2 className="mb-3 text-sm font-bold text-slate-700">
+                제작 희망 디자인{" "}
+                <span className="font-medium text-slate-400">
+                  {brief.designs.length}종 ·{" "}
+                  {brief.designs
+                    .reduce((sum, d) => sum + (Number(String(d.quantity).replace(/[^0-9]/g, "")) || 0), 0)
+                    .toLocaleString("ko-KR")}
+                  부
+                </span>
+              </h2>
+              <ul className="space-y-2">
+                {brief.designs.map((d, i) => (
+                  <li
+                    key={d.id || i}
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  >
+                    <span className="w-5 flex-shrink-0 text-xs font-bold text-slate-400">{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-800">
+                      {d.name || "(이름 없음)"}
+                    </span>
+                    <span className="flex-shrink-0 tabular-nums text-slate-500">
+                      {d.quantity ? `${Number(String(d.quantity).replace(/[^0-9]/g, "")).toLocaleString("ko-KR")}부` : "—"}
+                    </span>
+                    {d.file?.url && (
+                      <a
+                        href={d.file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 text-xs text-[#1E22B2] underline"
+                      >
+                        참고 자료
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {(brief.files.length > 0 || brief.logoFileUrl) && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <h2 className="mb-3 text-sm font-bold text-slate-700">참고 자료</h2>

@@ -10,6 +10,7 @@
  */
 
 import type { QuoteFile } from "./quote-types";
+import type { DesignLine } from "./quote-pricing";
 import type {
   ArtistPayout,
   AssignmentStatus,
@@ -35,6 +36,8 @@ export interface WorkBrief {
   rushed: boolean;
   /** 참고 자료 (다중 첨부 + 레거시 단일 첨부를 합친 것) */
   files: QuoteFile[];
+  /** 제작 희망 디자인 — 몇 종을 몇 부씩 만드는지. 옛 문의는 빈 배열 */
+  designs: DesignLine[];
   /** 회사 로고 (있으면) */
   logoFileName: string;
   logoFileUrl: string;

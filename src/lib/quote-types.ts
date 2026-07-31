@@ -1,4 +1,5 @@
 import { isQuoteStage, type QuoteStage } from "./assignment-types.ts";
+import type { DesignLine } from "./quote-pricing.ts";
 
 /** 첨부파일 한 건 — 표시명 + 공개 URL (Supabase Storage) */
 export interface QuoteFile {
@@ -76,6 +77,9 @@ export interface QuoteSubmission {
   fileUrl: string;
   /** 다중 첨부파일 (최대 5개) — 마이그레이션 20260730. 신규 폼은 여기에 담는다 */
   files: QuoteFile[];
+  /** 제작 희망 디자인 목록 (마이그레이션 20260803).
+   *  종류 = 배열 길이, 총 수량 = quantity 합계. 옛 문의는 빈 배열 */
+  designs: DesignLine[];
   /** 회사 로고 파일명 (선택) */
   logoFileName: string;
   /** 회사 로고 파일의 공개 URL (선택) */
@@ -125,6 +129,9 @@ export function quoteFromRow(r: any): QuoteSubmission {
     files:        Array.isArray(r.files)
       ? r.files.filter((f: unknown): f is QuoteFile =>
           !!f && typeof (f as QuoteFile).url === "string")
+      : [],
+    designs:      Array.isArray(r.designs)
+      ? r.designs.filter((d: unknown): d is DesignLine => !!d && typeof d === "object")
       : [],
     logoFileName: r.logo_file_name ?? "",
     logoFileUrl:  r.logo_file_url ?? "",
