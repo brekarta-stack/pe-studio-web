@@ -11,6 +11,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { setQuoteArtist } from "@/lib/assignments";
 import { isQuoteStage } from "@/lib/assignment-types";
 import { requireAdmin } from "@/lib/session";
+import { isManualChannel, manualAcquisition } from "@/lib/quote-types";
 
 
 /** 편집 결과 — 클라이언트가 실패를 사용자에게 보여줄 수 있게 예외 대신 값으로 돌려준다 */
@@ -100,6 +101,65 @@ export async function restoreQuote(id: string): Promise<ActionResult> {
     revalidatePath("/admin/quotes");
     revalidatePath("/admin/drops");
     revalidatePath("/admin/works");
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * 수동 문의 등록 — 전화·이메일처럼 폼 밖으로 들어온 문의를 관리자가 직접 넣는다.
+ *
+ * 폼 제출(/api/quote)과 같은 quotes 테이블에 넣으므로 이후 흐름(단계 관리·
+ * 아티스트 배정·정산)이 전부 동일하게 굴러간다. 다른 점은 유입정보뿐 —
+ * 접수 경로를 acquisition 에 남겨 유입 열에서 "직접 등록 · 전화"로 구분된다.
+ *
+ * 고객 확인 메일은 보내지 않는다. 이미 통화·메일로 이야기가 오간 건이라
+ * 접수 확인 메일이 뜬금없이 가면 곤란하다.
+ */
+export async function createManualQuote(input: {
+  name: string;
+  phone: string;
+  email: string;
+  channel: string;
+  product: string;
+  quantity: string;
+  deliveryDate: string;
+  purpose: string;
+  notes: string;
+}): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+
+    const name = input.name.trim();
+    if (!name) throw new Error("고객 이름을 입력하세요.");
+
+    const phone = input.phone.trim();
+    const email = input.email.trim();
+    // 둘 다 없으면 나중에 다시 연락할 방법이 없다 — 등록 시점에 막는다
+    if (!phone && !email) throw new Error("연락처나 이메일 중 하나는 입력해야 합니다.");
+
+    if (!isManualChannel(input.channel)) throw new Error("접수 경로를 선택하세요.");
+
+    const { error } = await supabaseAdmin.from("quotes").insert({
+      name,
+      phone,
+      email,
+      product: input.product.trim(),
+      quantity: input.quantity.trim(),
+      delivery_date: input.deliveryDate.trim(),
+      purpose: input.purpose.trim(),
+      notes: input.notes.trim(),
+      // 폼 전용 항목들은 비워 둔다 — 상담하며 시트에서 채워 나간다
+      custom_design: "",
+      color_request: "",
+      stage: "new",
+      acquisition: manualAcquisition(input.channel),
+    });
+    if (error) throw error;
+
+    revalidatePath("/admin/quotes");
+    revalidatePath("/admin");
     return { ok: true };
   } catch (e) {
     return fail(e);

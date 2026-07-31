@@ -11,7 +11,14 @@
  */
 
 import { Fragment, useMemo, useState, useTransition } from "react";
-import type { QuoteSubmission } from "@/lib/quote-types";
+import {
+  MANUAL_CHANNELS,
+  MANUAL_CHANNEL_LABELS,
+  type ManualChannel,
+  type QuoteSubmission,
+} from "@/lib/quote-types";
+import { ACQ_TONE_STYLE, acquisitionBadge } from "@/lib/quote-acquisition";
+import { SITE_URL } from "@/lib/site";
 import {
   QUOTE_STAGES,
   STAGE_LABELS,
@@ -25,7 +32,13 @@ import {
   CUSTOM_DESIGN_LABELS,
   label,
 } from "@/lib/quote-labels";
-import { setQuoteProgress, setQuoteStage, assignArtist, dropQuote } from "@/app/admin/quotes/actions";
+import {
+  setQuoteProgress,
+  setQuoteStage,
+  assignArtist,
+  dropQuote,
+  createManualQuote,
+} from "@/app/admin/quotes/actions";
 
 /** 담당 아티스트 셀렉트의 특수 선택지 값 — 아티스트가 아니라 Drop(제외) 동작 */
 const DROP_VALUE = "__drop__";
@@ -80,16 +93,18 @@ const COLUMNS: { key: ColKey; label: string; width: string }[] = [
 
 const HIDDEN_KEY = "pe-admin-quote-hidden-cols";
 
-/* ─── 유입 배지 (카드형에서 쓰던 로직 유지) ─── */
-function acqInfo(q: QuoteSubmission): { isAd: boolean; text: string } | null {
-  const a = q.acquisition;
-  if (!a) return null;
-  const isAd = !!(a.adHint || a.gclid || a.utmMedium === "cpc");
-  const src = a.utmSource || (a.gclid ? "google" : a.adHint) || "";
-  if (!src && !isAd) return null;
-  const text = a.utmCampaign ? `${src || "광고"}·${a.utmCampaign}` : src || "광고";
-  return { isAd, text };
-}
+/* 유입 배지 로직은 순수 함수라 lib 으로 옮겨 테스트를 붙였다 (quote-acquisition.ts) */
+
+/** 사이트 자기 호스트 — referrer 가 우리 사이트면 '내부이동'으로 걸러내기 위함 */
+const SITE_HOST = (() => {
+  try {
+    return new URL(SITE_URL).hostname;
+  } catch {
+    return "";
+  }
+})();
+
+const acqInfo = (q: QuoteSubmission) => acquisitionBadge(q.acquisition, SITE_HOST);
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -113,6 +128,7 @@ function BoolCell({ on, label: text }: { on: boolean; label: string }) {
 export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showManual, setShowManual] = useState(false);
 
   /* 낙관적 갱신용 로컬 오버레이 — 서버 재검증 전까지 화면을 즉시 바꾼다 */
   const [progressOv, setProgressOv] = useState<Record<string, boolean>>({});
@@ -358,6 +374,15 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
           CSV 내보내기
         </button>
 
+        {/* 전화·이메일로 직접 들어온 문의를 손으로 넣는다 */}
+        <button
+          onClick={() => setShowManual(true)}
+          className="h-9 rounded-lg px-4 text-sm font-semibold text-white"
+          style={{ background: "#1E22B2" }}
+        >
+          + 문의 추가
+        </button>
+
         <span className="ml-auto text-sm text-slate-400">
           {rows.length}건 {rows.length !== quotes.length && `/ 전체 ${quotes.length}건`}
           {isPending && <span className="ml-2 text-slate-300">저장 중…</span>}
@@ -534,11 +559,15 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                 {acq ? (
                                   <span
                                     className="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                    style={{ background: acq.isAd ? "#FEE2E2" : "#F1F5F9", color: acq.isAd ? "#B91C1C" : "#475569" }}
+                                    style={ACQ_TONE_STYLE[acq.tone]}
                                   >
-                                    {acq.isAd ? "광고 " : "유입 "}{acq.text}
+                                    {acq.text}
                                   </span>
-                                ) : "—"}
+                                ) : (
+                                  <span className="text-slate-300" title="유입정보가 수집되기 전에 접수된 문의입니다">
+                                    —
+                                  </span>
+                                )}
                               </td>
                             );
                         }
@@ -580,6 +609,176 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
             )}
           </tbody>
         </table>
+      </div>
+
+      {showManual && (
+        <ManualQuoteModal
+          pending={isPending}
+          onClose={() => setShowManual(false)}
+          onSubmit={(payload, done) => {
+            setError(null);
+            startTransition(async () => {
+              const res = await createManualQuote(payload);
+              if (res.ok) {
+                setShowManual(false);
+                done();
+              } else {
+                setError(res.error);
+              }
+            });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── 수동 문의 등록 모달 ───
+ *
+ * 폼(/quote)의 모든 항목을 다 받지 않는다. 전화로 받아 적는 상황에서 필요한
+ * 최소한만 넣고, 나머지(디자인 스타일·포장 등)는 상담하면서 시트에서 채운다.
+ * 여기서 다 받게 하면 등록 자체가 번거로워져 결국 안 쓰게 된다. */
+function ManualQuoteModal({
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (
+    payload: {
+      name: string; phone: string; email: string; channel: ManualChannel;
+      product: string; quantity: string; deliveryDate: string;
+      purpose: string; notes: string;
+    },
+    done: () => void,
+  ) => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [channel, setChannel] = useState<ManualChannel>("phone");
+  const [product, setProduct] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // 이름은 필수, 연락 수단은 둘 중 하나라도 있어야 나중에 다시 연락할 수 있다
+  const canSubmit = name.trim() !== "" && (phone.trim() !== "" || email.trim() !== "");
+
+  const field =
+    "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400";
+  const lbl = "mb-1 block text-xs font-bold text-slate-500";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-slate-900">문의 추가</h2>
+        <p className="mt-0.5 mb-4 text-sm text-slate-500">
+          전화·이메일로 직접 받은 문의를 등록합니다. 고객에게 접수 확인 메일은 가지 않습니다.
+        </p>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>고객 이름 *</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} className={field} placeholder="홍길동" />
+            </div>
+            <div>
+              <label className={lbl}>접수 경로 *</label>
+              <select
+                value={channel}
+                onChange={(e) => setChannel(e.target.value as ManualChannel)}
+                className={`${field} cursor-pointer`}
+              >
+                {MANUAL_CHANNELS.map((c) => (
+                  <option key={c} value={c}>{MANUAL_CHANNEL_LABELS[c]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>연락처</label>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} className={field} placeholder="010-0000-0000" />
+            </div>
+            <div>
+              <label className={lbl}>이메일</label>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} className={field} placeholder="client@example.com" />
+            </div>
+          </div>
+          {!canSubmit && name.trim() !== "" && (
+            <p className="text-xs text-amber-700">연락처나 이메일 중 하나는 입력해 주세요.</p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>제품</label>
+              <select value={product} onChange={(e) => setProduct(e.target.value)} className={`${field} cursor-pointer`}>
+                <option value="">미정 (상담 원함)</option>
+                {Object.entries(PRODUCT_LABELS).map(([code, text]) => (
+                  <option key={code} value={code}>{text}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>수량</label>
+              <input value={quantity} onChange={(e) => setQuantity(e.target.value)} className={field} placeholder="예: 1000개" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>납품 희망일</label>
+              <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className={field} />
+            </div>
+            <div>
+              <label className={lbl}>사용 목적</label>
+              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} className={field} placeholder="행사 / 교육 / 홍보 등" />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>메모 · 통화 내용</label>
+            <textarea
+              rows={4}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className={`${field} resize-y`}
+              placeholder="요청 사항, 예산, 통화에서 나온 이야기 등"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-slate-200 py-2.5 text-sm text-slate-600 hover:bg-slate-50">
+            취소
+          </button>
+          <button
+            disabled={!canSubmit || pending}
+            onClick={() =>
+              onSubmit(
+                {
+                  name, phone, email, channel, product, quantity,
+                  deliveryDate, purpose, notes,
+                },
+                () => {
+                  setName(""); setPhone(""); setEmail(""); setProduct("");
+                  setQuantity(""); setDeliveryDate(""); setPurpose(""); setNotes("");
+                },
+              )
+            }
+            className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200"
+            style={canSubmit && !pending ? { background: "#1E22B2" } : {}}
+          >
+            {pending ? "등록 중…" : "등록하기"}
+          </button>
+        </div>
       </div>
     </div>
   );

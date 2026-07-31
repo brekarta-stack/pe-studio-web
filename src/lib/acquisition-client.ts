@@ -13,12 +13,32 @@ import type { QuoteAcquisition } from "./quote-types";
  */
 const ACQ_KEY = "pc_acq";
 
-export function getStoredAcquisition(): QuoteAcquisition | null {
+/** 값이 하나도 없는 유입정보 = 직접 유입(북마크·주소 직접입력·앱 등) */
+const EMPTY: QuoteAcquisition = {
+  referrer: "",
+  utmSource: "",
+  utmMedium: "",
+  utmCampaign: "",
+  gclid: "",
+  adHint: "",
+};
+
+/**
+ * 값이 전부 비어 있어도 **객체를 그대로 돌려준다**.
+ *
+ * 예전에는 빈 객체를 null 로 바꿔 아예 저장하지 않았다. 그래서 어드민 유입 열에서
+ * "직접 유입으로 들어온 문의"와 "유입 수집 이전에 접수돼 정보가 없는 문의"가
+ * 똑같이 "—" 로 보여 구분할 수 없었다.
+ *
+ * 이제 신규 문의는 항상 유입정보를 남긴다 → acquisition 이 NULL 인 건
+ * "수집 이전 데이터"라는 뜻으로만 남는다.
+ */
+export function getStoredAcquisition(): QuoteAcquisition {
   try {
     const cached = sessionStorage.getItem(ACQ_KEY);
-    if (!cached) return null;
+    if (!cached) return EMPTY;
     const a = JSON.parse(cached) as Partial<QuoteAcquisition>;
-    const acq: QuoteAcquisition = {
+    return {
       referrer: a.referrer ?? "",
       utmSource: a.utmSource ?? "",
       utmMedium: a.utmMedium ?? "",
@@ -26,9 +46,7 @@ export function getStoredAcquisition(): QuoteAcquisition | null {
       gclid: a.gclid ?? "",
       adHint: a.adHint ?? "",
     };
-    // 유입정보가 전혀 없으면(순수 직접 유입) null — 불필요한 빈 객체 전송 방지
-    return Object.values(acq).some((v) => v !== "") ? acq : null;
   } catch {
-    return null;
+    return EMPTY;
   }
 }

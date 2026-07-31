@@ -9,6 +9,9 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // 상대 import 에 .ts 를 붙일 수 있게 — node --test 가 소스를 그대로
+    // 불러올 때 확장자가 없으면 해석하지 못한다 (noEmit 이라 산출물엔 영향 없음)
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",

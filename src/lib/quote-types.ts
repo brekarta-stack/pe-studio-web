@@ -1,4 +1,4 @@
-import { isQuoteStage, type QuoteStage } from "./assignment-types";
+import { isQuoteStage, type QuoteStage } from "./assignment-types.ts";
 
 /** 첨부파일 한 건 — 표시명 + 공개 URL (Supabase Storage) */
 export interface QuoteFile {
@@ -16,6 +16,43 @@ export interface QuoteAcquisition {
   gclid: string;
   /** UTM 미설정 광고 클릭 힌트 'google' | 'naver' | '' */
   adHint: string;
+}
+
+/* ── 수동 등록 문의 ─────────────────────────────────────────
+ * 전화·이메일처럼 폼 밖으로 들어온 문의는 관리자가 직접 등록한다.
+ * 그 사실을 acquisition 에 남겨 두면 유입 열에서 "직접 등록 · 전화"로 보이고,
+ * 나중에 "폼 유입 vs 직접 문의" 비중도 그대로 집계할 수 있다.
+ * (별도 컬럼을 만들지 않은 이유 — 유입 경로는 이미 acquisition 이 담당한다) */
+
+/** acquisition.utmSource 가 이 값이면 관리자가 직접 등록한 문의 */
+export const MANUAL_SOURCE = "manual";
+
+export const MANUAL_CHANNELS = ["phone", "email", "kakao", "referral", "offline", "etc"] as const;
+export type ManualChannel = (typeof MANUAL_CHANNELS)[number];
+
+export const MANUAL_CHANNEL_LABELS: Record<ManualChannel, string> = {
+  phone:    "전화",
+  email:    "이메일",
+  kakao:    "카카오톡",
+  referral: "소개·추천",
+  offline:  "오프라인",
+  etc:      "기타",
+};
+
+export function isManualChannel(v: unknown): v is ManualChannel {
+  return typeof v === "string" && (MANUAL_CHANNELS as readonly string[]).includes(v);
+}
+
+/** 수동 등록 문의의 유입정보를 만든다 — 접수 경로를 utmMedium 에 담는다 */
+export function manualAcquisition(channel: ManualChannel): QuoteAcquisition {
+  return {
+    referrer: "",
+    utmSource: MANUAL_SOURCE,
+    utmMedium: channel,
+    utmCampaign: "",
+    gclid: "",
+    adHint: "",
+  };
 }
 
 export interface QuoteSubmission {
