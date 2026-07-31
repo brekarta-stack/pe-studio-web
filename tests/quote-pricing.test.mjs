@@ -8,7 +8,8 @@
  *   도면만 의뢰 — 디자인비 1종 50만~600만. 수량·포장 없음.
  *   제품 생산   — 디자인비 1종 50만~600만 + 생산비 개당 2,000~15,000원 + 포장비
  *   완제품 의뢰 — 제작비 1종 50만~1,000만. 수량으로 곱하지 않는다.
- *   포장(개당 상한) — 벌크 0 / OPP 500 / 종이박스 2,000원. 하한은 0.
+ *   포장(개당) — 벌크 0 / OPP 500 / 종이박스 2,000원. 고르는 순간 확정되는
+ *              비용이라 하한·상한 양쪽에 더한다.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -41,7 +42,7 @@ test("도면만 의뢰 — 디자인비만, 수량은 금액에 영향이 없다
   assert.equal(e.designMax, 6_000_000);
   assert.equal(e.productionMin, 0, "실물을 만들지 않는다");
   assert.equal(e.productionMax, 0);
-  assert.equal(e.packagingMax, 0, "포장할 실물이 없다");
+  assert.equal(e.packagingCost, 0, "포장할 실물이 없다");
   assert.equal(e.totalQuantity, 0, "수량 자체를 세지 않는다");
   assert.equal(e.totalMin, 500_000);
   assert.equal(e.totalMax, 6_000_000);
@@ -59,7 +60,7 @@ test("제품 생산 1종 1,000부 벌크 — 디자인비 + 생산비", () => {
   assert.equal(e.designMax, 6_000_000);
   assert.equal(e.productionMin, 2_000_000, "1,000개 × 2,000원");
   assert.equal(e.productionMax, 15_000_000, "1,000개 × 15,000원");
-  assert.equal(e.packagingMax, 0, "벌크는 포장비 없음");
+  assert.equal(e.packagingCost, 0, "벌크는 포장비 없음");
   assert.equal(e.totalMin, 2_500_000);
   assert.equal(e.totalMax, 21_000_000);
 });
@@ -74,21 +75,34 @@ test("제품 생산 — 라인을 추가하면 종류와 총수량이 함께 늘
   assert.ok(two.totalMax > one.totalMax);
 });
 
-test("포장비는 상한만 있다 — 하한(총액 최소)에는 더하지 않는다", () => {
+test("포장비는 총액의 하한·상한 양쪽에 더해진다", () => {
+  // 상한에만 얹으면 포장을 골라도 왼쪽 금액이 그대로라 "계산이 안 된다"고 읽힌다
   const bulk = estimateQuote("production", [line(1000)], "bulk");
   const box = estimateQuote("production", [line(1000)], "paper-box");
 
-  assert.equal(box.packagingMax, 2_000_000, "1,000개 × 2,000원");
-  assert.equal(box.totalMin, bulk.totalMin, "사양에 따라 0원까지 내려갈 수 있다");
+  assert.equal(box.packagingCost, 2_000_000, "1,000개 × 2,000원");
+  assert.equal(box.totalMin - bulk.totalMin, 2_000_000, "하한도 함께 올라간다");
   assert.equal(box.totalMax - bulk.totalMax, 2_000_000);
 });
 
-test("포장 방식별 개당 상한 — 벌크 0 / OPP 500 / 종이박스 2,000", () => {
+test("포장 방식별 개당 단가 — 벌크 0 / OPP 500 / 종이박스 2,000", () => {
   const q = 2000;
-  assert.equal(estimateQuote("production", [line(q)], "bulk").packagingMax, 0);
-  assert.equal(estimateQuote("production", [line(q)], "opp").packagingMax, 1_000_000);
-  assert.equal(estimateQuote("production", [line(q)], "paper-box").packagingMax, 4_000_000);
-  assert.equal(estimateQuote("production", [line(q)], "").packagingMax, 0, "미선택은 0");
+  assert.equal(estimateQuote("production", [line(q)], "bulk").packagingCost, 0);
+  assert.equal(estimateQuote("production", [line(q)], "opp").packagingCost, 1_000_000);
+  assert.equal(estimateQuote("production", [line(q)], "paper-box").packagingCost, 4_000_000);
+  assert.equal(estimateQuote("production", [line(q)], "").packagingCost, 0, "미선택은 0");
+  assert.equal(
+    estimateQuote("production", [line(q)], "opp").packagingUnitCost,
+    500,
+    "화면에 근거로 보여줄 개당 단가"
+  );
+});
+
+test("포장을 고르면 총액이 정확히 그만큼 오른다 — 1종 1,000부 OPP", () => {
+  const e = estimateQuote("production", [line(1000)], "opp");
+  // 디자인 50만~600만 + 생산 200만~1,500만 + 포장 50만(1,000×500)
+  assert.equal(e.totalMin, 3_000_000);
+  assert.equal(e.totalMax, 21_500_000);
 });
 
 test("제품 생산 — 수량 미입력은 따로 알린다", () => {
@@ -147,8 +161,7 @@ test("formatKrw — 억·만 단위로 읽기 쉽게", () => {
   assert.equal(formatKrw(0), "0원");
 });
 
-test("formatRange — 하한이 0이면 '~ 상한' 으로 (안 들 수도 있는 비용)", () => {
+test("formatRange — 하한과 상한이 같으면 하나만", () => {
   assert.equal(formatRange(2_500_000, 21_000_000), "250만원 ~ 2,100만원");
-  assert.equal(formatRange(0, 2_000_000), "~ 200만원");
   assert.equal(formatRange(500_000, 500_000), "50만원");
 });

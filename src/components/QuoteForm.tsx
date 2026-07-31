@@ -271,10 +271,17 @@ function EstimatePanel({
                 </dd>
               </div>
             )}
-            {spec.hasPackaging && estimate.packagingMax > 0 && (
+            {spec.hasPackaging && estimate.packagingCost > 0 && (
               <div className="flex justify-between gap-2">
-                <dt>포장비 · {packagingLabel}</dt>
-                <dd className="tabular-nums whitespace-nowrap">~ {formatKrw(estimate.packagingMax)}</dd>
+                <dt>
+                  포장비 · {packagingLabel}
+                  <span className="text-slate-400">
+                    {" "}(개당 {estimate.packagingUnitCost.toLocaleString("ko-KR")}원)
+                  </span>
+                </dt>
+                <dd className="tabular-nums whitespace-nowrap">
+                  {formatKrw(estimate.packagingCost)}
+                </dd>
               </div>
             )}
           </dl>

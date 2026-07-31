@@ -25,10 +25,13 @@ export const UNIT_COST_MIN = 2_000;
 export const UNIT_COST_MAX = 15_000;
 
 /**
- * 포장 방식별 1개당 **최대** 추가 비용 (원).
- * 사양에 따라 0원까지 내려갈 수 있어 하한은 두지 않는다 — "~500원" 처럼 상한만 안내한다.
+ * 포장 방식별 1개당 추가 비용 (원).
+ *
+ * 총액의 하한·상한 양쪽에 모두 더한다. 처음에는 상한에만 얹었는데,
+ * 그러면 포장을 골라도 왼쪽 금액이 꿈쩍하지 않아 "계산이 안 된다"고 읽힌다.
+ * 포장은 고르는 순간 확정되는 비용이므로 범위가 아니라 정액으로 다룬다.
  */
-export const PACKAGING_UNIT_MAX: Record<string, number> = {
+export const PACKAGING_UNIT_COST: Record<string, number> = {
   bulk: 0,
   opp: 500,
   "paper-box": 2_000,
@@ -115,8 +118,10 @@ export interface QuoteEstimate {
   designMax: number;
   productionMin: number;
   productionMax: number;
-  /** 포장비는 상한만 있다 (사양에 따라 0원까지) */
-  packagingMax: number;
+  /** 포장비 = 총수량 × 개당 단가. 하한·상한 양쪽에 더해진다 */
+  packagingCost: number;
+  /** 개당 포장 단가 (원) — 화면에 근거로 함께 보여준다 */
+  packagingUnitCost: number;
   totalMin: number;
   totalMax: number;
   /** 수량이 필요한 주문인데 하나도 입력되지 않은 상태 */
@@ -152,8 +157,8 @@ export function estimateQuote(
   const productionMin = spec.hasProduction ? totalQuantity * UNIT_COST_MIN : 0;
   const productionMax = spec.hasProduction ? totalQuantity * UNIT_COST_MAX : 0;
 
-  const packUnitMax = spec.hasPackaging ? PACKAGING_UNIT_MAX[packaging] ?? 0 : 0;
-  const packagingMax = totalQuantity * packUnitMax;
+  const packagingUnitCost = spec.hasPackaging ? PACKAGING_UNIT_COST[packaging] ?? 0 : 0;
+  const packagingCost = totalQuantity * packagingUnitCost;
 
   return {
     orderType,
@@ -164,10 +169,10 @@ export function estimateQuote(
     designMax,
     productionMin,
     productionMax,
-    packagingMax,
-    // 포장비는 하한이 0이라 최소 금액에는 더하지 않는다
-    totalMin: designMin + productionMin,
-    totalMax: designMax + productionMax + packagingMax,
+    packagingCost,
+    packagingUnitCost,
+    totalMin: designMin + productionMin + packagingCost,
+    totalMax: designMax + productionMax + packagingCost,
     quantityMissing: spec.hasQuantity && designCount > 0 && totalQuantity === 0,
   };
 }
@@ -190,7 +195,5 @@ export function formatKrw(n: number): string {
 /** "100만원 ~ 1,500만원" 형태의 범위 문자열 */
 export function formatRange(min: number, max: number): string {
   if (min === max) return formatKrw(min);
-  // 하한이 0이면 "0원 ~"보다 "~ 상한"이 뜻을 정확히 전한다 (포장비처럼 안 들 수도 있는 항목)
-  if (min <= 0) return `~ ${formatKrw(max)}`;
   return `${formatKrw(min)} ~ ${formatKrw(max)}`;
 }
