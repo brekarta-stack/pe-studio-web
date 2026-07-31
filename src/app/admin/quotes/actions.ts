@@ -165,3 +165,53 @@ export async function createManualQuote(input: {
     return fail(e);
   }
 }
+
+/**
+ * 문의 영구 삭제 — 되돌릴 수 없다.
+ *
+ * 안전장치 둘:
+ *  1) Drop 처리된 건(dropped_at 있음)만 지운다. 진행 중인 리드를 실수로
+ *     날리는 경로를 아예 만들지 않는다 — 지우려면 먼저 Drop 해야 한다.
+ *  2) 배정이 붙어 있으면 거부한다. assignments 는 quote_id 에 ON DELETE CASCADE 라
+ *     그냥 지우면 작업비·지급 기록까지 조용히 함께 사라진다. 정산 이력이
+ *     말없이 없어지는 건 막아야 한다.
+ *
+ * 주 용도는 테스트 제출·스팸 정리다.
+ */
+export async function deleteQuoteForever(id: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+
+    const { data: row, error: readErr } = await supabaseAdmin
+      .from("quotes")
+      .select("id, name, dropped_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!row) throw new Error("문의를 찾을 수 없습니다. (이미 삭제되었을 수 있습니다)");
+    if (!row.dropped_at) {
+      throw new Error("Drop 처리된 문의만 삭제할 수 있습니다. 먼저 Drop 하세요.");
+    }
+
+    const { count, error: countErr } = await supabaseAdmin
+      .from("assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("quote_id", id);
+    // assignments 테이블이 없는 환경이면 확인을 건너뛴다 (배정 자체가 존재할 수 없다)
+    if (!countErr && (count ?? 0) > 0) {
+      throw new Error(
+        `배정된 작업이 ${count}건 있어 삭제할 수 없습니다. 작업 관리에서 배정을 먼저 삭제하세요.`
+      );
+    }
+
+    const { error } = await supabaseAdmin.from("quotes").delete().eq("id", id);
+    if (error) throw error;
+
+    revalidatePath("/admin/drops");
+    revalidatePath("/admin/quotes");
+    revalidatePath("/admin");
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}

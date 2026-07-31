@@ -87,6 +87,24 @@ test("어드민 레이아웃이 관리자가 아닌 세션을 돌려보낸다", 
   assert.match(layout, /redirect\("\/artist"\)/, "아티스트를 포털로 돌려보내야 합니다");
 });
 
+test("영구 삭제 액션의 안전장치가 살아 있다", () => {
+  // 되돌릴 수 없는 동작이라 가드가 조용히 사라지면 안 된다.
+  const text = readFileSync(
+    new URL("../src/app/admin/quotes/actions.ts", import.meta.url),
+    "utf-8"
+  );
+  const fn = text.slice(text.indexOf("export async function deleteQuoteForever"));
+  assert.ok(fn.length > 0, "deleteQuoteForever 가 없습니다");
+
+  assert.match(fn, /await requireAdmin\(\)/, "관리자 확인이 없습니다");
+  assert.match(fn, /dropped_at/, "Drop 된 건만 지우는 확인이 없습니다");
+  assert.match(
+    fn,
+    /from\("assignments"\)/,
+    "배정(정산 기록) 존재 확인이 없습니다 — CASCADE 로 함께 지워집니다"
+  );
+});
+
 test("어드민 API·서버 액션이 세션 유무가 아니라 역할을 본다", () => {
   // `if (!session)` 만으로 막으면 아티스트 세션이 전부 통과한다 — 그 패턴이
   // 되살아나지 않게 감시한다.
