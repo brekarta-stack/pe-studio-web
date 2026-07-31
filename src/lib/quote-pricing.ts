@@ -1,33 +1,95 @@
 /**
  * 제작 문의 개략 견적 — 클라이언트/서버 공용 순수 로직.
  *
- * 폼에서 디자인 라인을 추가할 때마다 대략적인 금액 범위를 보여주기 위한 계산.
  * 확정 견적이 아니라 **범위 안내**다. 실제 금액은 구조 난이도·용지·후가공에
  * 따라 달라지므로 회신으로 안내한다.
  *
- * 단가 기준:
- *   · 디자인비 — 디자인 1종당 50만 ~ 700만원
- *   · 생산비   — 1개당 1,000 ~ 15,000원
- *   · 포장비   — 1개당 벌크 0원 / OPP 500원 / 종이박스 1,500원 (범위 아님, 고정)
+ * 금액 구조는 주문 형태(무엇을 받을 것인가)에 따라 통째로 달라진다:
+ *
+ *   도면만 의뢰  디자인비만. 실물이 없으니 수량·포장 개념이 없다.
+ *   제품 생산    디자인비 + 생산비 + 포장비. 수량이 금액을 좌우한다.
+ *   완제품 의뢰  제작비 하나로 묶는다. 조립·설치까지 포함이라 부수보다
+ *                건별 난이도가 금액을 정한다 — 수량으로 곱하지 않는다.
  */
 
-/** 디자인 1종당 디자인 비용 (원) */
-export const DESIGN_COST_MIN = 500_000;
-export const DESIGN_COST_MAX = 7_000_000;
+/** 주문 형태 — 무엇을 받을 것인지 */
+export const ORDER_TYPES = ["blueprint", "production", "finished"] as const;
+export type OrderType = (typeof ORDER_TYPES)[number];
 
-/** 1개당 생산 비용 (원) */
-export const UNIT_COST_MIN = 1_000;
+export function isOrderType(v: unknown): v is OrderType {
+  return typeof v === "string" && (ORDER_TYPES as readonly string[]).includes(v);
+}
+
+/** 1개당 생산 비용 (원) — 제품 생산일 때만 */
+export const UNIT_COST_MIN = 2_000;
 export const UNIT_COST_MAX = 15_000;
 
-/** 포장 방식별 1개당 추가 비용 (원) */
-export const PACKAGING_UNIT_COST: Record<string, number> = {
+/**
+ * 포장 방식별 1개당 **최대** 추가 비용 (원).
+ * 사양에 따라 0원까지 내려갈 수 있어 하한은 두지 않는다 — "~500원" 처럼 상한만 안내한다.
+ */
+export const PACKAGING_UNIT_MAX: Record<string, number> = {
   bulk: 0,
   opp: 500,
-  "paper-box": 1_500,
+  "paper-box": 2_000,
 };
 
 /** 수량 입력 단위 — 1,000부 단위로 받는다 */
 export const QUANTITY_STEP = 1_000;
+
+interface OrderTypeSpec {
+  label: string;
+  desc: string;
+  /** 견적에서 디자인 비용을 부르는 이름 — 완제품은 '제작비' */
+  costLabel: string;
+  /** 1종당 비용 (원) */
+  costMin: number;
+  costMax: number;
+  /** 수량에 비례하는 생산비가 붙는가 */
+  hasProduction: boolean;
+  /** 포장 선택·비용이 의미 있는가 */
+  hasPackaging: boolean;
+  /** 수량을 입력받는가 — 도면만 의뢰는 실물이 없어 받지 않는다 */
+  hasQuantity: boolean;
+  /** 라인을 새로 추가할 때 채워 넣을 기본 수량 */
+  defaultQuantity: number;
+}
+
+export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
+  blueprint: {
+    label: "도면만 의뢰",
+    desc: "전개도·설계 데이터만 받습니다. 생산은 직접 진행하시는 경우.",
+    costLabel: "디자인비",
+    costMin: 500_000,
+    costMax: 6_000_000,
+    hasProduction: false,
+    hasPackaging: false,
+    hasQuantity: false,
+    defaultQuantity: 0,
+  },
+  production: {
+    label: "제품 생산",
+    desc: "디자인부터 인쇄·재단까지. 완성된 키트를 납품받습니다.",
+    costLabel: "디자인비",
+    costMin: 500_000,
+    costMax: 6_000_000,
+    hasProduction: true,
+    hasPackaging: true,
+    hasQuantity: true,
+    defaultQuantity: 1_000,
+  },
+  finished: {
+    label: "완제품 의뢰",
+    desc: "조립·설치까지 마친 완성품을 받습니다. 전시·연출물에 적합합니다.",
+    costLabel: "제작비",
+    costMin: 500_000,
+    costMax: 10_000_000,
+    hasProduction: false,
+    hasPackaging: true,
+    hasQuantity: true,
+    defaultQuantity: 1,
+  },
+};
 
 /** 제작 희망 디자인 한 줄 */
 export interface DesignLine {
@@ -42,6 +104,9 @@ export interface DesignLine {
 }
 
 export interface QuoteEstimate {
+  orderType: OrderType;
+  /** 견적에서 1종당 비용을 부르는 이름 (디자인비 / 제작비) */
+  costLabel: string;
   /** 생산 종류 수 = 디자인 라인 수 */
   designCount: number;
   /** 총 생산 수량 = 라인별 수량 합계 */
@@ -50,11 +115,11 @@ export interface QuoteEstimate {
   designMax: number;
   productionMin: number;
   productionMax: number;
-  /** 포장비 (범위 없음) */
-  packagingCost: number;
+  /** 포장비는 상한만 있다 (사양에 따라 0원까지) */
+  packagingMax: number;
   totalMin: number;
   totalMax: number;
-  /** 수량이 하나도 입력되지 않아 생산비를 셀 수 없는 상태 */
+  /** 수량이 필요한 주문인데 하나도 입력되지 않은 상태 */
   quantityMissing: boolean;
 }
 
@@ -65,33 +130,45 @@ export function parseQuantity(v: string): number {
 }
 
 /**
- * 디자인 라인 + 포장 방식 → 개략 견적.
+ * 주문 형태 + 디자인 라인 + 포장 → 개략 견적.
  *
- * 라인이 없으면 전부 0 — 폼에서는 이때 견적 카드를 감춘다.
- * (0원 범위를 보여주면 "무료"로 읽힐 수 있다)
+ * 라인이 없으면 전부 0 — 폼에서는 이때 금액 대신 안내 문구를 보여준다.
+ * (0원 범위를 그대로 보여주면 "무료"로 읽힌다)
  */
-export function estimateQuote(lines: DesignLine[], packaging: string): QuoteEstimate {
+export function estimateQuote(
+  orderType: OrderType,
+  lines: DesignLine[],
+  packaging: string
+): QuoteEstimate {
+  const spec = ORDER_TYPE_SPECS[orderType];
   const designCount = lines.length;
-  const totalQuantity = lines.reduce((sum, l) => sum + parseQuantity(l.quantity), 0);
-  const packUnit = PACKAGING_UNIT_COST[packaging] ?? 0;
+  const totalQuantity = spec.hasQuantity
+    ? lines.reduce((sum, l) => sum + parseQuantity(l.quantity), 0)
+    : 0;
 
-  const designMin = designCount * DESIGN_COST_MIN;
-  const designMax = designCount * DESIGN_COST_MAX;
-  const productionMin = totalQuantity * UNIT_COST_MIN;
-  const productionMax = totalQuantity * UNIT_COST_MAX;
-  const packagingCost = totalQuantity * packUnit;
+  const designMin = designCount * spec.costMin;
+  const designMax = designCount * spec.costMax;
+
+  const productionMin = spec.hasProduction ? totalQuantity * UNIT_COST_MIN : 0;
+  const productionMax = spec.hasProduction ? totalQuantity * UNIT_COST_MAX : 0;
+
+  const packUnitMax = spec.hasPackaging ? PACKAGING_UNIT_MAX[packaging] ?? 0 : 0;
+  const packagingMax = totalQuantity * packUnitMax;
 
   return {
+    orderType,
+    costLabel: spec.costLabel,
     designCount,
     totalQuantity,
     designMin,
     designMax,
     productionMin,
     productionMax,
-    packagingCost,
-    totalMin: designMin + productionMin + packagingCost,
-    totalMax: designMax + productionMax + packagingCost,
-    quantityMissing: designCount > 0 && totalQuantity === 0,
+    packagingMax,
+    // 포장비는 하한이 0이라 최소 금액에는 더하지 않는다
+    totalMin: designMin + productionMin,
+    totalMax: designMax + productionMax + packagingMax,
+    quantityMissing: spec.hasQuantity && designCount > 0 && totalQuantity === 0,
   };
 }
 
@@ -113,5 +190,7 @@ export function formatKrw(n: number): string {
 /** "100만원 ~ 1,500만원" 형태의 범위 문자열 */
 export function formatRange(min: number, max: number): string {
   if (min === max) return formatKrw(min);
+  // 하한이 0이면 "0원 ~"보다 "~ 상한"이 뜻을 정확히 전한다 (포장비처럼 안 들 수도 있는 항목)
+  if (min <= 0) return `~ ${formatKrw(max)}`;
   return `${formatKrw(min)} ~ ${formatKrw(max)}`;
 }

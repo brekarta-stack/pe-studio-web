@@ -16,11 +16,16 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
+  ORDER_TYPES,
+  ORDER_TYPE_SPECS,
   QUANTITY_STEP,
   estimateQuote,
   formatKrw,
   formatRange,
+  isOrderType,
   type DesignLine,
+  type OrderType,
+  type QuoteEstimate,
 } from "@/lib/quote-pricing";
 import { prepareImageForUpload } from "@/lib/image-resize";
 import {
@@ -62,6 +67,8 @@ interface FormState {
   purpose: string;
   /** 선호 작가 — 오세기 / 김철호 / 문재호 / 추천받기 */
   styleType: StyleType;
+  /** 주문 형태 — 도면만 / 제품 생산 / 완제품. 견적 구조를 통째로 정한다 */
+  orderType: OrderType;
   /** 제작 희망 디자인 목록 — 종류·총수량·개략 견적의 근거 */
   designs: DesignLine[];
   /** 제품에 삽입할 문구 (회사명·슬로건 등) */
@@ -101,8 +108,8 @@ const USAGES: { id: ProductType; icon: IconKey; name: string; desc: string; imag
   { id: "hobby",     icon: "pencil",    name: "취미용",      desc: "가족·동호회·개인 만들기 키트",     image: `${SUPA_IMG}/7777777777.jpg` },
 ];
 
-/** 사용 목적 — 실제로 들어오는 문의 유형에 맞춰 4가지로 좁혔다 */
-const PURPOSES = ["행사 배포", "전시", "체험교실 운영", "판매"];
+/** 사용 목적 — 실제로 들어오는 문의 유형에 맞춰 3가지로 (한 줄에 들어간다) */
+const PURPOSES = ["행사/배포", "전시/판매", "체험교실 운영"];
 
 const STEP_LABELS = ["제품 선택", "디자인·제작 옵션", "연락처"];
 const TOTAL_STEPS = STEP_LABELS.length;
@@ -120,6 +127,10 @@ const INITIAL_FORM: FormState = {
   email: "",
   phone: "",
   files: [],
+  // 기본은 제품 생산 — 문의의 대부분이 여기에 해당한다
+  orderType: "production",
+  /* 첫 줄은 폼을 열 때 채운다(초안 복원 effect). 모듈 상수라 여기서 id 를
+     만들면 매번 같은 값이 되어 초안과 충돌한다. */
   designs: [],
   logoFileName: "",
   logoFileUrl: "",
@@ -200,6 +211,90 @@ function draftSummary(f: FormState): string {
   return parts.length > 0 ? parts.join(" · ") : "작성 중이던 내용";
 }
 
+/**
+ * 예상 견적 패널 — 데스크톱에서는 우측에 스티키로 붙고, 모바일에서는 하단에 고정된다.
+ *
+ * 폼이 길어 아래로 내려가면 금액이 시야에서 사라진다. 라인을 추가할 때마다
+ * 범위가 어떻게 변하는지 보이는 게 이 화면의 핵심이라 항상 붙어 있게 했다.
+ */
+function EstimatePanel({
+  estimate,
+  packagingLabel,
+  compact = false,
+}: {
+  estimate: QuoteEstimate;
+  packagingLabel: string;
+  compact?: boolean;
+}) {
+  const spec = ORDER_TYPE_SPECS[estimate.orderType];
+
+  // 라인이 없으면 금액 대신 안내 — "0원 ~ 0원" 은 무료로 읽힌다
+  if (estimate.designCount === 0) {
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-5 text-center">
+        <p className="text-sm font-semibold text-slate-700">예상 견적 범위</p>
+        <p className="mt-1 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
+          제작 희망 디자인을 추가하면 대략적인 금액을 보여드립니다.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border-2 border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-slate-900">예상 견적 범위</span>
+        <span className="text-xs text-slate-500 tabular-nums">
+          {spec.label} · {estimate.designCount}종
+          {spec.hasQuantity && ` · ${estimate.totalQuantity.toLocaleString("ko-KR")}부`}
+        </span>
+      </div>
+
+      <p className="mt-1.5 text-2xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
+        {formatRange(estimate.totalMin, estimate.totalMax)}
+      </p>
+
+      {!compact && (
+        <>
+          <dl className="mt-3 space-y-1 text-xs text-slate-600">
+            <div className="flex justify-between gap-2">
+              <dt>{estimate.costLabel} · {estimate.designCount}종</dt>
+              <dd className="tabular-nums whitespace-nowrap">
+                {formatRange(estimate.designMin, estimate.designMax)}
+              </dd>
+            </div>
+            {spec.hasProduction && (
+              <div className="flex justify-between gap-2">
+                <dt>생산비 · {estimate.totalQuantity.toLocaleString("ko-KR")}부</dt>
+                <dd className="tabular-nums whitespace-nowrap">
+                  {formatRange(estimate.productionMin, estimate.productionMax)}
+                </dd>
+              </div>
+            )}
+            {spec.hasPackaging && estimate.packagingMax > 0 && (
+              <div className="flex justify-between gap-2">
+                <dt>포장비 · {packagingLabel}</dt>
+                <dd className="tabular-nums whitespace-nowrap">~ {formatKrw(estimate.packagingMax)}</dd>
+              </div>
+            )}
+          </dl>
+
+          {estimate.quantityMissing && (
+            <p className="mt-2 text-xs text-amber-700">
+              수량을 입력하면 생산비까지 포함한 범위를 보여드립니다.
+            </p>
+          )}
+
+          <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
+            구조 난이도·용지·후가공에 따라 달라지는 <b>개략 범위</b>입니다.
+            정확한 견적은 문의 내용을 검토한 뒤 회신으로 안내해 드립니다.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** 제작 희망 디자인은 최대 20종까지 */
 const MAX_DESIGNS = 20;
 
@@ -226,7 +321,10 @@ function hasDraftContent(f: FormState): boolean {
     f.quantity, f.deliveryDate, f.purpose, f.styleType, f.productText,
     f.colorRequest, f.notes, f.name, f.email, f.phone, f.packaging,
   ].some((v) => String(v ?? "").trim() !== "");
-  return filled || f.files.length > 0 || f.designs.length > 0 || f.sampling || !!f.logoFileUrl;
+  /* 디자인 줄은 폼을 열 때 빈 줄 하나가 기본으로 생긴다 —
+     그걸 "작성 중이던 내용"으로 세면 매번 이어쓰기를 묻게 된다. */
+  const designsFilled = f.designs.some((d) => d.name.trim() !== "" || d.file);
+  return filled || f.files.length > 0 || designsFilled || f.sampling || !!f.logoFileUrl;
 }
 
 /** 옵션 서브섹션 헤더 (디자인 / 제작) */
@@ -305,22 +403,14 @@ export default function QuoteForm() {
           step = Math.max(step, 2);
         }
 
-        // 주문 형태 (도면만/제품 생산) — 메모에 자동 기록해 담당자에게 전달
+        // 주문 형태 — /products 에서 넘어온 값을 폼 선택지에 그대로 반영한다
         const ptype = params.get("ptype");
-        const ptypeLabel = ptype === "blueprint" ? "도면만 의뢰" : ptype === "production" ? "제품 생산" : "";
-        if (ptypeLabel && !next.notes.includes("[주문 형태")) {
-          next = { ...next, notes: `[주문 형태: ${ptypeLabel}]${next.notes ? `\n${next.notes}` : ""}` };
-        }
+        if (isOrderType(ptype)) next = { ...next, orderType: ptype };
 
         // 상담 직행 — 완제품 의뢰 등은 연락처 단계로 바로
         const consult = params.get("consult");
         if (consult) {
-          if (consult === "finished" && !next.notes.includes("[완제품 의뢰]")) {
-            next = {
-              ...next,
-              notes: `[완제품 의뢰] 조립·설치 포함 완성품 상담 희망${next.notes ? `\n${next.notes}` : ""}`,
-            };
-          }
+          if (consult === "finished") next = { ...next, orderType: "finished" };
           if (!next.product) next = { ...next, product: "unsure" };
           step = TOTAL_STEPS;
         }
@@ -362,14 +452,34 @@ export default function QuoteForm() {
       // ignore parse errors
     }
 
-    const fresh = applyUrlContext(INITIAL_FORM, 1);
+    /** 디자인 줄이 없으면 빈 줄 하나를 열어 둔다 — 무엇을 적는 곳인지 바로 보이게 */
+    const withFirstLine = (f: FormState): FormState =>
+      f.designs.length > 0
+        ? f
+        : {
+            ...f,
+            designs: [
+              {
+                id: newLineId(),
+                name: "",
+                quantity: ORDER_TYPE_SPECS[f.orderType].hasQuantity
+                  ? String(ORDER_TYPE_SPECS[f.orderType].defaultQuantity)
+                  : "",
+                file: null,
+              },
+            ],
+          };
+
+    const freshBase = applyUrlContext(INITIAL_FORM, 1);
+    const fresh = { form: withFirstLine(freshBase.form), step: freshBase.step };
 
     if (draft && hasDraftContent(draft.form)) {
       // 물어보는 동안에는 빈 폼을 보여주되, 초안은 아직 덮어쓰지 않는다
       setForm(fresh.form);
       setStepRaw(fresh.step);
       if (isUsageId(fresh.form.product)) setStep1Mode("usage");
-      setDraftPrompt(applyUrlContext(draft.form, draft.step));
+      const restored = applyUrlContext(draft.form, draft.step);
+      setDraftPrompt({ form: withFirstLine(restored.form), step: restored.step });
     } else {
       setForm(fresh.form);
       setStepRaw(fresh.step);
@@ -421,7 +531,17 @@ export default function QuoteForm() {
         ? prev
         : {
             ...prev,
-            designs: [...prev.designs, { id: newLineId(), name: "", quantity: "", file: null }],
+            designs: [
+              ...prev.designs,
+              {
+                id: newLineId(),
+                name: "",
+                quantity: ORDER_TYPE_SPECS[prev.orderType].hasQuantity
+                  ? String(ORDER_TYPE_SPECS[prev.orderType].defaultQuantity)
+                  : "",
+                file: null,
+              },
+            ],
           }
     );
 
@@ -458,9 +578,34 @@ export default function QuoteForm() {
 
   /** 개략 견적 — 라인·포장이 바뀔 때만 다시 계산 */
   const estimate = useMemo(
-    () => estimateQuote(form.designs, form.packaging),
-    [form.designs, form.packaging]
+    () => estimateQuote(form.orderType, form.designs, form.packaging),
+    [form.orderType, form.designs, form.packaging]
   );
+
+  /** 현재 주문 형태의 사양 — 수량을 받는지, 포장이 의미 있는지 */
+  const orderSpec = ORDER_TYPE_SPECS[form.orderType];
+
+  /**
+   * 주문 형태 변경. 직접 적어 둔 수량은 살리고, 기본값 그대로인 줄만 갈아끼운다 —
+   * 생산(1,000부)에서 완제품(1개)으로 바꿨는데 1,000부가 남으면 견적이 엉뚱해진다.
+   */
+  const changeOrderType = (next: OrderType) => {
+    setForm((prev) => {
+      if (prev.orderType === next) return prev;
+      const prevDefault = String(ORDER_TYPE_SPECS[prev.orderType].defaultQuantity);
+      const nextSpec = ORDER_TYPE_SPECS[next];
+      const nextDefault = nextSpec.hasQuantity ? String(nextSpec.defaultQuantity) : "";
+      return {
+        ...prev,
+        orderType: next,
+        designs: prev.designs.map((d) =>
+          d.quantity === prevDefault || d.quantity === "" ? { ...d, quantity: nextDefault } : d
+        ),
+        // 도면만 의뢰는 포장 개념이 없다 — 남겨 두면 견적에 유령처럼 남는다
+        packaging: nextSpec.hasPackaging ? prev.packaging : "",
+      };
+    });
+  };
 
   /** 단일 파일 업로드 → 공개 URL 반환 (실패 시 throw) */
   const uploadOne = async (f: File): Promise<QuoteFile> => {
@@ -473,46 +618,6 @@ export default function QuoteForm() {
     return { name: json.name || f.name, url: json.url };
   };
 
-  /** 참고 자료 — 여러 파일 선택 → 순차 업로드 후 form.files 에 추가 (최대 5개) */
-  const handleFilesPick = async (e: ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    e.target.value = ""; // 같은 파일 재선택 허용
-    if (picked.length === 0) return;
-    setUploadErr((s) => ({ ...s, file: "" }));
-
-    const room = MAX_FILES - form.files.length;
-    if (room <= 0) {
-      setUploadErr((s) => ({ ...s, file: `첨부는 최대 ${MAX_FILES}개까지 가능합니다.` }));
-      return;
-    }
-    const toUpload = picked.slice(0, room);
-    if (picked.length > room) {
-      setUploadErr((s) => ({ ...s, file: `최대 ${MAX_FILES}개까지만 첨부됩니다 (${picked.length - room}개 제외).` }));
-    }
-
-    setUploading((s) => ({ ...s, file: true }));
-    try {
-      for (const f of toUpload) {
-        try {
-          const uploaded = await uploadOne(f);
-          setForm((prev) =>
-            prev.files.length >= MAX_FILES ? prev : { ...prev, files: [...prev.files, uploaded] },
-          );
-        } catch (err) {
-          setUploadErr((s) => ({
-            ...s,
-            file: `${f.name}: ${err instanceof Error ? err.message : "업로드 실패"}`,
-          }));
-        }
-      }
-    } finally {
-      setUploading((s) => ({ ...s, file: false }));
-    }
-  };
-
-  const removeFile = (idx: number) => {
-    setForm((prev) => ({ ...prev, files: prev.files.filter((_, i) => i !== idx) }));
-  };
 
   /** 회사 로고 — 단일 파일 업로드 */
   const handleLogoPick = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -920,474 +1025,426 @@ export default function QuoteForm() {
                 String(recommended.getDate()).padStart(2, "0"),
               ].join("-");
               return (
-                <div className="space-y-8">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-1 tracking-tight">
-                      디자인·제작 옵션을 알려주세요
-                    </h2>
-                    <p className="text-slate-500 text-sm" style={{ wordBreak: "keep-all" }}>
-                      모두 선택 사항입니다. 아는 것만 채우셔도 되고,
-                      비워둔 항목은 담당자가 상담으로 함께 정해드립니다.
-                    </p>
-                    {/* 선택 제품 컨텍스트 칩 — /products 프리필로 Step 1 을 건너뛴 경우의 확인·수정 장치 */}
-                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs">
-                      <span className="text-slate-400">선택 제품</span>
-                      <strong className="text-slate-800">{productDisplayName}</strong>
-                      <button
-                        type="button"
-                        onClick={() => setStep(1)}
-                        className="text-[#1E22B2] font-semibold hover:underline underline-offset-2"
-                      >
-                        변경
-                      </button>
-                    </div>
-                  </div>
-
-                  <SubsectionHeader color="#06C6C8" en="Purpose" ko="사용 목적" />
-
-                  {/* 사용 목적 */}
-                  <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-2">사용 목적</span>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {PURPOSES.map((p) => {
-                        const isActive = form.purpose === p;
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => update("purpose", isActive ? "" : p)}
-                            aria-pressed={isActive}
-                            className={`py-2.5 px-3 text-sm rounded-xl border-2 transition-colors ${
-                              isActive
-                                ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] font-semibold"
-                                : "border-slate-200 text-slate-600 hover:border-blue-200"
-                            }`}
-                          >
-                            {p}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-
-                  <SubsectionHeader color="#1E22B2" en="Artist" ko="선호 작가" />
-
-                  {/* 선호 작가 */}
-                  <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-1">선호 작가</span>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
-                      작가에 따라 결과물의 인상이 달라집니다. 잘 모르겠다면 <b>추천받기</b>를 골라 주세요.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {STYLE_OPTIONS.map((opt) => {
-                        const isActive = form.styleType === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => update("styleType", isActive ? "" : (opt.value as string))}
-                            aria-pressed={isActive}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
-                              isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
-                            }`}
-                          >
-                            <div className="font-semibold text-slate-900 text-sm mb-1">{opt.label}</div>
-                            <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>{opt.desc}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <SubsectionHeader color="#E91E8C" en="Production" ko="제작" />
-
-                  {/* 샘플링 체크박스 */}
-                  <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50/50">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.sampling}
-                        onChange={(e) => update("sampling", e.target.checked)}
-                        className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
-                      />
-                      <div className="flex-1">
-                        <div className="font-semibold text-slate-900 text-sm">
-                          샘플링을 희망합니다
-                          <span className="ml-2 text-xs font-medium" style={{ color: "#E91E8C" }}>
-                            B2B 기업 주문 시 권장
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
-                          생산 전 완제품을 수제작하여 샘플로 보내드립니다. (회당 추가 비용 및 일정 증가)
-                        </p>
+                  <div className="space-y-12">
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900 mb-1 tracking-tight">
+                        디자인·제작 옵션을 알려주세요
+                      </h2>
+                      <p className="text-slate-500 text-sm" style={{ wordBreak: "keep-all" }}>
+                        모두 선택 사항입니다. 아는 것만 채우셔도 되고,
+                        비워둔 항목은 담당자가 상담으로 함께 정해드립니다.
+                      </p>
+                      {/* 선택 제품 컨텍스트 칩 — /products 프리필로 Step 1 을 건너뛴 경우의 확인·수정 장치 */}
+                      <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs">
+                        <span className="text-slate-400">선택 제품</span>
+                        <strong className="text-slate-800">{productDisplayName}</strong>
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="text-[#1E22B2] font-semibold hover:underline underline-offset-2"
+                        >
+                          변경
+                        </button>
                       </div>
-                    </label>
-                  </div>
-
-
-                  {/* 제작 희망 디자인 — 라인마다 수량과 참고 자료 */}
-                  <div>
-                    <div className="flex items-baseline justify-between mb-1">
-                      <span className="text-sm font-semibold text-slate-700">제작 희망 디자인</span>
-                      <span className="text-[11px] text-slate-400 tabular-nums">{form.designs.length}/{MAX_DESIGNS}종</span>
                     </div>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
-                      만들고 싶은 디자인을 종류별로 추가해 주세요. 종류 수와 총 수량이 자동으로 계산됩니다.
-                      {spec.qtyLabel && <span className="text-slate-400"> · 선택한 제품 기준 {spec.qtyLabel}</span>}
-                    </p>
 
-                    {form.designs.length > 0 && (
-                      <ul className="space-y-2 mb-3">
-                        {form.designs.map((d, i) => (
-                          <li key={d.id} className="rounded-xl border border-slate-200 p-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="w-6 flex-shrink-0 text-xs font-bold text-slate-400 tabular-nums">{i + 1}</span>
-                              <input
-                                type="text"
-                                value={d.name}
-                                onChange={(e) => patchDesign(d.id, { name: e.target.value })}
-                                placeholder="예: 마스코트 캐릭터 A"
-                                aria-label={`디자인 ${i + 1} 이름`}
-                                className="min-w-[8rem] flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#1E22B2]"
-                              />
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  inputMode="numeric"
-                                  min={0}
-                                  step={QUANTITY_STEP}
-                                  value={d.quantity}
-                                  onChange={(e) => patchDesign(d.id, { quantity: e.target.value })}
-                                  placeholder={String(QUANTITY_STEP)}
-                                  aria-label={`디자인 ${i + 1} 수량`}
-                                  className="w-24 px-3 py-2 border border-slate-200 rounded-lg text-sm text-right pe-num focus:outline-none focus:border-[#1E22B2]"
-                                />
-                                <span className="text-xs text-slate-400">부</span>
-                              </div>
+                    {/* 좌: 입력 / 우: 스티키 견적. 폼이 길어 금액이 시야에서 사라지지 않게 붙여 둔다 */}
+                    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-8 lg:items-start">
+                      <div className="space-y-12">
 
-                              {/* 라인별 참고 자료 — 같은 줄에서 바로 첨부 */}
-                              {d.file ? (
-                                <span className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-800 max-w-[12rem]">
-                                  <span className="truncate" title={d.file.name}>✓ {d.file.name}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => patchDesign(d.id, { file: null })}
-                                    className="flex-shrink-0 text-emerald-600 hover:text-rose-600"
-                                    aria-label={`디자인 ${i + 1} 첨부 삭제`}
-                                  >
-                                    ✕
-                                  </button>
-                                </span>
-                              ) : (
-                                <label
-                                  className={`cursor-pointer rounded-lg border border-dashed px-3 py-2 text-xs whitespace-nowrap ${
-                                    designUploading === d.id
-                                      ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] cursor-wait"
-                                      : "border-slate-300 text-slate-500 hover:border-[#1E22B2] hover:bg-blue-50"
+                        <SubsectionHeader color="#0EA5E9" en="Order" ko="주문 형태" />
+
+                        {/* 주문 형태 — 무엇을 받을 것인지. 견적 구성이 여기서 갈린다 */}
+                        <div>
+                          <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                            어떤 형태로 받으실지에 따라 견적 구성과 입력 항목이 달라집니다.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {ORDER_TYPES.map((t) => {
+                              const o = ORDER_TYPE_SPECS[t];
+                              const isActive = form.orderType === t;
+                              return (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => changeOrderType(t)}
+                                  aria-pressed={isActive}
+                                  className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                                    isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
                                   }`}
                                 >
-                                  {designUploading === d.id ? "업로드 중…" : "＋ 참고 자료"}
-                                  <input
-                                    type="file"
-                                    className="hidden"
-                                    accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
-                                    disabled={designUploading !== null}
-                                    onChange={(e) => handleDesignFilePick(d.id, e)}
-                                  />
-                                </label>
-                              )}
-
-                              <button
-                                type="button"
-                                onClick={() => removeDesign(d.id)}
-                                className="flex-shrink-0 px-2 text-slate-300 hover:text-rose-600"
-                                aria-label={`디자인 ${i + 1} 삭제`}
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {form.designs.length < MAX_DESIGNS && (
-                      <button
-                        type="button"
-                        onClick={addDesign}
-                        className="w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-semibold text-slate-600 hover:border-[#1E22B2] hover:bg-blue-50 hover:text-[#1E22B2] transition-colors"
-                      >
-                        ＋ 제작 희망 디자인 추가
-                      </button>
-                    )}
-
-                    {estimate.quantityMissing && (
-                      <p className="text-xs text-amber-700 mt-2">수량을 입력하면 생산비까지 포함한 범위를 보여드립니다.</p>
-                    )}
-                  </div>
-
-                  {/* 포장 방식 */}
-                  <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-3">포장 방식</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      {PACKAGING_OPTIONS.map((opt) => {
-                        const isActive = form.packaging === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => update("packaging", isActive ? "" : (opt.value as string))}
-                            aria-pressed={isActive}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
-                              isActive
-                                ? "border-[#1E22B2] bg-blue-50"
-                                : "border-slate-200 hover:border-blue-200"
-                            }`}
-                          >
-                            <div className="font-semibold text-slate-900 text-sm mb-1">{opt.label}</div>
-                            <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
-                              {opt.desc}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-
-                  {/* 개략 견적 — 라인이 있을 때만. 0원 범위를 보여주면 '무료'로 읽힌다 */}
-                  {estimate.designCount > 0 && (
-                    <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/60 p-5">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-                        <span className="text-sm font-bold text-slate-900">예상 견적 범위</span>
-                        <span className="text-xs text-slate-500 tabular-nums">
-                          총 {estimate.designCount}종 · {estimate.totalQuantity.toLocaleString("ko-KR")}부
-                        </span>
-                      </div>
-
-                      <p className="text-2xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
-                        {formatRange(estimate.totalMin, estimate.totalMax)}
-                      </p>
-
-                      <dl className="mt-3 space-y-1 text-xs text-slate-600">
-                        <div className="flex justify-between">
-                          <dt>디자인비 · {estimate.designCount}종</dt>
-                          <dd className="tabular-nums">{formatRange(estimate.designMin, estimate.designMax)}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                          <dt>생산비 · {estimate.totalQuantity.toLocaleString("ko-KR")}부</dt>
-                          <dd className="tabular-nums">{formatRange(estimate.productionMin, estimate.productionMax)}</dd>
-                        </div>
-                        {estimate.packagingCost > 0 && (
-                          <div className="flex justify-between">
-                            <dt>포장비 · {PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label}</dt>
-                            <dd className="tabular-nums">{formatKrw(estimate.packagingCost)}</dd>
+                                  <div className="font-semibold text-slate-900 text-sm mb-1">{o.label}</div>
+                                  <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>{o.desc}</div>
+                                  <div className="mt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
+                                    {o.costLabel} {formatKrw(o.costMin)}~{formatKrw(o.costMax)} / 종
+                                    {o.hasProduction && " + 생산비"}
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
-                        )}
-                      </dl>
+                        </div>
 
-                      <p className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
-                        구조 난이도·용지·후가공에 따라 달라지는 <b>개략 범위</b>입니다.
-                        정확한 견적은 문의 내용을 검토한 뒤 회신으로 안내해 드립니다.
-                      </p>
-                    </div>
-                  )}
+                        <SubsectionHeader color="#06C6C8" en="Purpose" ko="사용 목적" />
 
-                  {/* 납품 희망일 + 빠른 제작 체크박스 */}
-                  <div>
-                    <label htmlFor="due" className="block text-sm font-semibold text-slate-700 mb-2">
-                      납품 희망일
-                      <span className="ml-2 text-xs font-medium text-slate-500">
-                        평균 납기: {spec.leadLabel}
-                      </span>
-                    </label>
-                    <input
-                      id="due"
-                      type="date"
-                      value={form.rushed ? "" : form.deliveryDate}
-                      onChange={(e) => {
-                        update("deliveryDate", e.target.value);
-                        if (e.target.value) update("rushed", false);
-                      }}
-                      min={minDateISO}
-                      disabled={form.rushed}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                    <p className="text-xs text-slate-400 mt-1.5">
-                      최소 납품 가능일: <span className="pe-num">{minDateISO}</span>
-                    </p>
-                    <label className="mt-2 inline-flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.rushed}
-                        onChange={(e) => {
-                          update("rushed", e.target.checked);
-                          if (e.target.checked) update("deliveryDate", "");
-                        }}
-                        className="w-4 h-4 rounded border-slate-300 text-[#E91E8C] focus:ring-2 focus:ring-[#E91E8C]/30"
-                      />
-                      <span className="text-sm text-slate-700">최대한 빠르게 제작</span>
-                    </label>
-                  </div>
+                        {/* 사용 목적 */}
+                        <div>
+                          <span className="block text-sm font-semibold text-slate-700 mb-2">사용 목적</span>
+                          <div className="grid grid-cols-3 gap-2">
+                            {PURPOSES.map((p) => {
+                              const isActive = form.purpose === p;
+                              return (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => update("purpose", isActive ? "" : p)}
+                                  aria-pressed={isActive}
+                                  className={`py-2.5 px-3 text-sm rounded-xl border-2 transition-colors ${
+                                    isActive
+                                      ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] font-semibold"
+                                      : "border-slate-200 text-slate-600 hover:border-blue-200"
+                                  }`}
+                                >
+                                  {p}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
 
 
-                  <SubsectionHeader color="#7C3AED" en="Details" ko="추가 정보" />
+                        <SubsectionHeader color="#1E22B2" en="Artist" ko="선호 작가" />
 
-                  {/* 참고 자료 업로드 — 권장, 최대 5개 */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      참고 자료 업로드
-                      <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-semibold align-middle">권장</span>
-                      <span className="ml-2 text-[11px] text-slate-400 font-medium align-middle tabular-nums">
-                        {form.files.length}/{MAX_FILES}
-                      </span>
-                    </label>
+                        {/* 선호 작가 */}
+                        <div>
+                          <span className="block text-sm font-semibold text-slate-700 mb-1">선호 작가</span>
+                          <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                            작가에 따라 결과물의 인상이 달라집니다. 잘 모르겠다면 <b>추천받기</b>를 골라 주세요.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {STYLE_OPTIONS.map((opt) => {
+                              const isActive = form.styleType === opt.value;
+                              return (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => update("styleType", isActive ? "" : (opt.value as string))}
+                                  aria-pressed={isActive}
+                                  className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                                    isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
+                                  }`}
+                                >
+                                  <div className="font-semibold text-slate-900 text-sm mb-1">{opt.label}</div>
+                                  <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>{opt.desc}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
 
-                    {/* 첨부된 파일 목록 */}
-                    {form.files.length > 0 && (
-                      <ul className="mb-2 space-y-1.5">
-                        {form.files.map((f, i) => (
-                          <li
-                            key={f.url}
-                            className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
-                          >
-                            <BoxIcon size={16} className="text-emerald-500 flex-shrink-0" />
-                            <span className="flex-1 truncate text-sm text-slate-700" title={f.name}>
-                              ✓ {f.name}
-                            </span>
+                        <SubsectionHeader color="#E91E8C" en="Production" ko="제작" />
+
+                        {/* 샘플링 체크박스 */}
+                        <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50/50">
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.sampling}
+                              onChange={(e) => update("sampling", e.target.checked)}
+                              className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
+                            />
+                            <div className="flex-1">
+                              <div className="font-semibold text-slate-900 text-sm">
+                                샘플링을 희망합니다
+                                <span className="ml-2 text-xs font-medium" style={{ color: "#E91E8C" }}>
+                                  B2B 기업 주문 시 권장
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
+                                생산 전 완제품을 수제작하여 샘플로 보내드립니다. (회당 추가 비용 및 일정 증가)
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+
+
+                        {/* 제작 희망 디자인 — 라인마다 수량과 참고 자료 */}
+                        <div>
+                          <div className="flex items-baseline justify-between mb-1">
+                            <span className="text-sm font-semibold text-slate-700">제작 희망 디자인</span>
+                            <span className="text-[11px] text-slate-400 tabular-nums">{form.designs.length}/{MAX_DESIGNS}종</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                            만들고 싶은 디자인을 종류별로 추가해 주세요. 종류 수와 총 수량이 자동으로 계산됩니다.
+                            {spec.qtyLabel && <span className="text-slate-400"> · 선택한 제품 기준 {spec.qtyLabel}</span>}
+                          </p>
+
+                          {form.designs.length > 0 && (
+                            <ul className="space-y-2 mb-3">
+                              {form.designs.map((d, i) => (
+                                <li key={d.id} className="rounded-xl border border-slate-200 p-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="w-6 flex-shrink-0 text-xs font-bold text-slate-400 tabular-nums">{i + 1}</span>
+                                    <input
+                                      type="text"
+                                      value={d.name}
+                                      onChange={(e) => patchDesign(d.id, { name: e.target.value })}
+                                      placeholder="예: 마스코트 캐릭터 A"
+                                      aria-label={`디자인 ${i + 1} 이름`}
+                                      className="min-w-[8rem] flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#1E22B2]"
+                                    />
+                                    {orderSpec.hasQuantity && (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={0}
+                                        step={QUANTITY_STEP}
+                                        value={d.quantity}
+                                        onChange={(e) => patchDesign(d.id, { quantity: e.target.value })}
+                                        placeholder={String(QUANTITY_STEP)}
+                                        aria-label={`디자인 ${i + 1} 수량`}
+                                        className="w-24 px-3 py-2 border border-slate-200 rounded-lg text-sm text-right pe-num focus:outline-none focus:border-[#1E22B2]"
+                                      />
+                                      <span className="text-xs text-slate-400">부</span>
+                                    </div>
+                                    )}
+
+                                    {/* 라인별 참고 자료 — 같은 줄에서 바로 첨부 */}
+                                    {d.file ? (
+                                      <span className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-800 max-w-[12rem]">
+                                        <span className="truncate" title={d.file.name}>✓ {d.file.name}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => patchDesign(d.id, { file: null })}
+                                          className="flex-shrink-0 text-emerald-600 hover:text-rose-600"
+                                          aria-label={`디자인 ${i + 1} 첨부 삭제`}
+                                        >
+                                          ✕
+                                        </button>
+                                      </span>
+                                    ) : (
+                                      <label
+                                        className={`cursor-pointer rounded-lg border border-dashed px-3 py-2 text-xs whitespace-nowrap ${
+                                          designUploading === d.id
+                                            ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] cursor-wait"
+                                            : "border-slate-300 text-slate-500 hover:border-[#1E22B2] hover:bg-blue-50"
+                                        }`}
+                                      >
+                                        {designUploading === d.id ? "업로드 중…" : "＋ 참고 자료"}
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
+                                          disabled={designUploading !== null}
+                                          onChange={(e) => handleDesignFilePick(d.id, e)}
+                                        />
+                                      </label>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => removeDesign(d.id)}
+                                      className="flex-shrink-0 px-2 text-slate-300 hover:text-rose-600"
+                                      aria-label={`디자인 ${i + 1} 삭제`}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {form.designs.length < MAX_DESIGNS && (
                             <button
                               type="button"
-                              onClick={() => removeFile(i)}
-                              className="flex-shrink-0 text-slate-400 hover:text-rose-600"
-                              aria-label={`${f.name} 첨부 삭제`}
+                              onClick={addDesign}
+                              className="w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-semibold text-slate-600 hover:border-[#1E22B2] hover:bg-blue-50 hover:text-[#1E22B2] transition-colors"
                             >
-                              ✕
+                              ＋ 제작 희망 디자인 추가
                             </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                          )}
 
-                    {/* 드롭존 — 5개 미만일 때만 노출 */}
-                    {form.files.length < MAX_FILES && (
-                      <label
-                        className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl transition-colors ${
-                          uploading.file
-                            ? "border-[#1E22B2] bg-blue-50 cursor-wait"
-                            : "border-slate-300 cursor-pointer hover:border-[#1E22B2] hover:bg-blue-50"
-                        }`}
-                      >
-                        <BoxIcon size={28} className="text-slate-400 mb-1" />
-                        <span className="text-sm text-slate-700 font-medium" style={{ wordBreak: "keep-all" }}>
-                          {uploading.file ? "업로드 중…" : "파일을 클릭하거나 드래그하여 첨부 (여러 개 가능)"}
-                        </span>
-                        <span className="text-xs text-slate-400 mt-1">PNG · JPG · PDF · AI · ZIP (이미지 자동 축소 · 문서 4MB 이하)</span>
-                        <input
-                          type="file"
-                          multiple
-                          className="hidden"
-                          accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
-                          disabled={uploading.file}
-                          onChange={handleFilesPick}
+                          {estimate.quantityMissing && (
+                            <p className="text-xs text-amber-700 mt-2">수량을 입력하면 생산비까지 포함한 범위를 보여드립니다.</p>
+                          )}
+                        </div>
+
+                        {/* 포장 방식 — 실물이 있는 주문에서만 */}
+                        {orderSpec.hasPackaging && (
+                        <div>
+                          <span className="block text-sm font-semibold text-slate-700 mb-3">포장 방식</span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {PACKAGING_OPTIONS.map((opt) => {
+                              const isActive = form.packaging === opt.value;
+                              return (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => update("packaging", isActive ? "" : (opt.value as string))}
+                                  aria-pressed={isActive}
+                                  className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                                    isActive
+                                      ? "border-[#1E22B2] bg-blue-50"
+                                      : "border-slate-200 hover:border-blue-200"
+                                  }`}
+                                >
+                                  <div className="font-semibold text-slate-900 text-sm mb-1">{opt.label}</div>
+                                  <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
+                                    {opt.desc}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        )}
+
+
+                        {/* 납품 희망일 + 빠른 제작 체크박스 */}
+                        <div>
+                          <label htmlFor="due" className="block text-sm font-semibold text-slate-700 mb-2">
+                            납품 희망일
+                            <span className="ml-2 text-xs font-medium text-slate-500">
+                              평균 납기: {spec.leadLabel}
+                            </span>
+                          </label>
+                          <input
+                            id="due"
+                            type="date"
+                            value={form.rushed ? "" : form.deliveryDate}
+                            onChange={(e) => {
+                              update("deliveryDate", e.target.value);
+                              if (e.target.value) update("rushed", false);
+                            }}
+                            min={minDateISO}
+                            disabled={form.rushed}
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
+                          />
+                          <p className="text-xs text-slate-400 mt-1.5">
+                            최소 납품 가능일: <span className="pe-num">{minDateISO}</span>
+                          </p>
+                          <label className="mt-2 inline-flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.rushed}
+                              onChange={(e) => {
+                                update("rushed", e.target.checked);
+                                if (e.target.checked) update("deliveryDate", "");
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-[#E91E8C] focus:ring-2 focus:ring-[#E91E8C]/30"
+                            />
+                            <span className="text-sm text-slate-700">최대한 빠르게 제작</span>
+                          </label>
+                        </div>
+
+
+                        <SubsectionHeader color="#7C3AED" en="Details" ko="추가 정보" />
+
+                        {/* 제품에 삽입할 문구 */}
+                        <div>
+                          <label htmlFor="productText" className="block text-sm font-semibold text-slate-700 mb-2">
+                            제품에 삽입할 문구
+                          </label>
+                          <input
+                            id="productText"
+                            type="text"
+                            placeholder="예: 회사명·슬로건·이벤트명·QR 코드 옆 문구"
+                            value={form.productText}
+                            onChange={(e) => update("productText", e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900"
+                          />
+                        </div>
+
+
+                        {/* 색상 / 디자인 요청사항 */}
+                        <div>
+                          <label htmlFor="color" className="block text-sm font-semibold text-slate-700 mb-2">
+                            색상 / 디자인 요청사항
+                          </label>
+                          <textarea
+                            id="color"
+                            rows={2}
+                            placeholder="예: 회사 브랜드 컬러(파란색 계열)로 제작, 로고 삽입 원함"
+                            value={form.colorRequest}
+                            onChange={(e) => update("colorRequest", e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 resize-none"
+                          />
+                        </div>
+
+
+                        {/* 회사 로고 업로드 */}
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            회사 로고 업로드
+                          </label>
+                          <label
+                            className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl transition-colors ${
+                              uploading.logo
+                                ? "border-[#1E22B2] bg-blue-50 cursor-wait"
+                                : form.logoFileUrl
+                                  ? "border-emerald-400 bg-emerald-50 cursor-pointer"
+                                  : "border-slate-300 cursor-pointer hover:border-[#1E22B2] hover:bg-blue-50"
+                            }`}
+                          >
+                            <span className="text-sm text-slate-600" style={{ wordBreak: "keep-all" }}>
+                              {uploading.logo
+                                ? `업로드 중… ${form.logoFileName}`
+                                : form.logoFileUrl
+                                  ? `✓ ${form.logoFileName} — 첨부 완료`
+                                  : form.logoFileName || "로고 파일 첨부 (SVG·PNG·AI 권장)"}
+                            </span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".svg,.png,.ai,.pdf,.jpg,.jpeg"
+                              disabled={uploading.logo}
+                              onChange={handleLogoPick}
+                            />
+                          </label>
+                          {uploadErr.logo && (
+                            <p className="text-xs text-rose-600 mt-2" style={{ wordBreak: "keep-all" }}>
+                              ⚠ {uploadErr.logo} — 다시 시도해 주세요.
+                            </p>
+                          )}
+                        </div>
+
+
+                        {/* 추가 메모 */}
+                        <div>
+                          <label htmlFor="notes" className="block text-sm font-semibold text-slate-700 mb-2">
+                            추가 메모
+                          </label>
+                          <textarea
+                            id="notes"
+                            rows={2}
+                            placeholder="기타 요청사항을 자유롭게 입력해 주세요."
+                            value={form.notes}
+                            onChange={(e) => update("notes", e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 데스크톱 — 스크롤을 따라오는 견적 */}
+                      <aside className="hidden lg:block lg:sticky lg:top-24">
+                        <EstimatePanel
+                          estimate={estimate}
+                          packagingLabel={PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label ?? ""}
                         />
-                      </label>
-                    )}
-                    {uploadErr.file && (
-                      <p className="text-xs text-rose-600 mt-2" style={{ wordBreak: "keep-all" }}>
-                        ⚠ {uploadErr.file}
-                      </p>
-                    )}
-                    <p className="text-xs text-slate-500 mt-2" style={{ wordBreak: "keep-all" }}>
-                      만들고자 하는 대상/캐릭터의 이미지·ai 파일·참고 문서가 있으면 견적이 훨씬 정확해집니다. (최대 {MAX_FILES}개)
-                    </p>
-                  </div>
+                      </aside>
+                    </div>
 
-
-                  {/* 제품에 삽입할 문구 */}
-                  <div>
-                    <label htmlFor="productText" className="block text-sm font-semibold text-slate-700 mb-2">
-                      제품에 삽입할 문구
-                    </label>
-                    <input
-                      id="productText"
-                      type="text"
-                      placeholder="예: 회사명·슬로건·이벤트명·QR 코드 옆 문구"
-                      value={form.productText}
-                      onChange={(e) => update("productText", e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900"
-                    />
-                  </div>
-
-
-                  {/* 색상 / 디자인 요청사항 */}
-                  <div>
-                    <label htmlFor="color" className="block text-sm font-semibold text-slate-700 mb-2">
-                      색상 / 디자인 요청사항
-                    </label>
-                    <textarea
-                      id="color"
-                      rows={2}
-                      placeholder="예: 회사 브랜드 컬러(파란색 계열)로 제작, 로고 삽입 원함"
-                      value={form.colorRequest}
-                      onChange={(e) => update("colorRequest", e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 resize-none"
-                    />
-                  </div>
-
-
-                  {/* 회사 로고 업로드 */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      회사 로고 업로드
-                    </label>
-                    <label
-                      className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl transition-colors ${
-                        uploading.logo
-                          ? "border-[#1E22B2] bg-blue-50 cursor-wait"
-                          : form.logoFileUrl
-                            ? "border-emerald-400 bg-emerald-50 cursor-pointer"
-                            : "border-slate-300 cursor-pointer hover:border-[#1E22B2] hover:bg-blue-50"
-                      }`}
-                    >
-                      <span className="text-sm text-slate-600" style={{ wordBreak: "keep-all" }}>
-                        {uploading.logo
-                          ? `업로드 중… ${form.logoFileName}`
-                          : form.logoFileUrl
-                            ? `✓ ${form.logoFileName} — 첨부 완료`
-                            : form.logoFileName || "로고 파일 첨부 (SVG·PNG·AI 권장)"}
-                      </span>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept=".svg,.png,.ai,.pdf,.jpg,.jpeg"
-                        disabled={uploading.logo}
-                        onChange={handleLogoPick}
+                    {/* 모바일 — 옆에 둘 자리가 없어 하단에 고정한다 */}
+                    <div className="lg:hidden sticky bottom-4 z-20 drop-shadow-lg">
+                      <EstimatePanel
+                        estimate={estimate}
+                        packagingLabel={PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label ?? ""}
+                        compact
                       />
-                    </label>
-                    {uploadErr.logo && (
-                      <p className="text-xs text-rose-600 mt-2" style={{ wordBreak: "keep-all" }}>
-                        ⚠ {uploadErr.logo} — 다시 시도해 주세요.
-                      </p>
-                    )}
+                    </div>
                   </div>
-
-
-                  {/* 추가 메모 */}
-                  <div>
-                    <label htmlFor="notes" className="block text-sm font-semibold text-slate-700 mb-2">
-                      추가 메모
-                    </label>
-                    <textarea
-                      id="notes"
-                      rows={2}
-                      placeholder="기타 요청사항을 자유롭게 입력해 주세요."
-                      value={form.notes}
-                      onChange={(e) => update("notes", e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 resize-none"
-                    />
-                  </div>
-                </div>
               );
             })()}
 
@@ -1413,6 +1470,7 @@ export default function QuoteForm() {
                   <dl className="space-y-2 text-sm">
                     {[
                       { label: "제품", value: productDisplayName, edit: 1 },
+                      { label: "주문 형태", value: ORDER_TYPE_SPECS[form.orderType]?.label ?? "", edit: 2 },
                       { label: "선호 작가", value: STYLE_OPTIONS.find((s) => s.value === form.styleType)?.label ?? "", edit: 2 },
                       { label: "참고 자료", value: form.files.length > 0 ? `✓ ${form.files.length}개 첨부` : "", edit: 2 },
                       /* 수량은 디자인 라인에서 자동 계산된다 — 따로 입력받지 않는다 */

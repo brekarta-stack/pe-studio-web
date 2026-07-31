@@ -90,6 +90,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260803_quote_designs.sql",
     note: "quotes.designs (제작 희망 디자인 목록 — 종류·수량·참고자료)",
   },
+  {
+    table: "quotes",
+    column: "order_type",
+    sql: "migrations/20260804_quote_order_type.sql",
+    note: "quotes.order_type (도면만 / 제품 생산 / 완제품)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

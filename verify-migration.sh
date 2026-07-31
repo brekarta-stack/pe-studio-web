@@ -101,6 +101,8 @@ check "아티스트당 계정 1개 부분 유니크" 1 \
   "$(q "SELECT count(*) FROM pg_indexes WHERE indexname='artist_accounts_artist_unique'")"
 check "quotes.designs (제작 희망 디자인)" 1 \
   "$(q "SELECT count(*) FROM information_schema.columns WHERE table_name='quotes' AND column_name='designs'")"
+check "quotes.order_type (주문 형태)" 1 \
+  "$(q "SELECT count(*) FROM information_schema.columns WHERE table_name='quotes' AND column_name='order_type'")"
 check "designs 기본값 빈 배열" "[]" \
   "$(q "SELECT designs::text FROM quotes WHERE id='11111111-1111-1111-1111-111111111111'")"
 

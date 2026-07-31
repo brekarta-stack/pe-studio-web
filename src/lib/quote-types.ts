@@ -1,5 +1,6 @@
 import { isQuoteStage, type QuoteStage } from "./assignment-types.ts";
-import type { DesignLine } from "./quote-pricing.ts";
+import { isOrderType } from "./quote-pricing.ts";
+import type { DesignLine, OrderType } from "./quote-pricing.ts";
 
 /** 첨부파일 한 건 — 표시명 + 공개 URL (Supabase Storage) */
 export interface QuoteFile {
@@ -77,6 +78,9 @@ export interface QuoteSubmission {
   fileUrl: string;
   /** 다중 첨부파일 (최대 5개) — 마이그레이션 20260730. 신규 폼은 여기에 담는다 */
   files: QuoteFile[];
+  /** 주문 형태 — 도면만/제품 생산/완제품. 견적 구조를 정한다 (마이그레이션 20260804).
+   *  폼 개편 이전 문의는 빈 문자열 */
+  orderType: OrderType | "";
   /** 제작 희망 디자인 목록 (마이그레이션 20260803).
    *  종류 = 배열 길이, 총 수량 = quantity 합계. 옛 문의는 빈 배열 */
   designs: DesignLine[];
@@ -130,6 +134,7 @@ export function quoteFromRow(r: any): QuoteSubmission {
       ? r.files.filter((f: unknown): f is QuoteFile =>
           !!f && typeof (f as QuoteFile).url === "string")
       : [],
+    orderType:    isOrderType(r.order_type) ? r.order_type : "",
     designs:      Array.isArray(r.designs)
       ? r.designs.filter((d: unknown): d is DesignLine => !!d && typeof d === "object")
       : [],

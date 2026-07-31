@@ -270,6 +270,8 @@ const QuoteSchema = z.object({
   sampling:     z.boolean().default(false),
   rushed:       z.boolean().default(false),
   packaging:    z.enum(["paper-box", "opp", "bulk", ""]).default(""),
+  // 주문 형태 — 견적 구조를 정한다 (도면만 / 제품 생산 / 완제품)
+  orderType:    z.enum(["blueprint", "production", "finished", ""]).default(""),
   // 광고 유입정보 (gclid·UTM) — 선택. 전환 측정/오프라인 임포트용
   acquisition: z
     .object({
@@ -352,6 +354,7 @@ export async function POST(request: Request) {
     sampling:     data.sampling,
     rushed:       data.rushed,
     packaging:    data.packaging,
+    orderType:    data.orderType,
     acquisition:  data.acquisition ?? null,
     inProgress:   false,
     stage:        "new",
@@ -398,6 +401,17 @@ export async function POST(request: Request) {
       .eq("id", submission.id);
     if (designErr) {
       console.warn("[api/quote] designs 미저장 (마이그레이션 대기?):", designErr.message);
+    }
+  }
+
+  /* 주문 형태 best-effort 저장 — 'order_type' 컬럼(마이그레이션 20260804) 대기 대비 */
+  if (submission.orderType) {
+    const { error: typeErr } = await supabaseAdmin
+      .from("quotes")
+      .update({ order_type: submission.orderType })
+      .eq("id", submission.id);
+    if (typeErr) {
+      console.warn("[api/quote] order_type 미저장 (마이그레이션 대기?):", typeErr.message);
     }
   }
 
