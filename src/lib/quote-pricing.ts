@@ -79,7 +79,7 @@ interface OrderTypeSpec {
 export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
   blueprint: {
     label: "도면만 의뢰",
-    desc: "전개도·설계 데이터만 받습니다. 생산은 직접 진행하시는 경우.",
+    desc: "전개도·설계 데이터만 받습니다. 생산을 직접 진행하시는 경우에 적합합니다.",
     costLabel: "디자인비",
     costMin: 1_000_000,
     costMax: 5_000_000,
@@ -91,7 +91,7 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
   production: {
     label: "제품 생산",
     // 디자인비는 도면만 의뢰와 같은 도면 디자인 비용 — 생산비가 따로 붙는다
-    desc: "디자인부터 인쇄·재단까지. 완성된 키트를 납품받습니다.",
+    desc: "디자인부터 인쇄·재단까지 진행합니다. 완성된 키트를 납품받습니다.",
     costLabel: "디자인비",
     costMin: 1_000_000,
     costMax: 5_000_000,

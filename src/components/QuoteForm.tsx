@@ -96,7 +96,7 @@ interface FormState {
   premiumFinish: boolean;
   /** 제품 이용 연령 — 복수 선택 */
   ageGroups: string[];
-  /** 만드는 방식 — 목공풀 / 끼워 만들기 / PE 스튜디오 추천 */
+  /** 만드는 방식 — 목공풀 / 끼워 만들기 / 전문가 추천 (완제품 의뢰 시 숨김) */
   assemblyMethod: string;
   /** 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / PE STUDIO 권장 */
   designStyle: string;
@@ -110,16 +110,16 @@ interface FormState {
 const SUPA_IMG = "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads";
 
 const PRODUCTS: { id: ProductType; icon: IconKey; name: string; desc: string; image?: string }[] = [
-  { id: "papercraft", icon: "paperToy", name: "페이퍼 크래프트",    desc: "기본적인 종이 모형에서 정교한 설계까지", image: `${SUPA_IMG}/1780305681024.png` },
-  { id: "action",     icon: "gear",     name: "액션 페이퍼 토이",   desc: "특허 기반 움직임 메커니즘 적용",          image: `${SUPA_IMG}/action%20craft.png` },
-  { id: "popup",      icon: "sparkle",  name: "팝업북",              desc: "3D 팝업 카드 및 북 제작",                 image: `${SUPA_IMG}/23213213.jpeg` },
-  { id: "foamboard",  icon: "box",      name: "폼보드(우드락)",     desc: "끼워 만드는 입체 구조",                   image: `${SUPA_IMG}/444444.png` },
+  { id: "papercraft", icon: "paperToy", name: "페이퍼 크래프트",    desc: "기본적인 종이 모형에서 정교한 설계까지 제작합니다.", image: `${SUPA_IMG}/1780305681024.png` },
+  { id: "action",     icon: "gear",     name: "액션 페이퍼 토이",   desc: "특허 기반 움직임 메커니즘을 적용합니다.",          image: `${SUPA_IMG}/action%20craft.png` },
+  { id: "popup",      icon: "sparkle",  name: "팝업북",              desc: "3D 팝업 카드 및 북을 제작합니다.",                 image: `${SUPA_IMG}/23213213.jpeg` },
+  { id: "foamboard",  icon: "box",      name: "폼보드(우드락)",     desc: "끼워 만드는 입체 구조입니다.",                   image: `${SUPA_IMG}/444444.png` },
 ];
 
 const USAGES: { id: ProductType; icon: IconKey; name: string; desc: string; image?: string }[] = [
-  { id: "education", icon: "education", name: "교육/교구용", desc: "체험존·교구·STEAM 학습 도구",     image: `${SUPA_IMG}/5555555.png` },
-  { id: "promotion", icon: "sparkle",   name: "홍보용",      desc: "브랜드 굿즈·캠페인·전시 부스",     image: `${SUPA_IMG}/66666.png` },
-  { id: "hobby",     icon: "pencil",    name: "취미용",      desc: "가족·동호회·개인 만들기 키트",     image: `${SUPA_IMG}/7777777777.jpg` },
+  { id: "education", icon: "education", name: "교육/교구용", desc: "체험존·교구·STEAM 학습 도구에 적합합니다.",     image: `${SUPA_IMG}/5555555.png` },
+  { id: "promotion", icon: "sparkle",   name: "홍보용",      desc: "브랜드 굿즈·캠페인·전시 부스에 적합합니다.",     image: `${SUPA_IMG}/66666.png` },
+  { id: "hobby",     icon: "pencil",    name: "취미용",      desc: "가족·동호회·개인 만들기 키트에 적합합니다.",     image: `${SUPA_IMG}/7777777777.jpg` },
 ];
 
 /** 사용 목적 — 실제로 들어오는 문의 유형에 맞춰 3가지로 (한 줄에 들어간다) */
@@ -135,9 +135,9 @@ const AGE_GROUPS = [
 
 /** 만드는 방식 — 저장값 = 라벨 그대로 */
 const ASSEMBLY_OPTIONS: { value: string; desc: string }[] = [
-  { value: "목공풀 사용", desc: "더 튼튼하게 조립되며, 액션 페이퍼 토이는 목공풀만 가능" },
-  { value: "끼워 만들기", desc: "풀이 필요 없으며, 우드락 및 단순한 디자인에 적용 가능" },
-  { value: "PE 스튜디오 추천대로 작업", desc: "" },
+  { value: "목공풀 사용", desc: "더 튼튼하게 조립되며, 액션 페이퍼 토이는 목공풀만 가능합니다." },
+  { value: "끼워 만들기", desc: "풀이 필요 없으며, 우드락 및 단순한 디자인에 적용 가능합니다." },
+  { value: "전문가 추천", desc: "PE 스튜디오가 추천하는 방식대로 만듭니다." },
 ];
 
 /** 디자인 설계 스타일 — 저장값 = 라벨 그대로 */
@@ -179,10 +179,10 @@ const INITIAL_FORM: FormState = {
 
 /** 선호 작가 — 값은 quote-labels.ts 의 STYLE_LABELS 와 일치해야 한다 */
 const STYLE_OPTIONS: { value: StyleType; label: string; desc: string }[] = [
-  { value: "osegi",     label: "오세기",   desc: "액션 페이퍼 토이 · 움직이는 기믹 구조 설계" },
-  { value: "cheolho",   label: "김철호",   desc: "페이퍼크래프트 설계 · 정교한 전개도와 리얼리즘" },
-  { value: "jaeho",     label: "문재호",   desc: "미니어처 전문 · 작은 스케일의 정밀 디테일" },
-  { value: "recommend", label: "추천받기", desc: "의뢰 내용에 맞는 작가를 PE Studio가 배정합니다" },
+  { value: "osegi",     label: "오세기",   desc: "액션 페이퍼 토이 · 움직이는 기믹 구조를 설계합니다." },
+  { value: "cheolho",   label: "김철호",   desc: "페이퍼크래프트 설계 · 정교한 전개도와 리얼리즘을 구현합니다." },
+  { value: "jaeho",     label: "문재호",   desc: "미니어처 전문 · 작은 스케일의 정밀 디테일을 살립니다." },
+  { value: "recommend", label: "추천받기", desc: "의뢰 내용에 맞는 작가를 PE Studio가 배정합니다." },
 ];
 
 const PACKAGING_OPTIONS: { value: PackagingType; label: string; desc: string }[] = [
@@ -262,7 +262,7 @@ function EstimatePanel({
       onClick={onConsult}
       className="mt-4 w-full rounded-xl py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
       style={{ background: "#1E22B2" }}
-      title="입력을 건너뛰고 연락처만 남기기 — 담당자가 직접 상담해 드립니다"
+      title="입력을 건너뛰고 연락처만 남기기 — 담당자가 직접 상담해 드립니다."
     >
       💬 담당자와 상의
     </button>
@@ -692,6 +692,9 @@ export default function QuoteForm() {
         ),
         // 도면만 의뢰는 포장 개념이 없다 — 남겨 두면 견적에 유령처럼 남는다
         packaging: nextSpec.hasPackaging ? prev.packaging : "",
+        // 완제품 의뢰는 이용 연령·만드는 방식을 묻지 않는다 — 화면에서 숨긴 값이 접수되지 않게 비운다
+        ageGroups: next === "finished" ? [] : prev.ageGroups,
+        assemblyMethod: next === "finished" ? "" : prev.assemblyMethod,
       };
     });
   };
@@ -878,7 +881,7 @@ export default function QuoteForm() {
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full mb-6 bg-white/10 text-white border border-white/15">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            1분이면 충분합니다
+            1분이면 충분합니다.
           </span>
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 tracking-tight leading-[1.1]">
             <span className="pe-gradient-text">제작 문의</span>
@@ -962,7 +965,7 @@ export default function QuoteForm() {
                     어떤 제품을 원하시나요?
                   </h2>
                   <p className="text-slate-500 text-sm" style={{ wordBreak: "keep-all" }}>
-                    제품 종류를 알고 계시면 종류별로, 잘 모르시면 용도별로 선택하세요.
+                    제품 종류를 알고 계시면 종류별로, 잘 모르시면 용도별로 선택해 주세요.
                     아직 정하지 못했다면 그냥 다음으로 넘어가셔도 됩니다.
                   </p>
                 </div>
@@ -1094,7 +1097,7 @@ export default function QuoteForm() {
                       : "border-dashed border-slate-300 text-slate-500 hover:border-slate-400"
                   }`}
                 >
-                  잘 모르겠어요 — 담당자와 상의하고 싶어요
+                  잘 모르겠습니다 — 담당자와 상의하고 싶습니다.
                 </button>
               </div>
             )}
@@ -1204,7 +1207,8 @@ export default function QuoteForm() {
                     </div>
                   </div>
 
-                  {/* 제품 이용 연령 — 복수 선택 */}
+                  {/* 제품 이용 연령 — 복수 선택 (완제품 의뢰는 완성품을 받으므로 묻지 않는다) */}
+                  {form.orderType !== "finished" && (
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-1">
                       제품 이용 연령
@@ -1237,8 +1241,10 @@ export default function QuoteForm() {
                       })}
                     </div>
                   </div>
+                  )}
 
-                  {/* 만드는 방식 — 목공풀 / 끼워 만들기 / PE 스튜디오 추천 */}
+                  {/* 만드는 방식 — 목공풀 / 끼워 만들기 / 전문가 추천 (완제품 의뢰 시 숨김) */}
+                  {form.orderType !== "finished" && (
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-3">만드는 방식</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1265,6 +1271,7 @@ export default function QuoteForm() {
                       })}
                     </div>
                   </div>
+                  )}
 
 
                   <SubsectionHeader color="#1E22B2" en="Artist" ko="선호 작가" />
@@ -1312,7 +1319,7 @@ export default function QuoteForm() {
                         {
                           key: "sampling" as const,
                           checked: form.sampling,
-                          label: "샘플링을 희망합니다",
+                          label: "샘플링을 희망합니다.",
                           desc: "생산 전 완제품을 수제작하여 샘플로 보내드립니다.",
                           badge: "+2주",
                         },
@@ -1383,7 +1390,7 @@ export default function QuoteForm() {
                                 type="text"
                                 value={d.name}
                                 onChange={(e) => patchDesign(d.id, { name: e.target.value })}
-                                placeholder="캐릭터 이름을 입력해주세요"
+                                placeholder="캐릭터 이름을 입력해 주세요."
                                 aria-label={`디자인 ${i + 1} 이름`}
                                 className="min-w-[8rem] flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#1E22B2]"
                               />
@@ -1671,7 +1678,7 @@ export default function QuoteForm() {
                 <div className="bg-slate-50 rounded-2xl border border-slate-100 p-5">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-bold text-slate-900">입력 내용 요약</span>
-                    <span className="text-[11px] text-slate-400">비워둔 항목은 상담으로 결정</span>
+                    <span className="text-[11px] text-slate-400">비워둔 항목은 상담으로 결정됩니다.</span>
                   </div>
                   <dl className="space-y-2 text-sm">
                     {[
