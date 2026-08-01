@@ -1155,12 +1155,12 @@ export default function QuoteForm() {
                 String(recommended.getDate()).padStart(2, "0"),
               ].join("-");
               return (
-                  <div className="space-y-12">
+                  <div className="space-y-10">
                   <div>
                     <h2 className="text-xl font-bold text-slate-900 mb-1 tracking-tight">
                       디자인·제작 옵션을 알려주세요
                     </h2>
-                    <p className="text-slate-500 text-sm" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-slate-500 text-sm max-w-2xl" style={{ wordBreak: "keep-all" }}>
                       모두 선택 사항입니다. 아는 것만 채우셔도 되고,
                       비워둔 항목은 담당자가 상담으로 함께 정해드립니다.
                     </p>
@@ -1183,7 +1183,7 @@ export default function QuoteForm() {
 
                   {/* 주문 형태 — 무엇을 받을 것인지. 견적 구성이 여기서 갈린다 */}
                   <div>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
                       어떤 형태로 받으실지에 따라 견적 구성과 입력 항목이 달라집니다.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1196,13 +1196,14 @@ export default function QuoteForm() {
                             type="button"
                             onClick={() => changeOrderType(t)}
                             aria-pressed={isActive}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                            className={`flex flex-col p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
                               isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
                             }`}
                           >
                             <div className="font-semibold text-slate-900 text-sm mb-1">{o.label}</div>
                             <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>{o.desc}</div>
-                            <div className="mt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
+                            {/* 가격 안내는 카드 하단에 정렬 — 카드 높이가 달라도 기준선이 맞는다 */}
+                            <div className="mt-auto pt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
                               {t === "blueprint" ? (
                                 /* 도면만 의뢰 — 모델 구조(난이도)별 디자인비를 상자 안에 그대로 보여준다 */
                                 <>
@@ -1233,7 +1234,7 @@ export default function QuoteForm() {
                   {/* 사용 목적 */}
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-1">사용 목적</span>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
                       사용 목적에 맞춰 더 나은 제품 생산 방식을 제안드립니다.
                     </p>
                     <div className="grid grid-cols-3 gap-2">
@@ -1265,7 +1266,7 @@ export default function QuoteForm() {
                       제품 이용 연령
                       <span className="ml-2 text-xs font-medium text-slate-400">복수 선택 가능</span>
                     </span>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
                       이용 연령에 맞춰 난이도·용지·안전 기준을 조정해 제안드립니다.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1297,7 +1298,10 @@ export default function QuoteForm() {
                   {/* 만드는 방식 — 목공풀 / 끼워 만들기 / 전문가 추천 (완제품 의뢰 시 숨김) */}
                   {form.orderType !== "finished" && (
                   <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-3">만드는 방식</span>
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">만드는 방식</span>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
+                      완성 방식에 따라 조립 난이도와 내구성이 달라집니다.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {ASSEMBLY_OPTIONS.map((opt) => {
                         const isActive = form.assemblyMethod === opt.value;
@@ -1330,7 +1334,7 @@ export default function QuoteForm() {
                   {/* 선호 작가 */}
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-1">선호 작가</span>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
                       작가에 따라 결과물의 인상이 달라집니다. 잘 모르겠다면 <b>추천받기</b>를 골라 주세요.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1426,7 +1430,7 @@ export default function QuoteForm() {
                       <span className="text-sm font-semibold text-slate-700">제작 희망 디자인 종 수</span>
                       <span className="text-[11px] text-slate-400 tabular-nums">{form.designs.length}/{MAX_DESIGNS}종</span>
                     </div>
-                    <p className="text-xs text-slate-500 mb-2" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-xs text-slate-500 mb-2 max-w-2xl" style={{ wordBreak: "keep-all" }}>
                       만들고 싶은 디자인을 종류별로 추가해 주세요.
                       메인 캐릭터 및 디자인을 1종으로 보며, 종 수와 총 수량은 자동으로 집계됩니다.
                     </p>
@@ -1563,7 +1567,10 @@ export default function QuoteForm() {
                   {/* 설명서 생산 — 조립 안내 제공 방식 (완제품 의뢰는 조립까지 끝나 있어 묻지 않는다) */}
                   {form.orderType !== "finished" && (
                   <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-3">설명서 생산</span>
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">설명서 생산</span>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
+                      조립 안내를 어떤 형태로 제공할지 선택해 주세요.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {/* 인쇄 설명서(부수당)는 수량이 있는 주문(제품 생산)에서만 의미가 있다 */}
                       {MANUAL_OPTIONS.filter((m) => m !== "print" || orderSpec.hasQuantity).map((m) => {
@@ -1575,7 +1582,7 @@ export default function QuoteForm() {
                             type="button"
                             onClick={() => update("manualOption", isActive ? "" : m)}
                             aria-pressed={isActive}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                            className={`flex flex-col p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
                               isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
                             }`}
                           >
@@ -1585,7 +1592,8 @@ export default function QuoteForm() {
                             <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
                               {mSpec.desc}
                             </div>
-                            <div className="mt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
+                            {/* 가격 안내는 카드 하단 정렬 — 설명 길이가 달라도 기준선이 맞는다 */}
+                            <div className="mt-auto pt-2 text-[11px] font-semibold tabular-nums" style={{ color: "#1E22B2" }}>
                               {mSpec.priceLabel}
                             </div>
                           </button>
@@ -1598,7 +1606,10 @@ export default function QuoteForm() {
                   {/* 포장 방식 — 실물이 있는 주문에서만 */}
                   {orderSpec.hasPackaging && (
                   <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-3">포장 방식</span>
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">포장 방식</span>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
+                      납품 형태에 따라 포장 단가와 납기가 달라집니다.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {PACKAGING_OPTIONS.map((opt) => {
                         const isActive = form.packaging === opt.value;
@@ -1668,7 +1679,10 @@ export default function QuoteForm() {
 
                   {/* 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / 전문가 추천 (각 방식 설명 포함) */}
                   <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-3">디자인 설계 스타일</span>
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">디자인 설계 스타일</span>
+                    <p className="text-xs text-slate-500 mb-3 max-w-2xl" style={{ wordBreak: "keep-all" }}>
+                      모델의 조형을 어떤 방식으로 풀어낼지 선택해 주세요.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {DESIGN_STYLE_OPTIONS.map((opt) => {
                         const isActive = form.designStyle === opt.value;

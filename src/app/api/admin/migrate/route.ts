@@ -36,6 +36,9 @@ const ALLOWED_FILES = new Set([
   "migrations/20260802_artist_portal.sql",
   "migrations/20260803_quote_designs.sql",
   "migrations/20260804_quote_order_type.sql",
+  "migrations/20260805_quote_sampling_age.sql",
+  "migrations/20260806_quote_premium_assembly.sql",
+  "migrations/20260807_quote_manual_option.sql",
 ]);
 
 const SQL_DIR = "supabase";

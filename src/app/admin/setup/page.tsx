@@ -96,6 +96,24 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260804_quote_order_type.sql",
     note: "quotes.order_type (도면만 / 제품 생산 / 완제품)",
   },
+  {
+    table: "quotes",
+    column: "sampling_improve",
+    sql: "migrations/20260805_quote_sampling_age.sql",
+    note: "quotes.sampling_improve / supervision / age_groups (샘플링 옵션·이용 연령)",
+  },
+  {
+    table: "quotes",
+    column: "premium_finish",
+    sql: "migrations/20260806_quote_premium_assembly.sql",
+    note: "quotes.premium_finish / assembly_method / design_style (별도 가공·만드는 방식·설계 스타일)",
+  },
+  {
+    table: "quotes",
+    column: "manual_option",
+    sql: "migrations/20260807_quote_manual_option.sql",
+    note: "quotes.manual_option (설명서 생산 — 가이드/QR·영상/인쇄)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {
