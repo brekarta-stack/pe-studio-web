@@ -19,9 +19,11 @@ import {
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
   QUANTITY_STEP,
+  estimateLeadWeeks,
   estimateQuote,
   formatFrom,
   formatKrw,
+  formatWeeks,
   isOrderType,
   type DesignLine,
   type OrderType,
@@ -90,8 +92,14 @@ interface FormState {
   samplingImprove: boolean;
   /** 생산 시 감리 진행 희망 */
   supervision: boolean;
+  /** 별도 가공·고급 소재 사용 희망 */
+  premiumFinish: boolean;
   /** 제품 이용 연령 — 복수 선택 */
   ageGroups: string[];
+  /** 만드는 방식 — 목공풀 / 끼워 만들기 / PE 스튜디오 추천 */
+  assemblyMethod: string;
+  /** 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / PE STUDIO 권장 */
+  designStyle: string;
   /** 최대한 빠르게 제작 — 납품 희망일 선택 해제 */
   rushed: boolean;
   /** 포장 방식 — 종이 박스 / OPP 필름 / 벌크 납품 */
@@ -125,6 +133,16 @@ const AGE_GROUPS = [
   "성인, 전문가용",
 ];
 
+/** 만드는 방식 — 저장값 = 라벨 그대로 */
+const ASSEMBLY_OPTIONS: { value: string; desc: string }[] = [
+  { value: "목공풀 사용", desc: "더 튼튼하게 조립되며, 액션 페이퍼 토이는 목공풀만 가능" },
+  { value: "끼워 만들기", desc: "풀이 필요 없으며, 우드락 및 단순한 디자인에 적용 가능" },
+  { value: "PE 스튜디오 추천대로 작업", desc: "" },
+];
+
+/** 디자인 설계 스타일 — 저장값 = 라벨 그대로 */
+const DESIGN_STYLES = ["폴리곤 방식", "파츠 결합 방식", "PE STUDIO의 권장 방식"];
+
 const STEP_LABELS = ["제품 선택", "디자인·제작 옵션", "연락처"];
 const TOTAL_STEPS = STEP_LABELS.length;
 
@@ -151,7 +169,10 @@ const INITIAL_FORM: FormState = {
   sampling: false,
   samplingImprove: false,
   supervision: false,
+  premiumFinish: false,
   ageGroups: [],
+  assemblyMethod: "",
+  designStyle: "",
   rushed: false,
   packaging: "",
 };
@@ -169,19 +190,6 @@ const PACKAGING_OPTIONS: { value: PackagingType; label: string; desc: string }[]
   { value: "opp",       label: "OPP 필름",  desc: "제품을 비닐 필름에 넣어 포장합니다. 일반 제품에 적합합니다." },
   { value: "bulk",      label: "벌크 납품", desc: "포장비를 아껴 저렴하게 제작합니다. 교육 행사 진행에 적합합니다." },
 ];
-
-/** 제품별 최소 수량 + 최소 납기 (주 단위) — 제작 옵션 동적 안내용 */
-const PRODUCT_SPECS: Record<string, { minQty: number; leadWeeks: number; qtyLabel: string; leadLabel: string }> = {
-  papercraft: { minQty: 1000, leadWeeks: 6, qtyLabel: "최소 1,000부", leadLabel: "6주 이상" },
-  action:     { minQty: 500,  leadWeeks: 4, qtyLabel: "최소 500부",   leadLabel: "약 4주" },
-  popup:      { minQty: 1,    leadWeeks: 3, qtyLabel: "최소 1부 ~",   leadLabel: "약 3주" },
-  foamboard:  { minQty: 1000, leadWeeks: 6, qtyLabel: "최소 1,000부", leadLabel: "6주 이상" },
-  // 용도별 / 미정 — 안내 텍스트만 다르게
-  unsure:     { minQty: 1000, leadWeeks: 4, qtyLabel: "1,000부 권장", leadLabel: "약 4주" },
-  education:  { minQty: 100,  leadWeeks: 3, qtyLabel: "최소 100부~",  leadLabel: "약 3주" },
-  promotion:  { minQty: 500,  leadWeeks: 4, qtyLabel: "최소 500부~",  leadLabel: "약 4주" },
-  hobby:      { minQty: 1,    leadWeeks: 3, qtyLabel: "최소 1부~",    leadLabel: "약 3주" },
-};
 
 const STORAGE_KEY = "pe-quote-form-draft";
 /**
@@ -301,6 +309,24 @@ function EstimatePanel({
                 </dd>
               </div>
             )}
+            {estimate.samplingCost > 0 && (
+              <div className="flex justify-between gap-2">
+                <dt>샘플링</dt>
+                <dd className="tabular-nums whitespace-nowrap">{formatKrw(estimate.samplingCost)}</dd>
+              </div>
+            )}
+            {estimate.samplingImproveCost > 0 && (
+              <div className="flex justify-between gap-2">
+                <dt>디자인 개선</dt>
+                <dd className="tabular-nums whitespace-nowrap">{formatKrw(estimate.samplingImproveCost)}</dd>
+              </div>
+            )}
+            {estimate.supervisionCost > 0 && (
+              <div className="flex justify-between gap-2">
+                <dt>생산 감리</dt>
+                <dd className="tabular-nums whitespace-nowrap">{formatKrw(estimate.supervisionCost)}</dd>
+              </div>
+            )}
           </dl>
 
           {estimate.quantityMissing && (
@@ -310,9 +336,7 @@ function EstimatePanel({
           )}
 
           <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
-            본 견적은 <b>최소 금액</b>으로, 원하시는 스펙, 종이 종류 및 가공 방식,
-            설계 난이도 및 생산 난이도에 따라 달라집니다.
-            정확한 견적은 상담을 통해 안내 가능합니다.
+            본 견적은 임의로 산정된 금액으로, 정확한 견적은 상담을 통해 안내 가능합니다.
           </p>
         </>
       )}
@@ -345,13 +369,15 @@ function hasDraftContent(f: FormState): boolean {
   const filled = [
     f.quantity, f.deliveryDate, f.purpose, f.styleType, f.productText,
     f.colorRequest, f.notes, f.name, f.email, f.phone, f.packaging,
+    f.assemblyMethod, f.designStyle,
   ].some((v) => String(v ?? "").trim() !== "");
   /* 디자인 줄은 폼을 열 때 빈 줄 하나가 기본으로 생긴다 —
      그걸 "작성 중이던 내용"으로 세면 매번 이어쓰기를 묻게 된다. */
   const designsFilled = f.designs.some((d) => d.name.trim() !== "" || d.file);
   return (
     filled || f.files.length > 0 || designsFilled || f.sampling ||
-    f.samplingImprove || f.supervision || f.ageGroups.length > 0 || !!f.logoFileUrl
+    f.samplingImprove || f.supervision || f.premiumFinish ||
+    f.ageGroups.length > 0 || !!f.logoFileUrl
   );
 }
 
@@ -617,10 +643,15 @@ export default function QuoteForm() {
     }
   };
 
-  /** 개략 견적 — 라인·포장이 바뀔 때만 다시 계산 */
+  /** 개략 견적 — 라인·포장·제작 옵션이 바뀔 때만 다시 계산 */
   const estimate = useMemo(
-    () => estimateQuote(form.orderType, form.designs, form.packaging),
-    [form.orderType, form.designs, form.packaging]
+    () =>
+      estimateQuote(form.orderType, form.designs, form.packaging, {
+        sampling: form.sampling,
+        samplingImprove: form.samplingImprove,
+        supervision: form.supervision,
+      }),
+    [form.orderType, form.designs, form.packaging, form.sampling, form.samplingImprove, form.supervision]
   );
 
   /** 현재 주문 형태의 사양 — 수량을 받는지, 포장이 의미 있는지 */
@@ -1066,10 +1097,16 @@ export default function QuoteForm() {
 
             {/* ───────── Step 2: 디자인·제작 옵션 (통합) ───────── */}
             {step === 2 && (() => {
-              const spec = PRODUCT_SPECS[form.product] ?? PRODUCT_SPECS.unsure;
+              /* 평균 납기 = 주문 형태 기본값 + 포장·샘플링·디자인 개선·감리·별도 가공 가산 */
+              const leadWeeks = estimateLeadWeeks(form.orderType, form.packaging, {
+                sampling: form.sampling,
+                samplingImprove: form.samplingImprove,
+                supervision: form.supervision,
+                premiumFinish: form.premiumFinish,
+              });
               // 권장 납품 가능일 = 오늘 + leadWeeks * 7일 (로컬 타임존 기준 — UTC 변환 시 KST 오전에 하루 이르게 표시되는 버그 방지)
               const recommended = new Date();
-              recommended.setDate(recommended.getDate() + spec.leadWeeks * 7);
+              recommended.setDate(recommended.getDate() + Math.ceil(leadWeeks * 7));
               const minDateISO = [
                 recommended.getFullYear(),
                 String(recommended.getMonth() + 1).padStart(2, "0"),
@@ -1133,7 +1170,7 @@ export default function QuoteForm() {
                     </div>
                   </div>
 
-                  <SubsectionHeader color="#06C6C8" en="Purpose" ko="사용 목적" />
+                  <SubsectionHeader color="#06C6C8" en="Purpose" ko="제품 사용 방식" />
 
                   {/* 사용 목적 */}
                   <div>
@@ -1197,6 +1234,34 @@ export default function QuoteForm() {
                     </div>
                   </div>
 
+                  {/* 만드는 방식 — 목공풀 / 끼워 만들기 / PE 스튜디오 추천 */}
+                  <div>
+                    <span className="block text-sm font-semibold text-slate-700 mb-3">만드는 방식</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {ASSEMBLY_OPTIONS.map((opt) => {
+                        const isActive = form.assemblyMethod === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => update("assemblyMethod", isActive ? "" : opt.value)}
+                            aria-pressed={isActive}
+                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                              isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
+                            }`}
+                          >
+                            <div className="font-semibold text-slate-900 text-sm">{opt.value}</div>
+                            {opt.desc && (
+                              <div className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
+                                {opt.desc}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
 
                   <SubsectionHeader color="#1E22B2" en="Artist" ko="선호 작가" />
 
@@ -1229,60 +1294,78 @@ export default function QuoteForm() {
 
                   <SubsectionHeader color="#E91E8C" en="Production" ko="제작" />
 
-                  {/* 샘플링·감리 체크박스 */}
+                  {/* B2B 제작 옵션 — 샘플링·디자인 개선·감리·별도 가공 */}
                   <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50/50">
                     {/* 헤드 메시지 — B2B 권장 안내를 박스 상단으로 */}
-                    <p className="text-xs font-bold mb-3" style={{ color: "#E91E8C" }}>
+                    <p className="text-xs font-bold" style={{ color: "#E91E8C" }}>
                       B2B 기업 주문 시 권장
                     </p>
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.sampling}
-                        onChange={(e) => update("sampling", e.target.checked)}
-                        className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
-                      />
-                      <div className="flex-1">
-                        <div className="font-semibold text-slate-900 text-sm">샘플링을 희망합니다</div>
-                        <p className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
-                          생산 전 완제품을 수제작하여 샘플로 보내드립니다. (회당 추가 비용 및 일정 증가)
-                        </p>
-                      </div>
-                    </label>
-                    <label className="mt-3 flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.samplingImprove}
-                        onChange={(e) => update("samplingImprove", e.target.checked)}
-                        className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
-                      />
-                      <span className="flex-1 text-sm font-semibold text-slate-900">
-                        샘플링을 보고 디자인 개선을 희망합니다.
-                      </span>
-                    </label>
-                    <label className="mt-3 flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.supervision}
-                        onChange={(e) => update("supervision", e.target.checked)}
-                        className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
-                      />
-                      <span className="flex-1 text-sm font-semibold text-slate-900">
-                        생산 시 감리 진행을 희망합니다.
-                      </span>
-                    </label>
+                    <p className="text-xs text-slate-500 mt-1 mb-4" style={{ wordBreak: "keep-all" }}>
+                      기업 맞춤형 컨시어지 서비스입니다. 원하시는 최고의 퀄리티를 약속드립니다.
+                    </p>
+                    {(
+                      [
+                        {
+                          key: "sampling" as const,
+                          checked: form.sampling,
+                          label: "샘플링을 희망합니다",
+                          desc: "생산 전 완제품을 수제작하여 샘플로 보내드립니다.",
+                          badge: "+2주",
+                        },
+                        {
+                          key: "samplingImprove" as const,
+                          checked: form.samplingImprove,
+                          label: "샘플링을 보고 디자인 개선을 희망합니다.",
+                          desc: "샘플 제작 후 디자인 변경 및 형태 수정이 가능합니다.",
+                          badge: "+2주",
+                        },
+                        {
+                          key: "supervision" as const,
+                          checked: form.supervision,
+                          label: "생산 시 감리 진행을 희망합니다.",
+                          desc: "공장과의 조율 및 감리 작업을 통해 정확한 발색을 맞춰 드립니다.",
+                          badge: "+1.5주",
+                        },
+                        {
+                          key: "premiumFinish" as const,
+                          checked: form.premiumFinish,
+                          label: "별도 가공, 고급화된 소재를 사용하고 싶습니다.",
+                          desc: "수입지, 특수지 등의 사용 또는 형압, 에폭시, 레이저 커팅 등 특수 가공이 가능합니다.",
+                          badge: "+1주",
+                        },
+                      ]
+                    ).map((opt, i) => (
+                      <label key={opt.key} className={`flex items-start gap-3 cursor-pointer ${i > 0 ? "mt-4" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={opt.checked}
+                          onChange={(e) => update(opt.key, e.target.checked)}
+                          className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
+                        />
+                        <div className="flex-1">
+                          <div className="font-semibold text-slate-900 text-sm">
+                            {opt.label}
+                            <span className="ml-2 inline-block rounded-full bg-pink-50 px-2 py-0.5 text-[11px] font-bold text-[#E91E8C] align-middle">
+                              {opt.badge}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
+                            {opt.desc}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
                   </div>
 
 
                   {/* 제작 희망 디자인 — 라인마다 수량과 참고 자료 */}
                   <div>
                     <div className="flex items-baseline justify-between mb-1">
-                      <span className="text-sm font-semibold text-slate-700">제작 희망 디자인</span>
+                      <span className="text-sm font-semibold text-slate-700">제작 희망 디자인 종 수</span>
                       <span className="text-[11px] text-slate-400 tabular-nums">{form.designs.length}/{MAX_DESIGNS}종</span>
                     </div>
                     <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
                       만들고 싶은 디자인을 종류별로 추가해 주세요. 종류 수와 총 수량이 자동으로 계산됩니다.
-                      {spec.qtyLabel && <span className="text-slate-400"> · 선택한 제품 기준 {spec.qtyLabel}</span>}
                     </p>
 
                     {form.designs.length > 0 && (
@@ -1295,7 +1378,7 @@ export default function QuoteForm() {
                                 type="text"
                                 value={d.name}
                                 onChange={(e) => patchDesign(d.id, { name: e.target.value })}
-                                placeholder="예: 마스코트 캐릭터 A"
+                                placeholder="캐릭터 이름을 입력해주세요"
                                 aria-label={`디자인 ${i + 1} 이름`}
                                 className="min-w-[8rem] flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#1E22B2]"
                               />
@@ -1413,7 +1496,7 @@ export default function QuoteForm() {
                     <label htmlFor="due" className="block text-sm font-semibold text-slate-700 mb-2">
                       납품 희망일
                       <span className="ml-2 text-xs font-medium text-slate-500">
-                        평균 납기: {spec.leadLabel}
+                        선택 옵션 기준 평균 납기: {formatWeeks(leadWeeks)}
                       </span>
                     </label>
                     <input
@@ -1447,6 +1530,31 @@ export default function QuoteForm() {
 
 
                   <SubsectionHeader color="#7C3AED" en="Details" ko="추가 정보" />
+
+                  {/* 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / PE STUDIO 권장 */}
+                  <div>
+                    <span className="block text-sm font-semibold text-slate-700 mb-3">디자인 설계 스타일</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {DESIGN_STYLES.map((s) => {
+                        const isActive = form.designStyle === s;
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => update("designStyle", isActive ? "" : s)}
+                            aria-pressed={isActive}
+                            className={`py-2.5 px-3 text-sm rounded-xl border-2 transition-colors ${
+                              isActive
+                                ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] font-semibold"
+                                : "border-slate-200 text-slate-600 hover:border-blue-200"
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   {/* 제품에 삽입할 문구 */}
                   <div>
@@ -1485,8 +1593,9 @@ export default function QuoteForm() {
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
                       회사 로고 업로드
                     </label>
+                    {/* 한 줄짜리 컴팩트 업로더 — 큰 드롭존만큼 자리를 차지하지 않게 */}
                     <label
-                      className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl transition-colors ${
+                      className={`flex items-center justify-between gap-3 w-full px-4 py-2.5 border-2 border-dashed rounded-xl transition-colors ${
                         uploading.logo
                           ? "border-[#1E22B2] bg-blue-50 cursor-wait"
                           : form.logoFileUrl
@@ -1494,12 +1603,15 @@ export default function QuoteForm() {
                             : "border-slate-300 cursor-pointer hover:border-[#1E22B2] hover:bg-blue-50"
                       }`}
                     >
-                      <span className="text-sm text-slate-600" style={{ wordBreak: "keep-all" }}>
+                      <span className="text-sm text-slate-600 truncate" style={{ wordBreak: "keep-all" }}>
                         {uploading.logo
                           ? `업로드 중… ${form.logoFileName}`
                           : form.logoFileUrl
                             ? `✓ ${form.logoFileName} — 첨부 완료`
                             : form.logoFileName || "로고 파일 첨부 (SVG·PNG·AI 권장)"}
+                      </span>
+                      <span className="flex-shrink-0 text-xs font-semibold" style={{ color: "#1E22B2" }}>
+                        파일 선택
                       </span>
                       <input
                         type="file"

@@ -65,11 +65,14 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
     ["샘플링 희망",       s.sampling ? "예 (생산 전 수제작 샘플 발송)" : "아니오"],
     ["디자인 개선 희망",  s.samplingImprove ? "예 (샘플링 후 디자인 개선)" : "아니오"],
     ["생산 감리 희망",    s.supervision ? "예 (생산 시 감리 진행)" : "아니오"],
+    ["별도 가공 희망",    s.premiumFinish ? "예 (특수지·특수 가공)" : "아니오"],
     ["수량",              s.quantity || "—"],
     ["희망 납기",         s.rushed ? "최대한 빠르게 (긴급)" : (s.deliveryDate || "—")],
     ["포장 방식",         s.packaging ? (PACKAGING_LABEL[s.packaging] ?? s.packaging) : "—"],
     ["용도",              s.purpose || "—"],
     ["이용 연령",         s.ageGroups.length > 0 ? s.ageGroups.join(", ") : "—"],
+    ["만드는 방식",       s.assemblyMethod || "—"],
+    ["설계 스타일",       s.designStyle || "—"],
     ["선호 작가",         s.styleType ? (STYLE_LABELS[s.styleType] ?? s.styleType) : "—"],
     ["맞춤 디자인 (구)",  s.customDesign === "yes" ? "예" : s.customDesign === "no" ? "아니오" : "—"],
     ["제품 삽입 문구",    s.productText || "—"],
@@ -268,11 +271,15 @@ const QuoteSchema = z.object({
   logoFileUrl:  QuoteFileUrl,
   // 제작 옵션 (Step 3 확장)
   sampling:     z.boolean().default(false),
-  // 샘플링을 보고 디자인 개선 희망 / 생산 시 감리 진행 희망
+  // 샘플링을 보고 디자인 개선 희망 / 생산 시 감리 진행 희망 / 별도 가공·고급 소재
   samplingImprove: z.boolean().default(false),
   supervision:  z.boolean().default(false),
+  premiumFinish: z.boolean().default(false),
   // 제품 이용 연령 — 복수 선택 (폼의 AGE_GROUPS 라벨 그대로)
   ageGroups:    z.array(z.string().max(60)).max(10).default([]),
+  // 만드는 방식 / 디자인 설계 스타일 — 폼 라벨 그대로
+  assemblyMethod: z.string().max(60).default(""),
+  designStyle:  z.string().max(60).default(""),
   rushed:       z.boolean().default(false),
   packaging:    z.enum(["paper-box", "opp", "bulk", ""]).default(""),
   // 주문 형태 — 견적 구조를 정한다 (도면만 / 제품 생산 / 완제품)
@@ -359,7 +366,10 @@ export async function POST(request: Request) {
     sampling:     data.sampling,
     samplingImprove: data.samplingImprove,
     supervision:  data.supervision,
+    premiumFinish: data.premiumFinish,
     ageGroups:    data.ageGroups,
+    assemblyMethod: data.assemblyMethod,
+    designStyle:  data.designStyle,
     rushed:       data.rushed,
     packaging:    data.packaging,
     orderType:    data.orderType,
@@ -425,6 +435,22 @@ export async function POST(request: Request) {
       .eq("id", submission.id);
     if (optErr) {
       console.warn("[api/quote] 샘플링 옵션·이용 연령 미저장 (마이그레이션 20260805 대기?):", optErr.message);
+    }
+  }
+
+  /* 별도 가공·만드는 방식·설계 스타일 best-effort 저장 — 컬럼(마이그레이션 20260806) 대기 대비.
+     20260805 와 별개 update 로 둔다 — 한쪽 마이그레이션만 적용된 환경에서도 다른 쪽은 저장되게. */
+  if (submission.premiumFinish || submission.assemblyMethod || submission.designStyle) {
+    const { error: optErr2 } = await supabaseAdmin
+      .from("quotes")
+      .update({
+        premium_finish:  submission.premiumFinish,
+        assembly_method: submission.assemblyMethod,
+        design_style:    submission.designStyle,
+      })
+      .eq("id", submission.id);
+    if (optErr2) {
+      console.warn("[api/quote] 별도 가공·만드는 방식·설계 스타일 미저장 (마이그레이션 20260806 대기?):", optErr2.message);
     }
   }
 

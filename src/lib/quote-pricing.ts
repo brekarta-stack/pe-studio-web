@@ -88,11 +88,71 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
     costMin: 500_000,
     costMax: 10_000_000,
     hasProduction: false,
-    hasPackaging: true,
+    // 조립까지 끝난 완성품이라 키트 포장 개념이 없다 — 포장 선택지를 보여주지 않는다
+    hasPackaging: false,
     hasQuantity: true,
     defaultQuantity: 1,
   },
 };
+
+/* ── 제작 옵션 (샘플링·디자인 개선·감리·별도 가공) ──
+ * 고르는 순간 확정되는 정액 비용이라 포장비처럼 하한·상한 양쪽에 더한다.
+ * 별도 가공(premiumFinish)은 소재·가공에 따라 편차가 커서 금액은 상담으로 —
+ * 납기(+1주)에만 반영한다. */
+
+export const SAMPLING_COST = 1_000_000;
+export const SAMPLING_IMPROVE_COST = 2_000_000;
+export const SUPERVISION_COST = 1_000_000;
+
+export interface QuoteExtras {
+  /** 샘플링 희망 — +100만원, +2주 */
+  sampling?: boolean;
+  /** 샘플링 후 디자인 개선 — +200만원, +2주 */
+  samplingImprove?: boolean;
+  /** 생산 감리 — +100만원, +1.5주 */
+  supervision?: boolean;
+  /** 별도 가공·고급 소재 — 금액은 상담, 납기 +1주 */
+  premiumFinish?: boolean;
+}
+
+/** 주문 형태별 기본 납기 (주) — 도면만 2주, 생산·완제품 4주 */
+export const BASE_LEAD_WEEKS: Record<OrderType, number> = {
+  blueprint: 2,
+  production: 4,
+  finished: 4,
+};
+
+/** 포장 방식별 추가 납기 (주) */
+export const PACKAGING_LEAD_WEEKS: Record<string, number> = {
+  "paper-box": 2,
+  opp: 1,
+  bulk: 0,
+};
+
+/**
+ * 선택 옵션 기준 평균 납기 (주). 소수(1.5주 등)가 나올 수 있다.
+ * 포장 납기는 포장 선택지가 있는 주문 형태(제품 생산)에서만 더한다.
+ */
+export function estimateLeadWeeks(
+  orderType: OrderType,
+  packaging: string,
+  extras: QuoteExtras = {}
+): number {
+  let weeks = BASE_LEAD_WEEKS[orderType];
+  if (ORDER_TYPE_SPECS[orderType].hasPackaging) {
+    weeks += PACKAGING_LEAD_WEEKS[packaging] ?? 0;
+  }
+  if (extras.sampling) weeks += 2;
+  if (extras.samplingImprove) weeks += 2;
+  if (extras.supervision) weeks += 1.5;
+  if (extras.premiumFinish) weeks += 1;
+  return weeks;
+}
+
+/** 납기 주 수 → "약 4주" / "약 5.5주" */
+export function formatWeeks(weeks: number): string {
+  return `약 ${Number.isInteger(weeks) ? weeks : weeks.toFixed(1)}주`;
+}
 
 /** 제작 희망 디자인 한 줄 */
 export interface DesignLine {
@@ -122,6 +182,12 @@ export interface QuoteEstimate {
   packagingCost: number;
   /** 개당 포장 단가 (원) — 화면에 근거로 함께 보여준다 */
   packagingUnitCost: number;
+  /** 샘플링 정액 비용 (미선택 시 0) — 하한·상한 양쪽에 더해진다 */
+  samplingCost: number;
+  /** 샘플링 후 디자인 개선 정액 비용 (미선택 시 0) */
+  samplingImproveCost: number;
+  /** 생산 감리 정액 비용 (미선택 시 0) */
+  supervisionCost: number;
   totalMin: number;
   totalMax: number;
   /** 수량이 필요한 주문인데 하나도 입력되지 않은 상태 */
@@ -143,7 +209,8 @@ export function parseQuantity(v: string): number {
 export function estimateQuote(
   orderType: OrderType,
   lines: DesignLine[],
-  packaging: string
+  packaging: string,
+  extras: QuoteExtras = {}
 ): QuoteEstimate {
   const spec = ORDER_TYPE_SPECS[orderType];
   const designCount = lines.length;
@@ -160,6 +227,11 @@ export function estimateQuote(
   const packagingUnitCost = spec.hasPackaging ? PACKAGING_UNIT_COST[packaging] ?? 0 : 0;
   const packagingCost = totalQuantity * packagingUnitCost;
 
+  const samplingCost = extras.sampling ? SAMPLING_COST : 0;
+  const samplingImproveCost = extras.samplingImprove ? SAMPLING_IMPROVE_COST : 0;
+  const supervisionCost = extras.supervision ? SUPERVISION_COST : 0;
+  const optionsCost = samplingCost + samplingImproveCost + supervisionCost;
+
   return {
     orderType,
     costLabel: spec.costLabel,
@@ -171,8 +243,11 @@ export function estimateQuote(
     productionMax,
     packagingCost,
     packagingUnitCost,
-    totalMin: designMin + productionMin + packagingCost,
-    totalMax: designMax + productionMax + packagingCost,
+    samplingCost,
+    samplingImproveCost,
+    supervisionCost,
+    totalMin: designMin + productionMin + packagingCost + optionsCost,
+    totalMax: designMax + productionMax + packagingCost + optionsCost,
     quantityMissing: spec.hasQuantity && designCount > 0 && totalQuantity === 0,
   };
 }
