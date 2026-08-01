@@ -632,8 +632,16 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                 {q.sampling && " · 샘플링 희망"}
                                 {q.samplingImprove && " · 샘플링 후 디자인 개선 희망"}
                                 {q.supervision && " · 생산 감리 희망"}
+                                {q.premiumFinish && " · 별도 가공·고급 소재"}
                                 {q.rushed && " · 긴급 제작"}
                               </p>
+                              {(q.assemblyMethod || q.designStyle) && (
+                                <p className="mt-1 text-slate-700">
+                                  {q.assemblyMethod && `만드는 방식 ${q.assemblyMethod}`}
+                                  {q.assemblyMethod && q.designStyle && " · "}
+                                  {q.designStyle && `설계 스타일 ${q.designStyle}`}
+                                </p>
+                              )}
                               {q.ageGroups.length > 0 && (
                                 <p className="mt-1 text-slate-700">이용 연령 {q.ageGroups.join(", ")}</p>
                               )}

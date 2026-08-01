@@ -94,8 +94,14 @@ export interface QuoteSubmission {
   samplingImprove: boolean;
   /** 생산 시 감리 진행 희망 (마이그레이션 20260805) */
   supervision: boolean;
+  /** 별도 가공·고급 소재 사용 희망 (마이그레이션 20260806) */
+  premiumFinish: boolean;
   /** 제품 이용 연령 — 복수 선택, 라벨 문자열 그대로 저장 (마이그레이션 20260805) */
   ageGroups: string[];
+  /** 만드는 방식 — 목공풀/끼워 만들기/PE 스튜디오 추천, 라벨 그대로 (마이그레이션 20260806) */
+  assemblyMethod: string;
+  /** 디자인 설계 스타일 — 폴리곤/파츠 결합/PE STUDIO 권장, 라벨 그대로 (마이그레이션 20260806) */
+  designStyle: string;
   /** 최대한 빠르게 제작 (납품 희망일 대체) */
   rushed: boolean;
   /** 포장 방식 — paper-box / opp / bulk */
@@ -149,9 +155,12 @@ export function quoteFromRow(r: any): QuoteSubmission {
     sampling:     !!r.sampling,
     samplingImprove: !!r.sampling_improve,
     supervision:  !!r.supervision,
+    premiumFinish: !!r.premium_finish,
     ageGroups:    Array.isArray(r.age_groups)
       ? r.age_groups.filter((a: unknown): a is string => typeof a === "string")
       : [],
+    assemblyMethod: r.assembly_method ?? "",
+    designStyle:  r.design_style ?? "",
     rushed:       !!r.rushed,
     packaging:    r.packaging ?? "",
     acquisition:  r.acquisition ?? null,

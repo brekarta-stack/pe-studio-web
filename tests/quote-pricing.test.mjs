@@ -16,13 +16,18 @@ import test from "node:test";
 
 import {
   estimateQuote,
+  estimateLeadWeeks,
   parseQuantity,
   formatKrw,
   formatRange,
   formatFrom,
+  formatWeeks,
   isOrderType,
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
+  SAMPLING_COST,
+  SAMPLING_IMPROVE_COST,
+  SUPERVISION_COST,
 } from "../src/lib/quote-pricing.ts";
 
 const line = (quantity, id = "l1") => ({ id, name: "", quantity: String(quantity), file: null });
@@ -170,4 +175,77 @@ test("formatRange — 하한과 상한이 같으면 하나만", () => {
 test("formatFrom — 고객 화면용 시작 금액. 상한은 보여주지 않는다", () => {
   assert.equal(formatFrom(4_500_000), "450만원~");
   assert.equal(formatFrom(500_000), "50만원~");
+});
+
+/* ── B2B 제작 옵션 (샘플링·디자인 개선·감리) ── */
+
+test("제작 옵션 정액 — 샘플링 100만 / 디자인 개선 200만 / 감리 100만", () => {
+  assert.equal(SAMPLING_COST, 1_000_000);
+  assert.equal(SAMPLING_IMPROVE_COST, 2_000_000);
+  assert.equal(SUPERVISION_COST, 1_000_000);
+});
+
+test("제작 옵션은 하한·상한 양쪽에 정액으로 더해진다", () => {
+  const base = estimateQuote("production", [line(1000)], "bulk");
+  const all = estimateQuote("production", [line(1000)], "bulk", {
+    sampling: true,
+    samplingImprove: true,
+    supervision: true,
+  });
+  assert.equal(all.samplingCost, 1_000_000);
+  assert.equal(all.samplingImproveCost, 2_000_000);
+  assert.equal(all.supervisionCost, 1_000_000);
+  assert.equal(all.totalMin - base.totalMin, 4_000_000, "하한도 함께 오른다");
+  assert.equal(all.totalMax - base.totalMax, 4_000_000);
+});
+
+test("옵션 미선택이면 정액 비용은 전부 0", () => {
+  const e = estimateQuote("production", [line(1000)], "bulk");
+  assert.equal(e.samplingCost, 0);
+  assert.equal(e.samplingImproveCost, 0);
+  assert.equal(e.supervisionCost, 0);
+});
+
+/* ── 납기 산식 ── */
+
+test("기본 납기 — 도면만 2주 / 제품 생산 4주 / 완제품 4주", () => {
+  assert.equal(estimateLeadWeeks("blueprint", ""), 2);
+  assert.equal(estimateLeadWeeks("production", ""), 4);
+  assert.equal(estimateLeadWeeks("finished", ""), 4);
+});
+
+test("포장 납기 — 종이박스 +2주 / OPP +1주 / 벌크 +0 (제품 생산에서만)", () => {
+  assert.equal(estimateLeadWeeks("production", "paper-box"), 6);
+  assert.equal(estimateLeadWeeks("production", "opp"), 5);
+  assert.equal(estimateLeadWeeks("production", "bulk"), 4);
+  // 도면만·완제품 의뢰는 포장 선택지가 없다 — 포장 값이 남아 있어도 무시
+  assert.equal(estimateLeadWeeks("blueprint", "paper-box"), 2);
+  assert.equal(estimateLeadWeeks("finished", "paper-box"), 4);
+});
+
+test("옵션 납기 — 샘플링 +2 / 디자인 개선 +2 / 감리 +1.5 / 별도 가공 +1", () => {
+  assert.equal(estimateLeadWeeks("production", "bulk", { sampling: true }), 6);
+  assert.equal(estimateLeadWeeks("production", "bulk", { samplingImprove: true }), 6);
+  assert.equal(estimateLeadWeeks("production", "bulk", { supervision: true }), 5.5);
+  assert.equal(estimateLeadWeeks("production", "bulk", { premiumFinish: true }), 5);
+  // 전부 선택: 4 + 2(종이박스) + 2 + 2 + 1.5 + 1 = 12.5주
+  assert.equal(
+    estimateLeadWeeks("production", "paper-box", {
+      sampling: true, samplingImprove: true, supervision: true, premiumFinish: true,
+    }),
+    12.5
+  );
+});
+
+test("formatWeeks — 정수는 그대로, 소수는 한 자리로", () => {
+  assert.equal(formatWeeks(4), "약 4주");
+  assert.equal(formatWeeks(5.5), "약 5.5주");
+  assert.equal(formatWeeks(12.5), "약 12.5주");
+});
+
+test("완제품 의뢰 — 포장 선택지가 없다 (hasPackaging=false)", () => {
+  assert.equal(ORDER_TYPE_SPECS.finished.hasPackaging, false);
+  // 포장 값이 남아 있어도 견적에 포장비가 붙지 않는다
+  const e = estimateQuote("finished", [line(5)], "paper-box");
+  assert.equal(e.packagingCost, 0);
 });
