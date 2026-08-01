@@ -25,7 +25,7 @@ test("만드는 방식 — '전문가 추천' 라벨과 설명 문구", async ()
   const src = await readFile(SRC, "utf8");
   assert.ok(src.includes('value: "전문가 추천"'), "전문가 추천 옵션이 있어야 한다");
   assert.ok(
-    src.includes("PE 스튜디오가 추천하는 방식대로 만듭니다."),
+    src.includes("PE 스튜디오가 추천해주는 방식대로 만듭니다."),
     "전문가 추천 설명 문구가 있어야 한다"
   );
   assert.ok(!src.includes("PE 스튜디오 추천대로 작업"), "구 라벨이 남아 있으면 안 된다");

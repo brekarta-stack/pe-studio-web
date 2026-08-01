@@ -144,7 +144,7 @@ const AGE_GROUPS = [
 const ASSEMBLY_OPTIONS: { value: string; desc: string }[] = [
   { value: "목공풀 사용", desc: "더 튼튼하게 조립되며, 액션 페이퍼 토이는 목공풀만 가능합니다." },
   { value: "끼워 만들기", desc: "풀이 필요 없으며, 우드락 및 단순한 디자인에 적용 가능합니다." },
-  { value: "전문가 추천", desc: "PE 스튜디오가 추천하는 방식대로 만듭니다." },
+  { value: "전문가 추천", desc: "PE 스튜디오가 추천해주는 방식대로 만듭니다." },
 ];
 
 /** 디자인 설계 스타일 — 저장값 = 라벨 그대로 */
