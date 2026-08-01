@@ -246,12 +246,27 @@ function EstimatePanel({
   estimate,
   packagingLabel,
   compact = false,
+  onConsult,
 }: {
   estimate: QuoteEstimate;
   packagingLabel: string;
   compact?: boolean;
+  /** '담당자와 상의' — 연락처 단계로 직행. 견적 아래에 버튼으로 노출 */
+  onConsult?: () => void;
 }) {
   const spec = ORDER_TYPE_SPECS[estimate.orderType];
+
+  const consultButton = onConsult && (
+    <button
+      type="button"
+      onClick={onConsult}
+      className="mt-4 w-full rounded-xl py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+      style={{ background: "#1E22B2" }}
+      title="입력을 건너뛰고 연락처만 남기기 — 담당자가 직접 상담해 드립니다"
+    >
+      💬 담당자와 상의
+    </button>
+  );
 
   // 라인이 없으면 금액 대신 안내 — "0원 ~ 0원" 은 무료로 읽힌다
   if (estimate.designCount === 0) {
@@ -261,6 +276,7 @@ function EstimatePanel({
         <p className="mt-1 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
           제작 희망 디자인을 추가하면 대략적인 금액을 보여드립니다.
         </p>
+        {consultButton}
       </div>
     );
   }
@@ -288,11 +304,11 @@ function EstimatePanel({
                 {formatFrom(estimate.designMin)}
               </dd>
             </div>
-            {spec.hasProduction && (
+            {spec.hasProduction && estimate.productionMin > 0 && (
               <div className="flex justify-between gap-2">
-                <dt>생산비 · {estimate.totalQuantity.toLocaleString("ko-KR")}부</dt>
+                <dt>생산비 · {estimate.designCount}종</dt>
                 <dd className="tabular-nums whitespace-nowrap">
-                  {formatFrom(estimate.productionMin)}
+                  {formatKrw(estimate.productionMin)}
                 </dd>
               </div>
             )}
@@ -331,7 +347,7 @@ function EstimatePanel({
 
           {estimate.quantityMissing && (
             <p className="mt-2 text-xs text-amber-700">
-              수량을 입력하면 생산비까지 포함한 범위를 보여드립니다.
+              수량을 입력하면 포장비까지 포함한 금액을 보여드립니다.
             </p>
           )}
 
@@ -340,6 +356,7 @@ function EstimatePanel({
           </p>
         </>
       )}
+      {consultButton}
     </div>
   );
 }
@@ -851,19 +868,6 @@ export default function QuoteForm() {
 
   return (
     <>
-      {/* ── 플로팅 '담당자와 상의' — 스크롤 위치와 무관하게 우측에 상시 노출 ── */}
-      {step !== TOTAL_STEPS && (
-        <button
-          type="button"
-          onClick={jumpToConsult}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-40 px-2.5 py-4 rounded-l-xl text-white text-sm font-bold shadow-xl shadow-blue-900/30 hover:pr-4 transition-all"
-          style={{ background: "#1E22B2", writingMode: "vertical-rl" }}
-          title="입력을 건너뛰고 연락처만 남기기 — 담당자가 직접 상담해 드립니다"
-        >
-          💬 담당자와 상의
-        </button>
-      )}
-
       {/* ── Hero (파란색) — /portfolio · /blog 와 동일 톤 ── */}
       <section className="relative py-20 md:py-28 overflow-hidden" style={{ background: "#1E22B2" }}>
         <div className="absolute inset-0 pointer-events-none opacity-25">
@@ -1366,6 +1370,7 @@ export default function QuoteForm() {
                     </div>
                     <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
                       만들고 싶은 디자인을 종류별로 추가해 주세요. 종류 수와 총 수량이 자동으로 계산됩니다.
+                      메인 캐릭터 및 디자인을 1종으로 계산합니다.
                     </p>
 
                     {form.designs.length > 0 && (
@@ -1456,7 +1461,7 @@ export default function QuoteForm() {
                     )}
 
                     {estimate.quantityMissing && (
-                      <p className="text-xs text-amber-700 mt-2">수량을 입력하면 생산비까지 포함한 범위를 보여드립니다.</p>
+                      <p className="text-xs text-amber-700 mt-2">수량을 입력하면 포장비까지 포함한 금액을 보여드립니다.</p>
                     )}
                   </div>
 
@@ -1834,6 +1839,7 @@ export default function QuoteForm() {
               estimate={estimate}
               packagingLabel={PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label ?? ""}
               compact
+              onConsult={jumpToConsult}
             />
           </div>
         )}
@@ -1845,6 +1851,7 @@ export default function QuoteForm() {
             <EstimatePanel
               estimate={estimate}
               packagingLabel={PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label ?? ""}
+              onConsult={jumpToConsult}
             />
           </aside>
         )}
