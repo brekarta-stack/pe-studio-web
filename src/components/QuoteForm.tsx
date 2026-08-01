@@ -1438,8 +1438,7 @@ export default function QuoteForm() {
                       /* 난이도 안내 — 날것의 붉은 문단 대신 옅은 콜아웃으로 (강조는 유지하되 소란스럽지 않게) */
                       <div className="mb-3 rounded-xl border border-rose-100 bg-rose-50 px-3.5 py-2.5">
                         <p className="text-xs font-medium leading-relaxed text-rose-700" style={{ wordBreak: "keep-all" }}>
-                          견적을 편하게 예상하실 수 있도록 모델 설계 난이도를 선택하실 수 있게 하였습니다.
-                          난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다.
+                          설계 난이도는 PE 스튜디오가 조정할 수 있으니 편하게 선택하셔도 괜찮습니다.
                         </p>
                       </div>
                     )}

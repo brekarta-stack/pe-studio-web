@@ -44,12 +44,8 @@ test("완제품 의뢰 — 이용 연령·만드는 방식 숨김 + 값 정리",
 test("모델 설계 난이도 — 붉은 안내 문구 + 라인별 선택지", async () => {
   const src = await readFile(SRC, "utf8");
   assert.ok(
-    src.includes("견적을 편하게 예상하실 수 있도록 모델 설계 난이도를 선택하실 수 있게 하였습니다."),
+    src.includes("설계 난이도는 PE 스튜디오가 조정할 수 있으니 편하게 선택하셔도 괜찮습니다."),
     "난이도 안내 문구가 있어야 한다"
-  );
-  assert.ok(
-    src.includes("난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다."),
-    "책정 주체 안내가 있어야 한다"
   );
   assert.ok(src.includes("text-rose-700"), "안내 문구는 붉은색이어야 한다");
   assert.ok(src.includes("설계 난이도"), "라인별 난이도 선택지 라벨이 있어야 한다");
