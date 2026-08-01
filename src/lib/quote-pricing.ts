@@ -110,7 +110,9 @@ export function isManualOption(v: unknown): v is ManualOption {
 
 /** QR 코드·영상 삽입 — 종당 (원) */
 export const MANUAL_QR_COST = 1_000_000;
-/** 설명서·표지 인쇄 — 부수당 (원) */
+/** 설명서·표지 인쇄 — 종당 설명서 디자인비 (원) */
+export const MANUAL_PRINT_DESIGN_COST = 500_000;
+/** 설명서·표지 인쇄 — 부수당 생산비 (원). 1,000부당 30만원 */
 export const MANUAL_PRINT_UNIT_COST = 300;
 
 export const MANUAL_OPTION_SPECS: Record<
@@ -130,7 +132,7 @@ export const MANUAL_OPTION_SPECS: Record<
   print: {
     label: "설명서 및 표지 생산",
     desc: "OPP 및 박스 생산 시 추천합니다.",
-    priceLabel: "부수당 300원",
+    priceLabel: "종당 50만원 + 1,000부당 30만원",
   },
 };
 
@@ -341,14 +343,15 @@ export function estimateQuote(
   const packagingUnitCost = spec.hasPackaging ? PACKAGING_UNIT_COST[packaging] ?? 0 : 0;
   const packagingCost = totalQuantity * packagingUnitCost;
 
-  /* 설명서 생산비 — 완제품(조립 완료)은 설명서 개념이 없어 계산하지 않는다 */
+  /* 설명서 생산비 — 완제품(조립 완료)은 설명서 개념이 없어 계산하지 않는다.
+     인쇄(print)는 종당 설명서 디자인비 + 부수당 생산비의 합 */
   const manualCost =
     orderType === "finished"
       ? 0
       : extras.manual === "qr"
         ? designCount * MANUAL_QR_COST
         : extras.manual === "print"
-          ? totalQuantity * MANUAL_PRINT_UNIT_COST
+          ? designCount * MANUAL_PRINT_DESIGN_COST + totalQuantity * MANUAL_PRINT_UNIT_COST
           : 0;
 
   const samplingCost = extras.sampling ? SAMPLING_COST : 0;

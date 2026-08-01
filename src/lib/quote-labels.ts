@@ -50,7 +50,7 @@ export const CUSTOM_DESIGN_LABELS: Record<string, string> = {
 export const MANUAL_OPTION_LABELS: Record<string, string> = {
   guide: "도면 내 조립 가이드 (무료)",
   qr:    "도면 내 QR·영상 삽입 (+100만원~/종)",
-  print: "설명서·표지 생산 (부수당 300원)",
+  print: "설명서·표지 생산 (종당 50만원 + 1,000부당 30만원)",
 };
 
 /** 모델 설계 난이도 — 디자인 라인의 complexity 코드와 일치해야 한다 */

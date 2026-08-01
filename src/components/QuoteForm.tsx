@@ -308,6 +308,7 @@ function EstimatePanel({
 
       <p className="mt-1.5 text-2xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
         {formatApprox(estimate.totalMin)}
+        <span className="ml-1.5 align-baseline text-xs font-semibold text-slate-400">VAT 별도</span>
       </p>
 
       {!compact && (
@@ -375,7 +376,7 @@ function EstimatePanel({
           )}
 
           <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
-            본 견적은 임의로 산정된 금액으로, 정확한 견적은 상담을 통해 안내 가능합니다.
+            본 견적은 임의로 산정된 금액(VAT 별도)으로, 정확한 견적은 상담을 통해 안내 가능합니다.
           </p>
         </>
       )}

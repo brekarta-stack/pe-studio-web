@@ -60,6 +60,12 @@ test("설명서 생산 — 섹션 존재 + 주문 형태 전환 시 값 정리",
   assert.ok(src.includes('m !== "print" || orderSpec.hasQuantity'));
 });
 
+test("예상 견적 — VAT 별도 안내가 있다", async () => {
+  const src = await readFile(SRC, "utf8");
+  assert.ok(src.includes("VAT 별도"), "견적 금액 옆에 VAT 별도 표기가 있어야 한다");
+  assert.ok(src.includes("임의로 산정된 금액(VAT 별도)"), "하단 고지에도 VAT 별도가 있어야 한다");
+});
+
 test("설명 문구(desc) — 마침표 누락 없음", async () => {
   const src = await readFile(SRC, "utf8");
   // PRODUCTS·USAGES·STYLE_OPTIONS·ASSEMBLY_OPTIONS 의 desc 리터럴을 전부 걷어 검사

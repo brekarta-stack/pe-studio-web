@@ -37,6 +37,7 @@ import {
   COMPLEXITY_SPECS,
   DEFAULT_COMPLEXITY,
   MANUAL_QR_COST,
+  MANUAL_PRINT_DESIGN_COST,
   MANUAL_PRINT_UNIT_COST,
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
@@ -236,11 +237,15 @@ test("설명서 — QR·영상 삽입은 종당 100만원", () => {
   );
 });
 
-test("설명서 — 인쇄 설명서(print)는 부수당 300원", () => {
+test("설명서 — 인쇄(print)는 종당 50만원 + 부수당 300원(1,000부당 30만원)", () => {
+  assert.equal(MANUAL_PRINT_DESIGN_COST, 500_000);
   assert.equal(MANUAL_PRINT_UNIT_COST, 300);
   const e = estimateQuote("production", [line(2000)], "bulk", { manual: "print" });
-  assert.equal(e.manualCost, 600_000, "2,000부 × 300원");
-  assert.equal(e.totalMin, 2_000_000 + 6_500_000 + 600_000);
+  assert.equal(e.manualCost, 500_000 + 600_000, "1종 50만 + 2,000부 × 300원");
+  assert.equal(e.totalMin, 2_000_000 + 6_500_000 + 1_100_000);
+  // 종이 늘면 설명서 디자인비도 종당으로 늘어난다
+  const two = estimateQuote("production", [line(1000), line(1000, "l2")], "bulk", { manual: "print" });
+  assert.equal(two.manualCost, 2 * 500_000 + 2000 * 300);
 });
 
 test("설명서 비용은 하한·상한 양쪽에 더해진다", () => {
