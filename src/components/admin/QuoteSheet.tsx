@@ -630,8 +630,13 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               <p className="text-slate-700">
                                 디자인 스타일 {label(STYLE_LABELS, q.styleType) || "—"} · 포장 {label(PACKAGING_LABELS, q.packaging) || "—"}
                                 {q.sampling && " · 샘플링 희망"}
+                                {q.samplingImprove && " · 샘플링 후 디자인 개선 희망"}
+                                {q.supervision && " · 생산 감리 희망"}
                                 {q.rushed && " · 긴급 제작"}
                               </p>
+                              {q.ageGroups.length > 0 && (
+                                <p className="mt-1 text-slate-700">이용 연령 {q.ageGroups.join(", ")}</p>
+                              )}
                             </div>
                           </div>
                         </td>

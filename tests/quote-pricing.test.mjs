@@ -19,6 +19,7 @@ import {
   parseQuantity,
   formatKrw,
   formatRange,
+  formatFrom,
   isOrderType,
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
@@ -164,4 +165,9 @@ test("formatKrw — 억·만 단위로 읽기 쉽게", () => {
 test("formatRange — 하한과 상한이 같으면 하나만", () => {
   assert.equal(formatRange(2_500_000, 21_000_000), "250만원 ~ 2,100만원");
   assert.equal(formatRange(500_000, 500_000), "50만원");
+});
+
+test("formatFrom — 고객 화면용 시작 금액. 상한은 보여주지 않는다", () => {
+  assert.equal(formatFrom(4_500_000), "450만원~");
+  assert.equal(formatFrom(500_000), "50만원~");
 });

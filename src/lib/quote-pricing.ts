@@ -197,3 +197,14 @@ export function formatRange(min: number, max: number): string {
   if (min === max) return formatKrw(min);
   return `${formatKrw(min)} ~ ${formatKrw(max)}`;
 }
+
+/**
+ * "100만원~" 형태의 시작 금액 문자열.
+ *
+ * 고객 화면에는 상한을 보여주지 않는다 — 상한(600만·1,500만원 등)이 먼저
+ * 눈에 들어와 문의 자체를 접는 경우가 있어, 최소 금액만 안내하고
+ * 정확한 금액은 상담으로 잇는다.
+ */
+export function formatFrom(min: number): string {
+  return `${formatKrw(min)}~`;
+}

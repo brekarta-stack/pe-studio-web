@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
 import { parseQuantity } from "@/lib/quote-pricing";
+import { STYLE_LABELS } from "@/lib/quote-labels";
 import { requireAdminApi } from "@/lib/session";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
@@ -33,11 +34,6 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
   }
 
   const productLabel = PRODUCT_LABEL[s.product] ?? s.product;
-  const STYLE_LABEL: Record<string, string> = {
-    realism:      "리얼리즘 (현실적·사진처럼)",
-    characterize: "캐릭터라이즈 (캐릭터 원안 최대한 살림)",
-    expert:       "전문가 위임 (PE Studio 해석)",
-  };
   const PACKAGING_LABEL: Record<string, string> = {
     "paper-box": "종이 박스 (고급)",
     opp:         "OPP 필름 (일반)",
@@ -67,11 +63,14 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
   const rows: Array<[string, string, string?]> = [
     ["제품 유형",         productLabel],
     ["샘플링 희망",       s.sampling ? "예 (생산 전 수제작 샘플 발송)" : "아니오"],
+    ["디자인 개선 희망",  s.samplingImprove ? "예 (샘플링 후 디자인 개선)" : "아니오"],
+    ["생산 감리 희망",    s.supervision ? "예 (생산 시 감리 진행)" : "아니오"],
     ["수량",              s.quantity || "—"],
     ["희망 납기",         s.rushed ? "최대한 빠르게 (긴급)" : (s.deliveryDate || "—")],
     ["포장 방식",         s.packaging ? (PACKAGING_LABEL[s.packaging] ?? s.packaging) : "—"],
     ["용도",              s.purpose || "—"],
-    ["디자인 스타일",     s.styleType ? (STYLE_LABEL[s.styleType] ?? s.styleType) : "—"],
+    ["이용 연령",         s.ageGroups.length > 0 ? s.ageGroups.join(", ") : "—"],
+    ["선호 작가",         s.styleType ? (STYLE_LABELS[s.styleType] ?? s.styleType) : "—"],
     ["맞춤 디자인 (구)",  s.customDesign === "yes" ? "예" : s.customDesign === "no" ? "아니오" : "—"],
     ["제품 삽입 문구",    s.productText || "—"],
     ["색상·디자인 요청",  s.colorRequest || "—"],
@@ -230,8 +229,9 @@ const QuoteSchema = z.object({
   purpose:      z.string().max(100).default(""),
   // 기존 customDesign 은 호환 유지 (구버전 제출 케이스), 신규 폼은 styleType 사용
   customDesign: z.enum(["yes", "no", ""]).default(""),
-  // 신규: 디자인 스타일 (리얼리즘/캐릭터라이즈/전문가 위임)
-  styleType:    z.enum(["realism", "characterize", "expert", ""]).default(""),
+  // 선호 작가 (오세기/김철호/문재호/추천받기) — 구 '디자인 스타일' 값도 호환 유지.
+  // 현행 값을 빠뜨리면 작가를 고른 제출이 통째로 400 이 된다.
+  styleType:    z.enum(["osegi", "cheolho", "jaeho", "recommend", "realism", "characterize", "expert", ""]).default(""),
   // 신규: 제품에 삽입할 문구
   productText:  z.string().max(200).default(""),
   colorRequest: z.string().max(500).default(""),
@@ -268,6 +268,11 @@ const QuoteSchema = z.object({
   logoFileUrl:  QuoteFileUrl,
   // 제작 옵션 (Step 3 확장)
   sampling:     z.boolean().default(false),
+  // 샘플링을 보고 디자인 개선 희망 / 생산 시 감리 진행 희망
+  samplingImprove: z.boolean().default(false),
+  supervision:  z.boolean().default(false),
+  // 제품 이용 연령 — 복수 선택 (폼의 AGE_GROUPS 라벨 그대로)
+  ageGroups:    z.array(z.string().max(60)).max(10).default([]),
   rushed:       z.boolean().default(false),
   packaging:    z.enum(["paper-box", "opp", "bulk", ""]).default(""),
   // 주문 형태 — 견적 구조를 정한다 (도면만 / 제품 생산 / 완제품)
@@ -352,6 +357,9 @@ export async function POST(request: Request) {
     logoFileName: data.logoFileName,
     logoFileUrl:  data.logoFileUrl,
     sampling:     data.sampling,
+    samplingImprove: data.samplingImprove,
+    supervision:  data.supervision,
+    ageGroups:    data.ageGroups,
     rushed:       data.rushed,
     packaging:    data.packaging,
     orderType:    data.orderType,
@@ -401,6 +409,22 @@ export async function POST(request: Request) {
       .eq("id", submission.id);
     if (designErr) {
       console.warn("[api/quote] designs 미저장 (마이그레이션 대기?):", designErr.message);
+    }
+  }
+
+  /* 샘플링 옵션·이용 연령 best-effort 저장 — 컬럼(마이그레이션 20260805)이 없으면
+     조용히 건너뛴다. 별도 update 라 컬럼 부재 시에도 접수 자체는 성공한다. */
+  if (submission.samplingImprove || submission.supervision || submission.ageGroups.length > 0) {
+    const { error: optErr } = await supabaseAdmin
+      .from("quotes")
+      .update({
+        sampling_improve: submission.samplingImprove,
+        supervision:      submission.supervision,
+        age_groups:       submission.ageGroups,
+      })
+      .eq("id", submission.id);
+    if (optErr) {
+      console.warn("[api/quote] 샘플링 옵션·이용 연령 미저장 (마이그레이션 20260805 대기?):", optErr.message);
     }
   }
 
