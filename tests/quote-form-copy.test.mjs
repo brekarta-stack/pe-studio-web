@@ -60,6 +60,15 @@ test("설명서 생산 — 섹션 존재 + 주문 형태 전환 시 값 정리",
   assert.ok(src.includes('m !== "print" || orderSpec.hasQuantity'));
 });
 
+test("참고 자료 — 업로드 안내 문구가 있다", async () => {
+  const src = await readFile(SRC, "utf8");
+  assert.ok(src.includes("＋ 참고 자료"), "참고 자료 버튼 라벨이 있어야 한다");
+  assert.ok(
+    src.includes("(캐릭터 디자인을 알 수 있는 파일을 업로드해 주세요.)"),
+    "업로드 안내 문구가 있어야 한다"
+  );
+});
+
 test("예상 견적 — VAT 별도 안내가 있다", async () => {
   const src = await readFile(SRC, "utf8");
   assert.ok(src.includes("VAT 별도"), "견적 금액 옆에 VAT 별도 표기가 있어야 한다");
