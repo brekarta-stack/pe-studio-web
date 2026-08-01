@@ -132,7 +132,8 @@ export const MANUAL_OPTION_SPECS: Record<
   print: {
     label: "설명서 및 표지 생산",
     desc: "OPP 및 박스 생산 시 추천합니다.",
-    priceLabel: "종당 50만원 + 1,000부당 30만원",
+    // "\n" 은 카드에서 줄바꿈으로 렌더된다 (whiteSpace: pre-line)
+    priceLabel: "설명서 디자인 종당 +50만원\n인쇄비 1,000부당 30만원",
   },
 };
 

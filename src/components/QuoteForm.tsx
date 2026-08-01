@@ -1475,38 +1475,6 @@ export default function QuoteForm() {
                               </div>
                               )}
 
-                              {/* 라인별 참고 자료 — 같은 줄에서 바로 첨부 */}
-                              {d.file ? (
-                                <span className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-800 max-w-[12rem]">
-                                  <span className="truncate" title={d.file.name}>✓ {d.file.name}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => patchDesign(d.id, { file: null })}
-                                    className="flex-shrink-0 text-emerald-600 hover:text-rose-600"
-                                    aria-label={`디자인 ${i + 1} 첨부 삭제`}
-                                  >
-                                    ✕
-                                  </button>
-                                </span>
-                              ) : (
-                                <label
-                                  className={`cursor-pointer rounded-lg border border-dashed px-3 py-2 text-xs whitespace-nowrap ${
-                                    designUploading === d.id
-                                      ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] cursor-wait"
-                                      : "border-slate-300 text-slate-500 hover:border-[#1E22B2] hover:bg-blue-50"
-                                  }`}
-                                >
-                                  {designUploading === d.id ? "업로드 중…" : "＋ 참고 자료"}
-                                  <input
-                                    type="file"
-                                    className="hidden"
-                                    accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
-                                    disabled={designUploading !== null}
-                                    onChange={(e) => handleDesignFilePick(d.id, e)}
-                                  />
-                                </label>
-                              )}
-
                               <button
                                 type="button"
                                 onClick={() => removeDesign(d.id)}
@@ -1544,6 +1512,50 @@ export default function QuoteForm() {
                                 })}
                               </div>
                             )}
+
+                            {/* 참고 자료 — 이름 줄에 붙이기엔 안내 문구가 길어 전용 줄로.
+                                난이도 줄과 같은 왼쪽 기준선(sm:pl-8)에 맞춘다 */}
+                            <div className="mt-2 sm:pl-8">
+                              {d.file ? (
+                                <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                                  <span className="truncate" title={d.file.name}>✓ 참고 자료 · {d.file.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => patchDesign(d.id, { file: null })}
+                                    className="flex-shrink-0 text-emerald-600 hover:text-rose-600"
+                                    aria-label={`디자인 ${i + 1} 첨부 삭제`}
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ) : (
+                                <label
+                                  className={`flex w-full cursor-pointer flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-lg border border-dashed px-3 py-2 text-xs transition-colors ${
+                                    designUploading === d.id
+                                      ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] cursor-wait"
+                                      : "border-slate-300 text-slate-500 hover:border-[#1E22B2] hover:bg-blue-50"
+                                  }`}
+                                >
+                                  {designUploading === d.id ? (
+                                    "업로드 중…"
+                                  ) : (
+                                    <>
+                                      <span className="font-medium whitespace-nowrap">＋ 참고 자료</span>
+                                      <span className="text-slate-400" style={{ wordBreak: "keep-all" }}>
+                                        (캐릭터 디자인을 알 수 있는 파일을 업로드해 주세요.)
+                                      </span>
+                                    </>
+                                  )}
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
+                                    disabled={designUploading !== null}
+                                    onChange={(e) => handleDesignFilePick(d.id, e)}
+                                  />
+                                </label>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -1592,8 +1604,12 @@ export default function QuoteForm() {
                             <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
                               {mSpec.desc}
                             </div>
-                            {/* 가격 안내는 카드 하단 정렬 — 설명 길이가 달라도 기준선이 맞는다 */}
-                            <div className="mt-auto pt-2 text-[11px] font-semibold tabular-nums" style={{ color: "#1E22B2" }}>
+                            {/* 가격 안내는 카드 하단 정렬 — 설명 길이가 달라도 기준선이 맞는다.
+                                pre-line: priceLabel 의 \n 을 줄바꿈으로 (인쇄 옵션은 디자인비·인쇄비 두 줄) */}
+                            <div
+                              className="mt-auto pt-2 text-[11px] font-semibold leading-relaxed tabular-nums"
+                              style={{ color: "#1E22B2", whiteSpace: "pre-line" }}
+                            >
                               {mSpec.priceLabel}
                             </div>
                           </button>
