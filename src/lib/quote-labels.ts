@@ -46,6 +46,20 @@ export const CUSTOM_DESIGN_LABELS: Record<string, string> = {
   no:  "기본",
 };
 
+/** 설명서 생산 — QuoteForm 이 저장하는 manualOption 코드와 일치해야 한다 */
+export const MANUAL_OPTION_LABELS: Record<string, string> = {
+  guide: "도면 내 조립 가이드 (무료)",
+  qr:    "도면 내 QR·영상 삽입 (+100만원~/종)",
+  print: "설명서·표지 생산 (부수당 300원)",
+};
+
+/** 모델 설계 난이도 — 디자인 라인의 complexity 코드와 일치해야 한다 */
+export const COMPLEXITY_LABELS: Record<string, string> = {
+  simple:  "단순함",
+  normal:  "일반적",
+  complex: "복잡함",
+};
+
 /** 코드를 라벨로. 표에 없는 값이면 원본을 그대로 보여준다(데이터 유실 방지) */
 export function label(map: Record<string, string>, code: string | null | undefined): string {
   if (!code) return "";

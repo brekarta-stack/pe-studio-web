@@ -6,7 +6,7 @@ import { Resend } from "resend";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
 import { parseQuantity } from "@/lib/quote-pricing";
-import { STYLE_LABELS } from "@/lib/quote-labels";
+import { MANUAL_OPTION_LABELS, STYLE_LABELS } from "@/lib/quote-labels";
 import { requireAdminApi } from "@/lib/session";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
@@ -73,6 +73,7 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
     ["이용 연령",         s.ageGroups.length > 0 ? s.ageGroups.join(", ") : "—"],
     ["만드는 방식",       s.assemblyMethod || "—"],
     ["설계 스타일",       s.designStyle || "—"],
+    ["설명서 생산",       s.manualOption ? (MANUAL_OPTION_LABELS[s.manualOption] ?? s.manualOption) : "—"],
     ["선호 작가",         s.styleType ? (STYLE_LABELS[s.styleType] ?? s.styleType) : "—"],
     ["맞춤 디자인 (구)",  s.customDesign === "yes" ? "예" : s.customDesign === "no" ? "아니오" : "—"],
     ["제품 삽입 문구",    s.productText || "—"],
@@ -257,6 +258,8 @@ const QuoteSchema = z.object({
         id:       z.string().max(64).default(""),
         name:     z.string().max(200).default(""),
         quantity: z.string().max(20).default(""),
+        // 모델 설계 난이도 — 디자인비 산정 근거 (미선택은 빈 문자열)
+        complexity: z.enum(["simple", "normal", "complex", ""]).default(""),
         file: z
           .object({ name: z.string().max(255).default(""), url: QuoteFileUrl })
           .nullable()
@@ -280,6 +283,8 @@ const QuoteSchema = z.object({
   // 만드는 방식 / 디자인 설계 스타일 — 폼 라벨 그대로
   assemblyMethod: z.string().max(60).default(""),
   designStyle:  z.string().max(60).default(""),
+  // 설명서 생산 — guide(무료) / qr(종당 100만) / print(부수당 300원)
+  manualOption: z.enum(["guide", "qr", "print", ""]).default(""),
   rushed:       z.boolean().default(false),
   packaging:    z.enum(["paper-box", "opp", "bulk", ""]).default(""),
   // 주문 형태 — 견적 구조를 정한다 (도면만 / 제품 생산 / 완제품)
@@ -370,6 +375,7 @@ export async function POST(request: Request) {
     ageGroups:    data.ageGroups,
     assemblyMethod: data.assemblyMethod,
     designStyle:  data.designStyle,
+    manualOption: data.manualOption,
     rushed:       data.rushed,
     packaging:    data.packaging,
     orderType:    data.orderType,
@@ -451,6 +457,17 @@ export async function POST(request: Request) {
       .eq("id", submission.id);
     if (optErr2) {
       console.warn("[api/quote] 별도 가공·만드는 방식·설계 스타일 미저장 (마이그레이션 20260806 대기?):", optErr2.message);
+    }
+  }
+
+  /* 설명서 생산 best-effort 저장 — 'manual_option' 컬럼(마이그레이션 20260807) 대기 대비 */
+  if (submission.manualOption) {
+    const { error: manualErr } = await supabaseAdmin
+      .from("quotes")
+      .update({ manual_option: submission.manualOption })
+      .eq("id", submission.id);
+    if (manualErr) {
+      console.warn("[api/quote] 설명서 생산 미저장 (마이그레이션 20260807 대기?):", manualErr.message);
     }
   }
 

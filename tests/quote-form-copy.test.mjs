@@ -41,6 +41,29 @@ test("완제품 의뢰 — 이용 연령·만드는 방식 숨김 + 값 정리",
   assert.ok(src.includes('assemblyMethod: next === "finished" ? "" : prev.assemblyMethod'));
 });
 
+test("모델 설계 난이도 — 붉은 안내 문구 + 라인별 선택지", async () => {
+  const src = await readFile(SRC, "utf8");
+  assert.ok(
+    src.includes("견적을 편하게 예상하실 수 있도록 모델 설계 난이도를 선택하실 수 있게 하였습니다."),
+    "난이도 안내 문구가 있어야 한다"
+  );
+  assert.ok(
+    src.includes("난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다."),
+    "책정 주체 안내가 있어야 한다"
+  );
+  assert.ok(src.includes("text-rose-600 mb-3"), "안내 문구는 붉은색이어야 한다");
+  assert.ok(src.includes("설계 난이도"), "라인별 난이도 선택지 라벨이 있어야 한다");
+});
+
+test("설명서 생산 — 섹션 존재 + 주문 형태 전환 시 값 정리", async () => {
+  const src = await readFile(SRC, "utf8");
+  assert.ok(src.includes("설명서 생산"), "설명서 생산 섹션이 있어야 한다");
+  // 완제품 의뢰로 바꾸면 설명서 값이 접수되지 않게 비운다
+  assert.match(src, /manualOption:\s*\n?\s*next === "finished" \? ""/);
+  // 인쇄 설명서(부수당)는 수량이 있는 주문에서만 노출
+  assert.ok(src.includes('m !== "print" || orderSpec.hasQuantity'));
+});
+
 test("설명 문구(desc) — 마침표 누락 없음", async () => {
   const src = await readFile(SRC, "utf8");
   // PRODUCTS·USAGES·STYLE_OPTIONS·ASSEMBLY_OPTIONS 의 desc 리터럴을 전부 걷어 검사
