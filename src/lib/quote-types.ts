@@ -88,8 +88,14 @@ export interface QuoteSubmission {
   logoFileName: string;
   /** 회사 로고 파일의 공개 URL (선택) */
   logoFileUrl: string;
-  /** 샘플링 희망 — B2B 기업 주문 시 필수 */
+  /** 샘플링 희망 — B2B 기업 주문 시 권장 */
   sampling: boolean;
+  /** 샘플링을 보고 디자인 개선 희망 (마이그레이션 20260805) */
+  samplingImprove: boolean;
+  /** 생산 시 감리 진행 희망 (마이그레이션 20260805) */
+  supervision: boolean;
+  /** 제품 이용 연령 — 복수 선택, 라벨 문자열 그대로 저장 (마이그레이션 20260805) */
+  ageGroups: string[];
   /** 최대한 빠르게 제작 (납품 희망일 대체) */
   rushed: boolean;
   /** 포장 방식 — paper-box / opp / bulk */
@@ -141,6 +147,11 @@ export function quoteFromRow(r: any): QuoteSubmission {
     logoFileName: r.logo_file_name ?? "",
     logoFileUrl:  r.logo_file_url ?? "",
     sampling:     !!r.sampling,
+    samplingImprove: !!r.sampling_improve,
+    supervision:  !!r.supervision,
+    ageGroups:    Array.isArray(r.age_groups)
+      ? r.age_groups.filter((a: unknown): a is string => typeof a === "string")
+      : [],
     rushed:       !!r.rushed,
     packaging:    r.packaging ?? "",
     acquisition:  r.acquisition ?? null,

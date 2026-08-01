@@ -20,8 +20,8 @@ import {
   ORDER_TYPE_SPECS,
   QUANTITY_STEP,
   estimateQuote,
+  formatFrom,
   formatKrw,
-  formatRange,
   isOrderType,
   type DesignLine,
   type OrderType,
@@ -84,8 +84,14 @@ interface FormState {
   logoFileName: string;
   /** 회사 로고 파일 공개 URL (선택) */
   logoFileUrl: string;
-  /** 샘플링 희망 — B2B 기업 주문 시 필수 */
+  /** 샘플링 희망 — B2B 기업 주문 시 권장 */
   sampling: boolean;
+  /** 샘플링을 보고 디자인 개선 희망 */
+  samplingImprove: boolean;
+  /** 생산 시 감리 진행 희망 */
+  supervision: boolean;
+  /** 제품 이용 연령 — 복수 선택 */
+  ageGroups: string[];
   /** 최대한 빠르게 제작 — 납품 희망일 선택 해제 */
   rushed: boolean;
   /** 포장 방식 — 종이 박스 / OPP 필름 / 벌크 납품 */
@@ -111,6 +117,14 @@ const USAGES: { id: ProductType; icon: IconKey; name: string; desc: string; imag
 /** 사용 목적 — 실제로 들어오는 문의 유형에 맞춰 3가지로 (한 줄에 들어간다) */
 const PURPOSES = ["행사/배포", "전시/판매", "체험교실 운영"];
 
+/** 제품 이용 연령 — 복수 선택. 저장값 = 라벨 그대로 (purpose 와 같은 방식) */
+const AGE_GROUPS = [
+  "6세~7세 (유치원생)",
+  "8~10세 (초등학교 저학년)",
+  "11세 이상 (초등학교 고학년 및 중·고등학생)",
+  "성인, 전문가용",
+];
+
 const STEP_LABELS = ["제품 선택", "디자인·제작 옵션", "연락처"];
 const TOTAL_STEPS = STEP_LABELS.length;
 
@@ -135,6 +149,9 @@ const INITIAL_FORM: FormState = {
   logoFileName: "",
   logoFileUrl: "",
   sampling: false,
+  samplingImprove: false,
+  supervision: false,
+  ageGroups: [],
   rushed: false,
   packaging: "",
 };
@@ -232,7 +249,7 @@ function EstimatePanel({
   if (estimate.designCount === 0) {
     return (
       <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-5 text-center">
-        <p className="text-sm font-semibold text-slate-700">예상 견적 범위</p>
+        <p className="text-sm font-semibold text-slate-700">예상 견적</p>
         <p className="mt-1 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
           제작 희망 디자인을 추가하면 대략적인 금액을 보여드립니다.
         </p>
@@ -243,7 +260,7 @@ function EstimatePanel({
   return (
     <div className="rounded-2xl border-2 border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-sm font-bold text-slate-900">예상 견적 범위</span>
+        <span className="text-sm font-bold text-slate-900">예상 견적</span>
         <span className="text-xs text-slate-500 tabular-nums">
           {spec.label} · {estimate.designCount}종
           {spec.hasQuantity && ` · ${estimate.totalQuantity.toLocaleString("ko-KR")}부`}
@@ -251,7 +268,7 @@ function EstimatePanel({
       </div>
 
       <p className="mt-1.5 text-2xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
-        {formatRange(estimate.totalMin, estimate.totalMax)}
+        {formatFrom(estimate.totalMin)}
       </p>
 
       {!compact && (
@@ -260,14 +277,14 @@ function EstimatePanel({
             <div className="flex justify-between gap-2">
               <dt>{estimate.costLabel} · {estimate.designCount}종</dt>
               <dd className="tabular-nums whitespace-nowrap">
-                {formatRange(estimate.designMin, estimate.designMax)}
+                {formatFrom(estimate.designMin)}
               </dd>
             </div>
             {spec.hasProduction && (
               <div className="flex justify-between gap-2">
                 <dt>생산비 · {estimate.totalQuantity.toLocaleString("ko-KR")}부</dt>
                 <dd className="tabular-nums whitespace-nowrap">
-                  {formatRange(estimate.productionMin, estimate.productionMax)}
+                  {formatFrom(estimate.productionMin)}
                 </dd>
               </div>
             )}
@@ -293,8 +310,9 @@ function EstimatePanel({
           )}
 
           <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
-            구조 난이도·용지·후가공에 따라 달라지는 <b>개략 범위</b>입니다.
-            정확한 견적은 문의 내용을 검토한 뒤 회신으로 안내해 드립니다.
+            본 견적은 <b>최소 금액</b>으로, 원하시는 스펙, 종이 종류 및 가공 방식,
+            설계 난이도 및 생산 난이도에 따라 달라집니다.
+            정확한 견적은 상담을 통해 안내 가능합니다.
           </p>
         </>
       )}
@@ -331,7 +349,10 @@ function hasDraftContent(f: FormState): boolean {
   /* 디자인 줄은 폼을 열 때 빈 줄 하나가 기본으로 생긴다 —
      그걸 "작성 중이던 내용"으로 세면 매번 이어쓰기를 묻게 된다. */
   const designsFilled = f.designs.some((d) => d.name.trim() !== "" || d.file);
-  return filled || f.files.length > 0 || designsFilled || f.sampling || !!f.logoFileUrl;
+  return (
+    filled || f.files.length > 0 || designsFilled || f.sampling ||
+    f.samplingImprove || f.supervision || f.ageGroups.length > 0 || !!f.logoFileUrl
+  );
 }
 
 /** 옵션 서브섹션 헤더 (디자인 / 제작) */
@@ -446,6 +467,9 @@ export default function QuoteForm() {
               ? f.files.filter((x) => x && typeof x.url === "string" && x.url).slice(0, MAX_FILES)
               : [],
             designs: Array.isArray(f.designs) ? f.designs : [],
+            ageGroups: Array.isArray(f.ageGroups)
+              ? f.ageGroups.filter((a) => AGE_GROUPS.includes(a))
+              : [],
           };
           if (f.logoFileName && !f.logoFileUrl) f = { ...f, logoFileName: "" };
           const st = typeof parsed.step === "number" ? parsed.step : 1;
@@ -527,6 +551,16 @@ export default function QuoteForm() {
 
   const update = (key: keyof FormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  /** 제품 이용 연령 — 복수 선택 토글 (표시 순서는 AGE_GROUPS 순서를 따른다) */
+  const toggleAgeGroup = (age: string) => {
+    setForm((prev) => ({
+      ...prev,
+      ageGroups: prev.ageGroups.includes(age)
+        ? prev.ageGroups.filter((a) => a !== age)
+        : AGE_GROUPS.filter((a) => prev.ageGroups.includes(a) || a === age),
+    }));
   };
 
   /* ── 제작 희망 디자인 라인 ──
@@ -1090,7 +1124,7 @@ export default function QuoteForm() {
                             <div className="font-semibold text-slate-900 text-sm mb-1">{o.label}</div>
                             <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>{o.desc}</div>
                             <div className="mt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
-                              {o.costLabel} {formatKrw(o.costMin)}~{formatKrw(o.costMax)} / 종
+                              {o.costLabel} {formatKrw(o.costMin)}~ / 종
                               {o.hasProduction && " + 생산비"}
                             </div>
                           </button>
@@ -1103,7 +1137,10 @@ export default function QuoteForm() {
 
                   {/* 사용 목적 */}
                   <div>
-                    <span className="block text-sm font-semibold text-slate-700 mb-2">사용 목적</span>
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">사용 목적</span>
+                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                      사용 목적에 맞춰 더 나은 제품 생산 방식을 제안드립니다.
+                    </p>
                     <div className="grid grid-cols-3 gap-2">
                       {PURPOSES.map((p) => {
                         const isActive = form.purpose === p;
@@ -1121,6 +1158,40 @@ export default function QuoteForm() {
                           >
                             {p}
                           </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 제품 이용 연령 — 복수 선택 */}
+                  <div>
+                    <span className="block text-sm font-semibold text-slate-700 mb-1">
+                      제품 이용 연령
+                      <span className="ml-2 text-xs font-medium text-slate-400">복수 선택 가능</span>
+                    </span>
+                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                      이용 연령에 맞춰 난이도·용지·안전 기준을 조정해 제안드립니다.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {AGE_GROUPS.map((age) => {
+                        const isActive = form.ageGroups.includes(age);
+                        return (
+                          <label
+                            key={age}
+                            className={`flex items-center gap-2.5 py-2.5 px-3 text-sm rounded-xl border-2 cursor-pointer transition-colors ${
+                              isActive
+                                ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] font-semibold"
+                                : "border-slate-200 text-slate-600 hover:border-blue-200"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isActive}
+                              onChange={() => toggleAgeGroup(age)}
+                              className="w-4 h-4 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
+                            />
+                            <span style={{ wordBreak: "keep-all" }}>{age}</span>
+                          </label>
                         );
                       })}
                     </div>
@@ -1158,8 +1229,12 @@ export default function QuoteForm() {
 
                   <SubsectionHeader color="#E91E8C" en="Production" ko="제작" />
 
-                  {/* 샘플링 체크박스 */}
+                  {/* 샘플링·감리 체크박스 */}
                   <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50/50">
+                    {/* 헤드 메시지 — B2B 권장 안내를 박스 상단으로 */}
+                    <p className="text-xs font-bold mb-3" style={{ color: "#E91E8C" }}>
+                      B2B 기업 주문 시 권장
+                    </p>
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1168,16 +1243,33 @@ export default function QuoteForm() {
                         className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
                       />
                       <div className="flex-1">
-                        <div className="font-semibold text-slate-900 text-sm">
-                          샘플링을 희망합니다
-                          <span className="ml-2 text-xs font-medium" style={{ color: "#E91E8C" }}>
-                            B2B 기업 주문 시 권장
-                          </span>
-                        </div>
+                        <div className="font-semibold text-slate-900 text-sm">샘플링을 희망합니다</div>
                         <p className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
                           생산 전 완제품을 수제작하여 샘플로 보내드립니다. (회당 추가 비용 및 일정 증가)
                         </p>
                       </div>
+                    </label>
+                    <label className="mt-3 flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.samplingImprove}
+                        onChange={(e) => update("samplingImprove", e.target.checked)}
+                        className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
+                      />
+                      <span className="flex-1 text-sm font-semibold text-slate-900">
+                        샘플링을 보고 디자인 개선을 희망합니다.
+                      </span>
+                    </label>
+                    <label className="mt-3 flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.supervision}
+                        onChange={(e) => update("supervision", e.target.checked)}
+                        className="mt-0.5 w-5 h-5 rounded border-slate-300 text-[#1E22B2] focus:ring-2 focus:ring-[#1E22B2]/30"
+                      />
+                      <span className="flex-1 text-sm font-semibold text-slate-900">
+                        생산 시 감리 진행을 희망합니다.
+                      </span>
                     </label>
                   </div>
 
