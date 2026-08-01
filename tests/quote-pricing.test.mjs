@@ -4,10 +4,11 @@
  *
  * 고객에게 그대로 보이는 금액이라 자릿수 하나만 틀려도 사고가 된다.
  *
- * 기준:
- *   도면만 의뢰 — 디자인비 1종 50만~600만. 수량·포장 없음.
- *   제품 생산   — 디자인비 1종 50만~600만 + 생산비 개당 2,000~15,000원 + 포장비
- *   완제품 의뢰 — 제작비 1종 50만~1,000만. 수량으로 곱하지 않는다.
+ * 기준 (메인 캐릭터 및 디자인 = 1종):
+ *   도면만 의뢰 — 디자인비 1종 100만~500만. 수량·포장 없음.
+ *   제품 생산   — 도면 디자인비(100만~500만/종) + 생산비 정액
+ *               (1종 400만, 2종째 +250만, 3종째부터 +200만씩) + 포장비
+ *   완제품 의뢰 — 제작비 1종 300만~1,000만. 수량으로 곱하지 않는다.
  *   포장(개당) — 벌크 0 / OPP 500 / 종이박스 2,000원. 고르는 순간 확정되는
  *              비용이라 하한·상한 양쪽에 더한다.
  */
@@ -23,6 +24,7 @@ import {
   formatFrom,
   formatWeeks,
   isOrderType,
+  productionCost,
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
   SAMPLING_COST,
@@ -41,17 +43,17 @@ test("isOrderType — 정의된 값만 통과", () => {
 
 /* ── 도면만 의뢰 ── */
 
-test("도면만 의뢰 — 디자인비만, 수량은 금액에 영향이 없다", () => {
+test("도면만 의뢰 — 디자인비만(100만~500만/종), 수량은 금액에 영향이 없다", () => {
   const e = estimateQuote("blueprint", [line(9999)], "paper-box");
   assert.equal(e.costLabel, "디자인비");
-  assert.equal(e.designMin, 500_000);
-  assert.equal(e.designMax, 6_000_000);
+  assert.equal(e.designMin, 1_000_000);
+  assert.equal(e.designMax, 5_000_000);
   assert.equal(e.productionMin, 0, "실물을 만들지 않는다");
   assert.equal(e.productionMax, 0);
   assert.equal(e.packagingCost, 0, "포장할 실물이 없다");
   assert.equal(e.totalQuantity, 0, "수량 자체를 세지 않는다");
-  assert.equal(e.totalMin, 500_000);
-  assert.equal(e.totalMax, 6_000_000);
+  assert.equal(e.totalMin, 1_000_000);
+  assert.equal(e.totalMax, 5_000_000);
 });
 
 test("도면만 의뢰 — 수량 미입력 경고가 뜨지 않는다", () => {
@@ -60,24 +62,33 @@ test("도면만 의뢰 — 수량 미입력 경고가 뜨지 않는다", () => {
 
 /* ── 제품 생산 ── */
 
-test("제품 생산 1종 1,000부 벌크 — 디자인비 + 생산비", () => {
-  const e = estimateQuote("production", [line(1000)], "bulk");
-  assert.equal(e.designMin, 500_000);
-  assert.equal(e.designMax, 6_000_000);
-  assert.equal(e.productionMin, 2_000_000, "1,000개 × 2,000원");
-  assert.equal(e.productionMax, 15_000_000, "1,000개 × 15,000원");
-  assert.equal(e.packagingCost, 0, "벌크는 포장비 없음");
-  assert.equal(e.totalMin, 2_500_000);
-  assert.equal(e.totalMax, 21_000_000);
+test("생산비 정액 — 1종 400만 / 2종 650만 / 3종 850만 / 이후 +200만씩", () => {
+  assert.equal(productionCost(0), 0);
+  assert.equal(productionCost(1), 4_000_000);
+  assert.equal(productionCost(2), 6_500_000);
+  assert.equal(productionCost(3), 8_500_000);
+  assert.equal(productionCost(5), 12_500_000);
 });
 
-test("제품 생산 — 라인을 추가하면 종류와 총수량이 함께 늘어난다", () => {
+test("제품 생산 1종 1,000부 벌크 — 도면 디자인비 + 생산비 정액", () => {
+  const e = estimateQuote("production", [line(1000)], "bulk");
+  assert.equal(e.designMin, 1_000_000);
+  assert.equal(e.designMax, 5_000_000);
+  assert.equal(e.productionMin, 4_000_000, "생산비는 종 수 기반 정액 — 부수와 무관");
+  assert.equal(e.productionMax, 4_000_000, "정액이라 하한·상한이 같다");
+  assert.equal(e.packagingCost, 0, "벌크는 포장비 없음");
+  assert.equal(e.totalMin, 5_000_000);
+  assert.equal(e.totalMax, 9_000_000);
+});
+
+test("제품 생산 — 라인을 추가하면 종류·총수량·생산비가 함께 늘어난다", () => {
   const one = estimateQuote("production", [line(1000)], "bulk");
   const two = estimateQuote("production", [line(1000), line(2000, "l2")], "bulk");
   assert.equal(two.designCount, 2);
   assert.equal(two.totalQuantity, 3000);
-  assert.equal(two.designMin - one.designMin, 500_000);
-  assert.equal(two.designMax - one.designMax, 6_000_000);
+  assert.equal(two.designMin - one.designMin, 1_000_000);
+  assert.equal(two.designMax - one.designMax, 5_000_000);
+  assert.equal(two.productionMin - one.productionMin, 2_500_000, "2종째 생산비 +250만");
   assert.ok(two.totalMax > one.totalMax);
 });
 
@@ -106,24 +117,24 @@ test("포장 방식별 개당 단가 — 벌크 0 / OPP 500 / 종이박스 2,000
 
 test("포장을 고르면 총액이 정확히 그만큼 오른다 — 1종 1,000부 OPP", () => {
   const e = estimateQuote("production", [line(1000)], "opp");
-  // 디자인 50만~600만 + 생산 200만~1,500만 + 포장 50만(1,000×500)
-  assert.equal(e.totalMin, 3_000_000);
-  assert.equal(e.totalMax, 21_500_000);
+  // 디자인 100만~500만 + 생산 400만 + 포장 50만(1,000×500)
+  assert.equal(e.totalMin, 5_500_000);
+  assert.equal(e.totalMax, 9_500_000);
 });
 
-test("제품 생산 — 수량 미입력은 따로 알린다", () => {
+test("제품 생산 — 수량 미입력은 따로 알린다 (포장비 계산용)", () => {
   const e = estimateQuote("production", [line("")], "bulk");
   assert.equal(e.quantityMissing, true);
-  assert.equal(e.designMin, 500_000, "디자인비는 라인 수만으로 계산된다");
-  assert.equal(e.productionMin, 0);
+  assert.equal(e.designMin, 1_000_000, "디자인비는 라인 수만으로 계산된다");
+  assert.equal(e.productionMin, 4_000_000, "생산비도 종 수 기반이라 수량 없이 잡힌다");
 });
 
 /* ── 완제품 의뢰 ── */
 
-test("완제품 의뢰 — 제작비 하나로, 수량으로 곱하지 않는다", () => {
+test("완제품 의뢰 — 제작비 하나로(300만~/종), 수량으로 곱하지 않는다", () => {
   const e = estimateQuote("finished", [line(5)], "bulk");
   assert.equal(e.costLabel, "제작비");
-  assert.equal(e.designMin, 500_000);
+  assert.equal(e.designMin, 3_000_000);
   assert.equal(e.designMax, 10_000_000);
   assert.equal(e.productionMin, 0, "생산비를 따로 세지 않는다");
   assert.equal(e.productionMax, 0);

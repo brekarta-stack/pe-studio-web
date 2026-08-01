@@ -4,12 +4,14 @@
  * 확정 견적이 아니라 **범위 안내**다. 실제 금액은 구조 난이도·용지·후가공에
  * 따라 달라지므로 회신으로 안내한다.
  *
- * 금액 구조는 주문 형태(무엇을 받을 것인가)에 따라 통째로 달라진다:
+ * 금액 구조는 주문 형태(무엇을 받을 것인가)에 따라 통째로 달라진다.
+ * 메인 캐릭터 및 디자인을 1종으로 계산한다:
  *
- *   도면만 의뢰  디자인비만. 실물이 없으니 수량·포장 개념이 없다.
- *   제품 생산    디자인비 + 생산비 + 포장비. 수량이 금액을 좌우한다.
- *   완제품 의뢰  제작비 하나로 묶는다. 조립·설치까지 포함이라 부수보다
- *                건별 난이도가 금액을 정한다 — 수량으로 곱하지 않는다.
+ *   도면만 의뢰  디자인비만 (100만~500만/종). 실물이 없으니 수량·포장 개념이 없다.
+ *   제품 생산    도면 디자인비 + 생산비(종 수 기반 정액: 1종 400만,
+ *                2종째 +250만, 3종째부터 +200만씩) + 포장비(수량×단가).
+ *   완제품 의뢰  제작비 하나로 묶는다 (300만~/종). 조립·설치까지 포함이라
+ *                수량으로 곱하지 않는다.
  */
 
 /** 주문 형태 — 무엇을 받을 것인지 */
@@ -20,9 +22,25 @@ export function isOrderType(v: unknown): v is OrderType {
   return typeof v === "string" && (ORDER_TYPES as readonly string[]).includes(v);
 }
 
-/** 1개당 생산 비용 (원) — 제품 생산일 때만 */
-export const UNIT_COST_MIN = 2_000;
-export const UNIT_COST_MAX = 15_000;
+/* ── 생산비 (제품 생산일 때만) ──
+ * 부수가 아니라 **종 수** 기반 정액이다. 첫 종이 라인 셋업까지 짊어져서
+ * 가장 비싸고, 종이 늘수록 한 종당 부담이 줄어든다. */
+
+/** 생산 1종째 비용 (원) */
+export const PRODUCTION_FIRST_COST = 4_000_000;
+/** 생산 2종째 추가 비용 (원) */
+export const PRODUCTION_SECOND_COST = 2_500_000;
+/** 생산 3종째부터 종당 추가 비용 (원) */
+export const PRODUCTION_NEXT_COST = 2_000_000;
+
+/** 종 수 → 생산비 정액. 1종 400만 / 2종 650만 / 3종 850만 / 이후 +200만씩 */
+export function productionCost(designCount: number): number {
+  if (designCount <= 0) return 0;
+  let cost = PRODUCTION_FIRST_COST;
+  if (designCount >= 2) cost += PRODUCTION_SECOND_COST;
+  if (designCount >= 3) cost += (designCount - 2) * PRODUCTION_NEXT_COST;
+  return cost;
+}
 
 /**
  * 포장 방식별 1개당 추가 비용 (원).
@@ -63,8 +81,8 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
     label: "도면만 의뢰",
     desc: "전개도·설계 데이터만 받습니다. 생산은 직접 진행하시는 경우.",
     costLabel: "디자인비",
-    costMin: 500_000,
-    costMax: 6_000_000,
+    costMin: 1_000_000,
+    costMax: 5_000_000,
     hasProduction: false,
     hasPackaging: false,
     hasQuantity: false,
@@ -72,10 +90,11 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
   },
   production: {
     label: "제품 생산",
+    // 디자인비는 도면만 의뢰와 같은 도면 디자인 비용 — 생산비가 따로 붙는다
     desc: "디자인부터 인쇄·재단까지. 완성된 키트를 납품받습니다.",
     costLabel: "디자인비",
-    costMin: 500_000,
-    costMax: 6_000_000,
+    costMin: 1_000_000,
+    costMax: 5_000_000,
     hasProduction: true,
     hasPackaging: true,
     hasQuantity: true,
@@ -85,7 +104,7 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
     label: "완제품 의뢰",
     desc: "조립·설치까지 마친 완성품을 받습니다. 전시·연출물에 적합합니다.",
     costLabel: "제작비",
-    costMin: 500_000,
+    costMin: 3_000_000,
     costMax: 10_000_000,
     hasProduction: false,
     // 조립까지 끝난 완성품이라 키트 포장 개념이 없다 — 포장 선택지를 보여주지 않는다
@@ -221,8 +240,10 @@ export function estimateQuote(
   const designMin = designCount * spec.costMin;
   const designMax = designCount * spec.costMax;
 
-  const productionMin = spec.hasProduction ? totalQuantity * UNIT_COST_MIN : 0;
-  const productionMax = spec.hasProduction ? totalQuantity * UNIT_COST_MAX : 0;
+  // 생산비는 종 수 기반 정액 — 하한·상한이 같다
+  const production = spec.hasProduction ? productionCost(designCount) : 0;
+  const productionMin = production;
+  const productionMax = production;
 
   const packagingUnitCost = spec.hasPackaging ? PACKAGING_UNIT_COST[packaging] ?? 0 : 0;
   const packagingCost = totalQuantity * packagingUnitCost;
