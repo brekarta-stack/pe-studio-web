@@ -51,7 +51,7 @@ test("모델 설계 난이도 — 붉은 안내 문구 + 라인별 선택지", a
     src.includes("난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다."),
     "책정 주체 안내가 있어야 한다"
   );
-  assert.ok(src.includes("text-rose-600 mb-3"), "안내 문구는 붉은색이어야 한다");
+  assert.ok(src.includes("text-rose-700"), "안내 문구는 붉은색이어야 한다");
   assert.ok(src.includes("설계 난이도"), "라인별 난이도 선택지 라벨이 있어야 한다");
 });
 
