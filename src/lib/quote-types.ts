@@ -102,6 +102,8 @@ export interface QuoteSubmission {
   assemblyMethod: string;
   /** 디자인 설계 스타일 — 폴리곤/파츠 결합/PE STUDIO 권장, 라벨 그대로 (마이그레이션 20260806) */
   designStyle: string;
+  /** 설명서 생산 — guide(도면 내 가이드)/qr(QR·영상)/print(인쇄) (마이그레이션 20260807) */
+  manualOption: string;
   /** 최대한 빠르게 제작 (납품 희망일 대체) */
   rushed: boolean;
   /** 포장 방식 — paper-box / opp / bulk */
@@ -161,6 +163,7 @@ export function quoteFromRow(r: any): QuoteSubmission {
       : [],
     assemblyMethod: r.assembly_method ?? "",
     designStyle:  r.design_style ?? "",
+    manualOption: r.manual_option ?? "",
     rushed:       !!r.rushed,
     packaging:    r.packaging ?? "",
     acquisition:  r.acquisition ?? null,

@@ -16,14 +16,19 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
+  COMPLEXITY_LEVELS,
+  COMPLEXITY_SPECS,
+  MANUAL_OPTIONS,
+  MANUAL_OPTION_SPECS,
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
   QUANTITY_STEP,
   estimateLeadWeeks,
   estimateQuote,
-  formatFrom,
+  formatApprox,
   formatKrw,
   formatWeeks,
+  isManualOption,
   isOrderType,
   type DesignLine,
   type OrderType,
@@ -96,10 +101,12 @@ interface FormState {
   premiumFinish: boolean;
   /** 제품 이용 연령 — 복수 선택 */
   ageGroups: string[];
-  /** 만드는 방식 — 목공풀 / 끼워 만들기 / PE 스튜디오 추천 */
+  /** 만드는 방식 — 목공풀 / 끼워 만들기 / 전문가 추천 (완제품 의뢰 시 숨김) */
   assemblyMethod: string;
   /** 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / PE STUDIO 권장 */
   designStyle: string;
+  /** 설명서 생산 — guide(무료) / qr(+100만/종) / print(부수당 300원) */
+  manualOption: string;
   /** 최대한 빠르게 제작 — 납품 희망일 선택 해제 */
   rushed: boolean;
   /** 포장 방식 — 종이 박스 / OPP 필름 / 벌크 납품 */
@@ -110,16 +117,16 @@ interface FormState {
 const SUPA_IMG = "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads";
 
 const PRODUCTS: { id: ProductType; icon: IconKey; name: string; desc: string; image?: string }[] = [
-  { id: "papercraft", icon: "paperToy", name: "페이퍼 크래프트",    desc: "기본적인 종이 모형에서 정교한 설계까지", image: `${SUPA_IMG}/1780305681024.png` },
-  { id: "action",     icon: "gear",     name: "액션 페이퍼 토이",   desc: "특허 기반 움직임 메커니즘 적용",          image: `${SUPA_IMG}/action%20craft.png` },
-  { id: "popup",      icon: "sparkle",  name: "팝업북",              desc: "3D 팝업 카드 및 북 제작",                 image: `${SUPA_IMG}/23213213.jpeg` },
-  { id: "foamboard",  icon: "box",      name: "폼보드(우드락)",     desc: "끼워 만드는 입체 구조",                   image: `${SUPA_IMG}/444444.png` },
+  { id: "papercraft", icon: "paperToy", name: "페이퍼 크래프트",    desc: "기본적인 종이 모형에서 정교한 설계까지 제작합니다.", image: `${SUPA_IMG}/1780305681024.png` },
+  { id: "action",     icon: "gear",     name: "액션 페이퍼 토이",   desc: "특허 기반 움직임 메커니즘을 적용합니다.",          image: `${SUPA_IMG}/action%20craft.png` },
+  { id: "popup",      icon: "sparkle",  name: "팝업북",              desc: "3D 팝업 카드 및 북을 제작합니다.",                 image: `${SUPA_IMG}/23213213.jpeg` },
+  { id: "foamboard",  icon: "box",      name: "폼보드(우드락)",     desc: "끼워 만드는 입체 구조입니다.",                   image: `${SUPA_IMG}/444444.png` },
 ];
 
 const USAGES: { id: ProductType; icon: IconKey; name: string; desc: string; image?: string }[] = [
-  { id: "education", icon: "education", name: "교육/교구용", desc: "체험존·교구·STEAM 학습 도구",     image: `${SUPA_IMG}/5555555.png` },
-  { id: "promotion", icon: "sparkle",   name: "홍보용",      desc: "브랜드 굿즈·캠페인·전시 부스",     image: `${SUPA_IMG}/66666.png` },
-  { id: "hobby",     icon: "pencil",    name: "취미용",      desc: "가족·동호회·개인 만들기 키트",     image: `${SUPA_IMG}/7777777777.jpg` },
+  { id: "education", icon: "education", name: "교육/교구용", desc: "체험존·교구·STEAM 학습 도구에 적합합니다.",     image: `${SUPA_IMG}/5555555.png` },
+  { id: "promotion", icon: "sparkle",   name: "홍보용",      desc: "브랜드 굿즈·캠페인·전시 부스에 적합합니다.",     image: `${SUPA_IMG}/66666.png` },
+  { id: "hobby",     icon: "pencil",    name: "취미용",      desc: "가족·동호회·개인 만들기 키트에 적합합니다.",     image: `${SUPA_IMG}/7777777777.jpg` },
 ];
 
 /** 사용 목적 — 실제로 들어오는 문의 유형에 맞춰 3가지로 (한 줄에 들어간다) */
@@ -135,9 +142,9 @@ const AGE_GROUPS = [
 
 /** 만드는 방식 — 저장값 = 라벨 그대로 */
 const ASSEMBLY_OPTIONS: { value: string; desc: string }[] = [
-  { value: "목공풀 사용", desc: "더 튼튼하게 조립되며, 액션 페이퍼 토이는 목공풀만 가능" },
-  { value: "끼워 만들기", desc: "풀이 필요 없으며, 우드락 및 단순한 디자인에 적용 가능" },
-  { value: "PE 스튜디오 추천대로 작업", desc: "" },
+  { value: "목공풀 사용", desc: "더 튼튼하게 조립되며, 액션 페이퍼 토이는 목공풀만 가능합니다." },
+  { value: "끼워 만들기", desc: "풀이 필요 없으며, 우드락 및 단순한 디자인에 적용 가능합니다." },
+  { value: "전문가 추천", desc: "PE 스튜디오가 추천해주는 방식대로 만듭니다." },
 ];
 
 /** 디자인 설계 스타일 — 저장값 = 라벨 그대로 */
@@ -173,16 +180,17 @@ const INITIAL_FORM: FormState = {
   ageGroups: [],
   assemblyMethod: "",
   designStyle: "",
+  manualOption: "",
   rushed: false,
   packaging: "",
 };
 
 /** 선호 작가 — 값은 quote-labels.ts 의 STYLE_LABELS 와 일치해야 한다 */
 const STYLE_OPTIONS: { value: StyleType; label: string; desc: string }[] = [
-  { value: "osegi",     label: "오세기",   desc: "액션 페이퍼 토이 · 움직이는 기믹 구조 설계" },
-  { value: "cheolho",   label: "김철호",   desc: "페이퍼크래프트 설계 · 정교한 전개도와 리얼리즘" },
-  { value: "jaeho",     label: "문재호",   desc: "미니어처 전문 · 작은 스케일의 정밀 디테일" },
-  { value: "recommend", label: "추천받기", desc: "의뢰 내용에 맞는 작가를 PE Studio가 배정합니다" },
+  { value: "osegi",     label: "오세기",   desc: "액션 페이퍼 토이 · 움직이는 기믹 구조를 설계합니다." },
+  { value: "cheolho",   label: "김철호",   desc: "페이퍼크래프트 설계 · 정교한 전개도와 리얼리즘을 구현합니다." },
+  { value: "jaeho",     label: "문재호",   desc: "미니어처 전문 · 작은 스케일의 정밀 디테일을 살립니다." },
+  { value: "recommend", label: "추천받기", desc: "의뢰 내용에 맞는 작가를 PE Studio가 배정합니다." },
 ];
 
 const PACKAGING_OPTIONS: { value: PackagingType; label: string; desc: string }[] = [
@@ -245,11 +253,14 @@ function draftSummary(f: FormState): string {
 function EstimatePanel({
   estimate,
   packagingLabel,
+  manualLabel,
   compact = false,
   onConsult,
 }: {
   estimate: QuoteEstimate;
   packagingLabel: string;
+  /** 설명서 생산 선택지 짧은 라벨 — 내역 행 표시용 */
+  manualLabel: string;
   compact?: boolean;
   /** '담당자와 상의' — 연락처 단계로 직행. 견적 아래에 버튼으로 노출 */
   onConsult?: () => void;
@@ -262,7 +273,7 @@ function EstimatePanel({
       onClick={onConsult}
       className="mt-4 w-full rounded-xl py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
       style={{ background: "#1E22B2" }}
-      title="입력을 건너뛰고 연락처만 남기기 — 담당자가 직접 상담해 드립니다"
+      title="입력을 건너뛰고 연락처만 남기기 — 담당자가 직접 상담해 드립니다."
     >
       💬 담당자와 상의
     </button>
@@ -292,7 +303,7 @@ function EstimatePanel({
       </div>
 
       <p className="mt-1.5 text-2xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
-        {formatFrom(estimate.totalMin)}
+        {formatApprox(estimate.totalMin)}
       </p>
 
       {!compact && (
@@ -301,14 +312,22 @@ function EstimatePanel({
             <div className="flex justify-between gap-2">
               <dt>{estimate.costLabel} · {estimate.designCount}종</dt>
               <dd className="tabular-nums whitespace-nowrap">
-                {formatFrom(estimate.designMin)}
+                {formatApprox(estimate.designMin)}
               </dd>
             </div>
             {spec.hasProduction && estimate.productionMin > 0 && (
               <div className="flex justify-between gap-2">
-                <dt>생산비 · {estimate.designCount}종</dt>
+                <dt>생산비 · {estimate.totalQuantity.toLocaleString("ko-KR")}부</dt>
                 <dd className="tabular-nums whitespace-nowrap">
                   {formatKrw(estimate.productionMin)}
+                </dd>
+              </div>
+            )}
+            {estimate.manualCost > 0 && (
+              <div className="flex justify-between gap-2">
+                <dt>설명서{manualLabel ? ` · ${manualLabel}` : ""}</dt>
+                <dd className="tabular-nums whitespace-nowrap">
+                  {formatKrw(estimate.manualCost)}
                 </dd>
               </div>
             )}
@@ -347,7 +366,7 @@ function EstimatePanel({
 
           {estimate.quantityMissing && (
             <p className="mt-2 text-xs text-amber-700">
-              수량을 입력하면 포장비까지 포함한 금액을 보여드립니다.
+              수량을 입력하면 생산비·포장비까지 포함한 금액을 보여드립니다.
             </p>
           )}
 
@@ -386,7 +405,7 @@ function hasDraftContent(f: FormState): boolean {
   const filled = [
     f.quantity, f.deliveryDate, f.purpose, f.styleType, f.productText,
     f.colorRequest, f.notes, f.name, f.email, f.phone, f.packaging,
-    f.assemblyMethod, f.designStyle,
+    f.assemblyMethod, f.designStyle, f.manualOption,
   ].some((v) => String(v ?? "").trim() !== "");
   /* 디자인 줄은 폼을 열 때 빈 줄 하나가 기본으로 생긴다 —
      그걸 "작성 중이던 내용"으로 세면 매번 이어쓰기를 묻게 된다. */
@@ -539,6 +558,7 @@ export default function QuoteForm() {
                 quantity: ORDER_TYPE_SPECS[f.orderType].hasQuantity
                   ? String(ORDER_TYPE_SPECS[f.orderType].defaultQuantity)
                   : "",
+                complexity: "",
                 file: null,
               },
             ],
@@ -623,6 +643,7 @@ export default function QuoteForm() {
                 quantity: ORDER_TYPE_SPECS[prev.orderType].hasQuantity
                   ? String(ORDER_TYPE_SPECS[prev.orderType].defaultQuantity)
                   : "",
+                complexity: "",
                 file: null,
               },
             ],
@@ -667,12 +688,17 @@ export default function QuoteForm() {
         sampling: form.sampling,
         samplingImprove: form.samplingImprove,
         supervision: form.supervision,
+        manual: form.manualOption,
       }),
-    [form.orderType, form.designs, form.packaging, form.sampling, form.samplingImprove, form.supervision]
+    [form.orderType, form.designs, form.packaging, form.sampling, form.samplingImprove, form.supervision, form.manualOption]
   );
 
   /** 현재 주문 형태의 사양 — 수량을 받는지, 포장이 의미 있는지 */
   const orderSpec = ORDER_TYPE_SPECS[form.orderType];
+
+  /** 설명서 생산 선택지 짧은 라벨 — 견적 내역 행 표시용 */
+  const manualShortLabel =
+    form.manualOption === "qr" ? "QR·영상" : form.manualOption === "print" ? "인쇄" : "";
 
   /**
    * 주문 형태 변경. 직접 적어 둔 수량은 살리고, 기본값 그대로인 줄만 갈아끼운다 —
@@ -692,6 +718,14 @@ export default function QuoteForm() {
         ),
         // 도면만 의뢰는 포장 개념이 없다 — 남겨 두면 견적에 유령처럼 남는다
         packaging: nextSpec.hasPackaging ? prev.packaging : "",
+        // 완제품 의뢰는 이용 연령·만드는 방식을 묻지 않는다 — 화면에서 숨긴 값이 접수되지 않게 비운다
+        ageGroups: next === "finished" ? [] : prev.ageGroups,
+        assemblyMethod: next === "finished" ? "" : prev.assemblyMethod,
+        // 설명서 생산 — 완제품(조립 완료)은 개념이 없고, 도면만 의뢰는 인쇄 설명서(부수 기반)를 만들 수 없다
+        manualOption:
+          next === "finished" ? "" :
+          !nextSpec.hasQuantity && prev.manualOption === "print" ? "" :
+          prev.manualOption,
       };
     });
   };
@@ -878,7 +912,7 @@ export default function QuoteForm() {
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full mb-6 bg-white/10 text-white border border-white/15">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            1분이면 충분합니다
+            1분이면 충분합니다.
           </span>
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 tracking-tight leading-[1.1]">
             <span className="pe-gradient-text">제작 문의</span>
@@ -962,7 +996,7 @@ export default function QuoteForm() {
                     어떤 제품을 원하시나요?
                   </h2>
                   <p className="text-slate-500 text-sm" style={{ wordBreak: "keep-all" }}>
-                    제품 종류를 알고 계시면 종류별로, 잘 모르시면 용도별로 선택하세요.
+                    제품 종류를 알고 계시면 종류별로, 잘 모르시면 용도별로 선택해 주세요.
                     아직 정하지 못했다면 그냥 다음으로 넘어가셔도 됩니다.
                   </p>
                 </div>
@@ -1094,7 +1128,7 @@ export default function QuoteForm() {
                       : "border-dashed border-slate-300 text-slate-500 hover:border-slate-400"
                   }`}
                 >
-                  잘 모르겠어요 — 담당자와 상의하고 싶어요
+                  잘 모르겠습니다 — 담당자와 상의하고 싶습니다.
                 </button>
               </div>
             )}
@@ -1165,8 +1199,24 @@ export default function QuoteForm() {
                             <div className="font-semibold text-slate-900 text-sm mb-1">{o.label}</div>
                             <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>{o.desc}</div>
                             <div className="mt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
-                              {o.costLabel} {formatKrw(o.costMin)}~ / 종
-                              {o.hasProduction && " + 생산비"}
+                              {t === "blueprint" ? (
+                                /* 도면만 의뢰 — 모델 구조(난이도)별 디자인비를 상자 안에 그대로 보여준다 */
+                                <>
+                                  <div style={{ wordBreak: "keep-all" }}>모델 구조에 따라 가격이 결정됩니다.</div>
+                                  <ul className="mt-1.5 space-y-0.5 font-medium text-slate-600 tabular-nums">
+                                    {COMPLEXITY_LEVELS.map((c) => (
+                                      <li key={c} className="flex justify-between gap-2">
+                                        <span>{COMPLEXITY_SPECS[c].label}</span>
+                                        <span>{COMPLEXITY_SPECS[c].priceLabel}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </>
+                              ) : t === "production" ? (
+                                <>디자인비 + 생산비 / 종</>
+                              ) : (
+                                <>{o.costLabel} {formatKrw(o.costMin)}~ / 종</>
+                              )}
                             </div>
                           </button>
                         );
@@ -1204,7 +1254,8 @@ export default function QuoteForm() {
                     </div>
                   </div>
 
-                  {/* 제품 이용 연령 — 복수 선택 */}
+                  {/* 제품 이용 연령 — 복수 선택 (완제품 의뢰는 완성품을 받으므로 묻지 않는다) */}
+                  {form.orderType !== "finished" && (
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-1">
                       제품 이용 연령
@@ -1237,8 +1288,10 @@ export default function QuoteForm() {
                       })}
                     </div>
                   </div>
+                  )}
 
-                  {/* 만드는 방식 — 목공풀 / 끼워 만들기 / PE 스튜디오 추천 */}
+                  {/* 만드는 방식 — 목공풀 / 끼워 만들기 / 전문가 추천 (완제품 의뢰 시 숨김) */}
+                  {form.orderType !== "finished" && (
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-3">만드는 방식</span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1265,6 +1318,7 @@ export default function QuoteForm() {
                       })}
                     </div>
                   </div>
+                  )}
 
 
                   <SubsectionHeader color="#1E22B2" en="Artist" ko="선호 작가" />
@@ -1312,7 +1366,7 @@ export default function QuoteForm() {
                         {
                           key: "sampling" as const,
                           checked: form.sampling,
-                          label: "샘플링을 희망합니다",
+                          label: "샘플링을 희망합니다.",
                           desc: "생산 전 완제품을 수제작하여 샘플로 보내드립니다.",
                           badge: "+2주",
                         },
@@ -1368,10 +1422,16 @@ export default function QuoteForm() {
                       <span className="text-sm font-semibold text-slate-700">제작 희망 디자인 종 수</span>
                       <span className="text-[11px] text-slate-400 tabular-nums">{form.designs.length}/{MAX_DESIGNS}종</span>
                     </div>
-                    <p className="text-xs text-slate-500 mb-3" style={{ wordBreak: "keep-all" }}>
+                    <p className="text-xs text-slate-500 mb-2" style={{ wordBreak: "keep-all" }}>
                       만들고 싶은 디자인을 종류별로 추가해 주세요. 종류 수와 총 수량이 자동으로 계산됩니다.
                       메인 캐릭터 및 디자인을 1종으로 계산합니다.
                     </p>
+                    {orderSpec.hasComplexity && (
+                      <p className="text-xs font-semibold text-rose-600 mb-3" style={{ wordBreak: "keep-all" }}>
+                        견적을 편하게 예상하실 수 있도록 모델 설계 난이도를 선택하실 수 있게 하였습니다.
+                        난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다.
+                      </p>
+                    )}
 
                     {form.designs.length > 0 && (
                       <ul className="space-y-2 mb-3">
@@ -1383,7 +1443,7 @@ export default function QuoteForm() {
                                 type="text"
                                 value={d.name}
                                 onChange={(e) => patchDesign(d.id, { name: e.target.value })}
-                                placeholder="캐릭터 이름을 입력해주세요"
+                                placeholder="캐릭터 이름을 입력해 주세요."
                                 aria-label={`디자인 ${i + 1} 이름`}
                                 className="min-w-[8rem] flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#1E22B2]"
                               />
@@ -1445,6 +1505,34 @@ export default function QuoteForm() {
                                 ✕
                               </button>
                             </div>
+
+                            {/* 모델 설계 난이도 — 디자인비가 여기서 결정된다 (완제품 의뢰는 제작비 일원화라 묻지 않는다) */}
+                            {orderSpec.hasComplexity && (
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:pl-8">
+                                <span className="text-[11px] text-slate-400 mr-0.5">설계 난이도</span>
+                                {COMPLEXITY_LEVELS.map((c) => {
+                                  const isActive = d.complexity === c;
+                                  return (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      onClick={() => patchDesign(d.id, { complexity: isActive ? "" : c })}
+                                      aria-pressed={isActive}
+                                      className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                                        isActive
+                                          ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] font-semibold"
+                                          : "border-slate-200 text-slate-500 hover:border-blue-200"
+                                      }`}
+                                    >
+                                      {COMPLEXITY_SPECS[c].label}
+                                      <span className={`ml-1 tabular-nums ${isActive ? "" : "text-slate-400"}`}>
+                                        {COMPLEXITY_SPECS[c].priceLabel}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -1461,9 +1549,44 @@ export default function QuoteForm() {
                     )}
 
                     {estimate.quantityMissing && (
-                      <p className="text-xs text-amber-700 mt-2">수량을 입력하면 포장비까지 포함한 금액을 보여드립니다.</p>
+                      <p className="text-xs text-amber-700 mt-2">수량을 입력하면 생산비·포장비까지 포함한 금액을 보여드립니다.</p>
                     )}
                   </div>
+
+                  {/* 설명서 생산 — 조립 안내 제공 방식 (완제품 의뢰는 조립까지 끝나 있어 묻지 않는다) */}
+                  {form.orderType !== "finished" && (
+                  <div>
+                    <span className="block text-sm font-semibold text-slate-700 mb-3">설명서 생산</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* 인쇄 설명서(부수당)는 수량이 있는 주문(제품 생산)에서만 의미가 있다 */}
+                      {MANUAL_OPTIONS.filter((m) => m !== "print" || orderSpec.hasQuantity).map((m) => {
+                        const mSpec = MANUAL_OPTION_SPECS[m];
+                        const isActive = form.manualOption === m;
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => update("manualOption", isActive ? "" : m)}
+                            aria-pressed={isActive}
+                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                              isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
+                            }`}
+                          >
+                            <div className="font-semibold text-slate-900 text-sm mb-1" style={{ wordBreak: "keep-all" }}>
+                              {mSpec.label}
+                            </div>
+                            <div className="text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
+                              {mSpec.desc}
+                            </div>
+                            <div className="mt-2 text-[11px] font-semibold" style={{ color: "#1E22B2" }}>
+                              {mSpec.priceLabel}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  )}
 
                   {/* 포장 방식 — 실물이 있는 주문에서만 */}
                   {orderSpec.hasPackaging && (
@@ -1671,7 +1794,7 @@ export default function QuoteForm() {
                 <div className="bg-slate-50 rounded-2xl border border-slate-100 p-5">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-bold text-slate-900">입력 내용 요약</span>
-                    <span className="text-[11px] text-slate-400">비워둔 항목은 상담으로 결정</span>
+                    <span className="text-[11px] text-slate-400">비워둔 항목은 상담으로 결정됩니다.</span>
                   </div>
                   <dl className="space-y-2 text-sm">
                     {[
@@ -1694,6 +1817,11 @@ export default function QuoteForm() {
                         edit: 2,
                       },
                       { label: "납기", value: form.rushed ? "최대한 빠르게" : form.deliveryDate, edit: 2 },
+                      {
+                        label: "설명서",
+                        value: isManualOption(form.manualOption) ? MANUAL_OPTION_SPECS[form.manualOption].label : "",
+                        edit: 2,
+                      },
                       { label: "포장", value: PACKAGING_OPTIONS.find((p) => p.value === form.packaging)?.label ?? "", edit: 2 },
                     ].map((row) => (
                       <div key={row.label} className="flex items-center gap-2">
@@ -1838,6 +1966,7 @@ export default function QuoteForm() {
             <EstimatePanel
               estimate={estimate}
               packagingLabel={PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label ?? ""}
+              manualLabel={manualShortLabel}
               compact
               onConsult={jumpToConsult}
             />
@@ -1851,6 +1980,7 @@ export default function QuoteForm() {
             <EstimatePanel
               estimate={estimate}
               packagingLabel={PACKAGING_OPTIONS.find((o) => o.value === form.packaging)?.label ?? ""}
+              manualLabel={manualShortLabel}
               onConsult={jumpToConsult}
             />
           </aside>

@@ -1,15 +1,18 @@
 /**
  * 제작 문의 개략 견적 — 클라이언트/서버 공용 순수 로직.
  *
- * 확정 견적이 아니라 **범위 안내**다. 실제 금액은 구조 난이도·용지·후가공에
- * 따라 달라지므로 회신으로 안내한다.
+ * 확정 견적이 아니라 **개략 안내**다. 화면에는 "약 N만원"으로 보여주고,
+ * 실제 금액은 구조 난이도·용지·후가공에 따라 달라지므로 회신으로 안내한다.
  *
  * 금액 구조는 주문 형태(무엇을 받을 것인가)에 따라 통째로 달라진다.
  * 메인 캐릭터 및 디자인을 1종으로 계산한다:
  *
- *   도면만 의뢰  디자인비만 (100만~500만/종). 실물이 없으니 수량·포장 개념이 없다.
- *   제품 생산    도면 디자인비 + 생산비(종 수 기반 정액: 1종 400만,
- *                2종째 +250만, 3종째부터 +200만씩) + 포장비(수량×단가).
+ *   도면만 의뢰  디자인비만. 모델 구조(설계 난이도)에 따라 종당
+ *                단순함 ~100만 / 일반적 200만 / 복잡함 300만~ 로 결정된다.
+ *                실물이 없으니 수량·포장 개념이 없다.
+ *   제품 생산    종당 [디자인비(난이도) + 생산비(그 종의 수량 기반:
+ *                첫 1,000부 400만, 둘째 +250만, 셋째부터 +200만씩)]
+ *                + 설명서 생산비 + 포장비(수량×단가).
  *   완제품 의뢰  제작비 하나로 묶는다 (300만~/종). 조립·설치까지 포함이라
  *                수량으로 곱하지 않는다.
  */
@@ -22,24 +25,60 @@ export function isOrderType(v: unknown): v is OrderType {
   return typeof v === "string" && (ORDER_TYPES as readonly string[]).includes(v);
 }
 
-/* ── 생산비 (제품 생산일 때만) ──
- * 부수가 아니라 **종 수** 기반 정액이다. 첫 종이 라인 셋업까지 짊어져서
- * 가장 비싸고, 종이 늘수록 한 종당 부담이 줄어든다. */
+/* ── 모델 설계 난이도 ──
+ * 디자인비는 모델 구조에 따라 결정된다. 고객이 라인마다 골라 견적을 미리
+ * 가늠하게 하되, 최종 난이도는 PE 스튜디오가 책정한다(폼에 안내 문구). */
 
-/** 생산 1종째 비용 (원) */
+export const COMPLEXITY_LEVELS = ["simple", "normal", "complex"] as const;
+export type Complexity = (typeof COMPLEXITY_LEVELS)[number];
+
+export function isComplexity(v: unknown): v is Complexity {
+  return typeof v === "string" && (COMPLEXITY_LEVELS as readonly string[]).includes(v);
+}
+
+export const COMPLEXITY_SPECS: Record<
+  Complexity,
+  { label: string; cost: number; priceLabel: string }
+> = {
+  simple:  { label: "단순함", cost: 1_000_000, priceLabel: "~100만원" },
+  normal:  { label: "일반적", cost: 2_000_000, priceLabel: "200만원" },
+  complex: { label: "복잡함", cost: 3_000_000, priceLabel: "300만원 ~" },
+};
+
+/** 난이도 미선택 라인은 '일반적'으로 계산한다 — 가장 흔한 케이스라 "약"에 걸맞다 */
+export const DEFAULT_COMPLEXITY: Complexity = "normal";
+
+/** 라인의 디자인비 — 선택한 난이도, 없으면 기본 난이도 기준 */
+export function designCostOf(line: Pick<DesignLine, "complexity">): number {
+  const c = isComplexity(line.complexity) ? line.complexity : DEFAULT_COMPLEXITY;
+  return COMPLEXITY_SPECS[c].cost;
+}
+
+/* ── 생산비 (제품 생산일 때만) ──
+ * 종마다 그 종의 수량을 1,000부 블록으로 올림해 사다리에 태운다.
+ * 첫 블록이 라인 셋업까지 짊어져서 가장 비싸고, 수량이 늘수록
+ * 1,000부당 부담이 줄어든다. */
+
+/** 생산 첫 1,000부 비용 (원) */
 export const PRODUCTION_FIRST_COST = 4_000_000;
-/** 생산 2종째 추가 비용 (원) */
+/** 생산 둘째 1,000부 추가 비용 (원) */
 export const PRODUCTION_SECOND_COST = 2_500_000;
-/** 생산 3종째부터 종당 추가 비용 (원) */
+/** 생산 셋째 1,000부부터 블록당 추가 비용 (원) */
 export const PRODUCTION_NEXT_COST = 2_000_000;
 
-/** 종 수 → 생산비 정액. 1종 400만 / 2종 650만 / 3종 850만 / 이후 +200만씩 */
-export function productionCost(designCount: number): number {
-  if (designCount <= 0) return 0;
+/** 1,000부 블록 수 → 생산비. 1블록 400만 / 2블록 650만 / 3블록 850만 / 이후 +200만씩 */
+export function productionCost(units: number): number {
+  if (units <= 0) return 0;
   let cost = PRODUCTION_FIRST_COST;
-  if (designCount >= 2) cost += PRODUCTION_SECOND_COST;
-  if (designCount >= 3) cost += (designCount - 2) * PRODUCTION_NEXT_COST;
+  if (units >= 2) cost += PRODUCTION_SECOND_COST;
+  if (units >= 3) cost += (units - 2) * PRODUCTION_NEXT_COST;
   return cost;
+}
+
+/** 한 종의 생산비 — 수량을 1,000부 단위로 올림해 사다리에 적용 */
+export function productionCostForQuantity(quantity: number): number {
+  if (quantity <= 0) return 0;
+  return productionCost(Math.ceil(quantity / QUANTITY_STEP));
 }
 
 /**
@@ -58,14 +97,53 @@ export const PACKAGING_UNIT_COST: Record<string, number> = {
 /** 수량 입력 단위 — 1,000부 단위로 받는다 */
 export const QUANTITY_STEP = 1_000;
 
+/* ── 설명서 생산 ──
+ * 조립 안내를 어떻게 제공할지. 도면 내 가이드는 무료, QR·영상은 종당 정액,
+ * 인쇄 설명서는 부수당 단가로 계산한다. */
+
+export const MANUAL_OPTIONS = ["guide", "qr", "print"] as const;
+export type ManualOption = (typeof MANUAL_OPTIONS)[number];
+
+export function isManualOption(v: unknown): v is ManualOption {
+  return typeof v === "string" && (MANUAL_OPTIONS as readonly string[]).includes(v);
+}
+
+/** QR 코드·영상 삽입 — 종당 (원) */
+export const MANUAL_QR_COST = 1_000_000;
+/** 설명서·표지 인쇄 — 부수당 (원) */
+export const MANUAL_PRINT_UNIT_COST = 300;
+
+export const MANUAL_OPTION_SPECS: Record<
+  ManualOption,
+  { label: string; desc: string; priceLabel: string }
+> = {
+  guide: {
+    label: "도면 내 간단한 조립 가이드로 갈음",
+    desc: "도면 안에 조립 순서를 간단히 표기합니다.",
+    priceLabel: "무료",
+  },
+  qr: {
+    label: "도면 내 QR 코드 및 영상 삽입",
+    desc: "QR 코드를 스캔하면 조립 영상으로 연결됩니다.",
+    priceLabel: "+100만원 ~ / 종",
+  },
+  print: {
+    label: "설명서 및 표지 생산",
+    desc: "OPP 및 박스 생산 시 추천합니다.",
+    priceLabel: "부수당 300원",
+  },
+};
+
 interface OrderTypeSpec {
   label: string;
   desc: string;
   /** 견적에서 디자인 비용을 부르는 이름 — 완제품은 '제작비' */
   costLabel: string;
-  /** 1종당 비용 (원) */
+  /** 1종당 비용 (원) — 난이도별 디자인비를 쓰는 형태는 min=단순함, max=복잡함 */
   costMin: number;
   costMax: number;
+  /** 디자인비가 모델 설계 난이도로 결정되는가 (도면만·제품 생산) */
+  hasComplexity: boolean;
   /** 수량에 비례하는 생산비가 붙는가 */
   hasProduction: boolean;
   /** 포장 선택·비용이 의미 있는가 */
@@ -79,10 +157,11 @@ interface OrderTypeSpec {
 export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
   blueprint: {
     label: "도면만 의뢰",
-    desc: "전개도·설계 데이터만 받습니다. 생산은 직접 진행하시는 경우.",
+    desc: "전개도·설계 데이터만 받습니다. 생산을 직접 진행하시는 경우에 적합합니다.",
     costLabel: "디자인비",
     costMin: 1_000_000,
-    costMax: 5_000_000,
+    costMax: 3_000_000,
+    hasComplexity: true,
     hasProduction: false,
     hasPackaging: false,
     hasQuantity: false,
@@ -91,10 +170,11 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
   production: {
     label: "제품 생산",
     // 디자인비는 도면만 의뢰와 같은 도면 디자인 비용 — 생산비가 따로 붙는다
-    desc: "디자인부터 인쇄·재단까지. 완성된 키트를 납품받습니다.",
+    desc: "디자인부터 인쇄·재단까지 진행합니다. 완성된 키트를 납품받습니다.",
     costLabel: "디자인비",
     costMin: 1_000_000,
-    costMax: 5_000_000,
+    costMax: 3_000_000,
+    hasComplexity: true,
     hasProduction: true,
     hasPackaging: true,
     hasQuantity: true,
@@ -106,6 +186,7 @@ export const ORDER_TYPE_SPECS: Record<OrderType, OrderTypeSpec> = {
     costLabel: "제작비",
     costMin: 3_000_000,
     costMax: 10_000_000,
+    hasComplexity: false,
     hasProduction: false,
     // 조립까지 끝난 완성품이라 키트 포장 개념이 없다 — 포장 선택지를 보여주지 않는다
     hasPackaging: false,
@@ -132,6 +213,8 @@ export interface QuoteExtras {
   supervision?: boolean;
   /** 별도 가공·고급 소재 — 금액은 상담, 납기 +1주 */
   premiumFinish?: boolean;
+  /** 설명서 생산 — guide(무료) / qr(종당 100만) / print(부수당 300원) */
+  manual?: string;
 }
 
 /** 주문 형태별 기본 납기 (주) — 도면만 2주, 생산·완제품 4주 */
@@ -181,6 +264,8 @@ export interface DesignLine {
   name: string;
   /** 이 디자인의 생산 수량 (개). 빈 문자열이면 미입력 */
   quantity: string;
+  /** 모델 설계 난이도 — simple/normal/complex. 빈 문자열이면 미선택(기본 난이도로 계산) */
+  complexity?: Complexity | "";
   /** 이 디자인의 참고 자료 (선택) */
   file: { name: string; url: string } | null;
 }
@@ -201,6 +286,8 @@ export interface QuoteEstimate {
   packagingCost: number;
   /** 개당 포장 단가 (원) — 화면에 근거로 함께 보여준다 */
   packagingUnitCost: number;
+  /** 설명서 생산비 — qr: 종당 100만 / print: 부수당 300원 (미선택·guide 는 0) */
+  manualCost: number;
   /** 샘플링 정액 비용 (미선택 시 0) — 하한·상한 양쪽에 더해진다 */
   samplingCost: number;
   /** 샘플링 후 디자인 개선 정액 비용 (미선택 시 0) */
@@ -220,7 +307,7 @@ export function parseQuantity(v: string): number {
 }
 
 /**
- * 주문 형태 + 디자인 라인 + 포장 → 개략 견적.
+ * 주문 형태 + 디자인 라인 + 포장 + 옵션 → 개략 견적.
  *
  * 라인이 없으면 전부 0 — 폼에서는 이때 금액 대신 안내 문구를 보여준다.
  * (0원 범위를 그대로 보여주면 "무료"로 읽힌다)
@@ -237,21 +324,37 @@ export function estimateQuote(
     ? lines.reduce((sum, l) => sum + parseQuantity(l.quantity), 0)
     : 0;
 
-  const designMin = designCount * spec.costMin;
-  const designMax = designCount * spec.costMax;
+  /* 디자인비 — 난이도를 쓰는 형태(도면만·제품 생산)는 라인별 난이도 합.
+     난이도는 확정값이라 하한·상한이 같다. 완제품은 종당 범위 그대로. */
+  const designMin = spec.hasComplexity
+    ? lines.reduce((sum, l) => sum + designCostOf(l), 0)
+    : designCount * spec.costMin;
+  const designMax = spec.hasComplexity ? designMin : designCount * spec.costMax;
 
-  // 생산비는 종 수 기반 정액 — 하한·상한이 같다
-  const production = spec.hasProduction ? productionCost(designCount) : 0;
+  /* 생산비 — 종마다 그 종의 수량을 1,000부 사다리에 태워 합산. 정액이라 하한=상한 */
+  const production = spec.hasProduction
+    ? lines.reduce((sum, l) => sum + productionCostForQuantity(parseQuantity(l.quantity)), 0)
+    : 0;
   const productionMin = production;
   const productionMax = production;
 
   const packagingUnitCost = spec.hasPackaging ? PACKAGING_UNIT_COST[packaging] ?? 0 : 0;
   const packagingCost = totalQuantity * packagingUnitCost;
 
+  /* 설명서 생산비 — 완제품(조립 완료)은 설명서 개념이 없어 계산하지 않는다 */
+  const manualCost =
+    orderType === "finished"
+      ? 0
+      : extras.manual === "qr"
+        ? designCount * MANUAL_QR_COST
+        : extras.manual === "print"
+          ? totalQuantity * MANUAL_PRINT_UNIT_COST
+          : 0;
+
   const samplingCost = extras.sampling ? SAMPLING_COST : 0;
   const samplingImproveCost = extras.samplingImprove ? SAMPLING_IMPROVE_COST : 0;
   const supervisionCost = extras.supervision ? SUPERVISION_COST : 0;
-  const optionsCost = samplingCost + samplingImproveCost + supervisionCost;
+  const optionsCost = samplingCost + samplingImproveCost + supervisionCost + manualCost;
 
   return {
     orderType,
@@ -264,6 +367,7 @@ export function estimateQuote(
     productionMax,
     packagingCost,
     packagingUnitCost,
+    manualCost,
     samplingCost,
     samplingImproveCost,
     supervisionCost,
@@ -295,12 +399,17 @@ export function formatRange(min: number, max: number): string {
 }
 
 /**
- * "100만원~" 형태의 시작 금액 문자열.
+ * "약 100만원" 형태의 개략 금액 문자열.
  *
- * 고객 화면에는 상한을 보여주지 않는다 — 상한(600만·1,500만원 등)이 먼저
- * 눈에 들어와 문의 자체를 접는 경우가 있어, 최소 금액만 안내하고
- * 정확한 금액은 상담으로 잇는다.
+ * 고객 화면의 예상 견적은 범위("N만원~")가 아니라 이 표기를 쓴다 —
+ * 난이도·수량 기반으로 산식이 확정적이 되면서 "대략 이 정도"를
+ * 한 숫자로 말하는 편이 읽기 쉽다. 정확한 금액은 상담으로 잇는다.
  */
+export function formatApprox(n: number): string {
+  return `약 ${formatKrw(n)}`;
+}
+
+/** "100만원~" 형태의 시작 금액 문자열 — 주문 형태 카드 등 범위 안내용 */
 export function formatFrom(min: number): string {
   return `${formatKrw(min)}~`;
 }
