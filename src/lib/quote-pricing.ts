@@ -42,7 +42,7 @@ export const COMPLEXITY_SPECS: Record<
 > = {
   simple:  { label: "단순함", cost: 1_000_000, priceLabel: "~100만원" },
   normal:  { label: "일반적", cost: 2_000_000, priceLabel: "200만원" },
-  complex: { label: "복잡함", cost: 3_000_000, priceLabel: "300만원 ~" },
+  complex: { label: "복잡함", cost: 3_000_000, priceLabel: "300만원~" },
 };
 
 /** 난이도 미선택 라인은 '일반적'으로 계산한다 — 가장 흔한 케이스라 "약"에 걸맞다 */
@@ -118,14 +118,14 @@ export const MANUAL_OPTION_SPECS: Record<
   { label: string; desc: string; priceLabel: string }
 > = {
   guide: {
-    label: "도면 내 간단한 조립 가이드로 갈음",
-    desc: "도면 안에 조립 순서를 간단히 표기합니다.",
+    label: "도면 내 조립 가이드",
+    desc: "도면 안에 조립 순서를 표기해 별도 설명서를 갈음합니다.",
     priceLabel: "무료",
   },
   qr: {
-    label: "도면 내 QR 코드 및 영상 삽입",
+    label: "도면 내 QR 코드·영상 삽입",
     desc: "QR 코드를 스캔하면 조립 영상으로 연결됩니다.",
-    priceLabel: "+100만원 ~ / 종",
+    priceLabel: "종당 100만원~",
   },
   print: {
     label: "설명서 및 표지 생산",

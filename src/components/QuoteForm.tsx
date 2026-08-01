@@ -103,7 +103,7 @@ interface FormState {
   ageGroups: string[];
   /** 만드는 방식 — 목공풀 / 끼워 만들기 / 전문가 추천 (완제품 의뢰 시 숨김) */
   assemblyMethod: string;
-  /** 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / PE STUDIO 권장 */
+  /** 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / 전문가 추천 */
   designStyle: string;
   /** 설명서 생산 — guide(무료) / qr(+100만/종) / print(부수당 300원) */
   manualOption: string;
@@ -147,8 +147,12 @@ const ASSEMBLY_OPTIONS: { value: string; desc: string }[] = [
   { value: "전문가 추천", desc: "PE 스튜디오가 추천해주는 방식대로 만듭니다." },
 ];
 
-/** 디자인 설계 스타일 — 저장값 = 라벨 그대로 */
-const DESIGN_STYLES = ["폴리곤 방식", "파츠 결합 방식", "PE STUDIO의 권장 방식"];
+/** 디자인 설계 스타일 — 저장값 = 라벨 그대로. 추천 옵션 어투는 만드는 방식과 통일("전문가 추천") */
+const DESIGN_STYLE_OPTIONS: { value: string; desc: string }[] = [
+  { value: "폴리곤 방식", desc: "다각형 면을 접어 형태를 만드는 방식으로, 각진 조형미를 살립니다." },
+  { value: "파츠 결합 방식", desc: "부위별 파츠를 만들어 결합하는 방식으로, 곡면과 디테일 표현에 유리합니다." },
+  { value: "전문가 추천", desc: "PE 스튜디오가 추천해주는 방식대로 설계합니다." },
+];
 
 const STEP_LABELS = ["제품 선택", "디자인·제작 옵션", "연락처"];
 const TOTAL_STEPS = STEP_LABELS.length;
@@ -1423,14 +1427,17 @@ export default function QuoteForm() {
                       <span className="text-[11px] text-slate-400 tabular-nums">{form.designs.length}/{MAX_DESIGNS}종</span>
                     </div>
                     <p className="text-xs text-slate-500 mb-2" style={{ wordBreak: "keep-all" }}>
-                      만들고 싶은 디자인을 종류별로 추가해 주세요. 종류 수와 총 수량이 자동으로 계산됩니다.
-                      메인 캐릭터 및 디자인을 1종으로 계산합니다.
+                      만들고 싶은 디자인을 종류별로 추가해 주세요.
+                      메인 캐릭터 및 디자인을 1종으로 보며, 종 수와 총 수량은 자동으로 집계됩니다.
                     </p>
                     {orderSpec.hasComplexity && (
-                      <p className="text-xs font-semibold text-rose-600 mb-3" style={{ wordBreak: "keep-all" }}>
-                        견적을 편하게 예상하실 수 있도록 모델 설계 난이도를 선택하실 수 있게 하였습니다.
-                        난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다.
-                      </p>
+                      /* 난이도 안내 — 날것의 붉은 문단 대신 옅은 콜아웃으로 (강조는 유지하되 소란스럽지 않게) */
+                      <div className="mb-3 rounded-xl border border-rose-100 bg-rose-50 px-3.5 py-2.5">
+                        <p className="text-xs font-medium leading-relaxed text-rose-700" style={{ wordBreak: "keep-all" }}>
+                          견적을 편하게 예상하실 수 있도록 모델 설계 난이도를 선택하실 수 있게 하였습니다.
+                          난이도는 PE 스튜디오가 책정하며, 이유를 함께 설명해 드립니다.
+                        </p>
+                      </div>
                     )}
 
                     {form.designs.length > 0 && (
@@ -1659,25 +1666,26 @@ export default function QuoteForm() {
 
                   <SubsectionHeader color="#7C3AED" en="Details" ko="추가 정보" />
 
-                  {/* 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / PE STUDIO 권장 */}
+                  {/* 디자인 설계 스타일 — 폴리곤 / 파츠 결합 / 전문가 추천 (각 방식 설명 포함) */}
                   <div>
                     <span className="block text-sm font-semibold text-slate-700 mb-3">디자인 설계 스타일</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {DESIGN_STYLES.map((s) => {
-                        const isActive = form.designStyle === s;
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {DESIGN_STYLE_OPTIONS.map((opt) => {
+                        const isActive = form.designStyle === opt.value;
                         return (
                           <button
-                            key={s}
+                            key={opt.value}
                             type="button"
-                            onClick={() => update("designStyle", isActive ? "" : s)}
+                            onClick={() => update("designStyle", isActive ? "" : opt.value)}
                             aria-pressed={isActive}
-                            className={`py-2.5 px-3 text-sm rounded-xl border-2 transition-colors ${
-                              isActive
-                                ? "border-[#1E22B2] bg-blue-50 text-[#1E22B2] font-semibold"
-                                : "border-slate-200 text-slate-600 hover:border-blue-200"
+                            className={`p-4 rounded-2xl border-2 text-left transition-all pe-paper-lift ${
+                              isActive ? "border-[#1E22B2] bg-blue-50" : "border-slate-200 hover:border-blue-200"
                             }`}
                           >
-                            {s}
+                            <div className="font-semibold text-slate-900 text-sm">{opt.value}</div>
+                            <div className="text-xs text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
+                              {opt.desc}
+                            </div>
                           </button>
                         );
                       })}
