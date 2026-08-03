@@ -12,6 +12,29 @@ import { SITE_NAME, SITE_URL, AUTHOR } from "@/lib/site";
 import { BlogThumbnail, blogVariantFromTag } from "@/components/paper-art";
 import { BlogCoverImage } from "@/components/BlogCoverImage";
 
+/** 본문에서 마크다운·인라인 HTML을 걷어낸 순수 글자 수 기준 예상 읽기 시간(분). 한국어 분당 ~500자 */
+function readingMinutes(content: string): number {
+  const plain = content
+    .replace(/<[^>]+>/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[#>*`~|_-]/g, "")
+    .replace(/\s+/g, "");
+  return Math.max(1, Math.round(plain.length / 500));
+}
+
+/** 소제목 텍스트 → 앵커 id (한글 유지, 공백은 하이픈) */
+function headingId(text: string): string {
+  return text.trim().replace(/\s+/g, "-").replace(/[^\p{L}\p{N}-]/gu, "");
+}
+
+/** 마크다운 본문에서 `## ` 소제목만 추출 (목차용) */
+function extractHeadings(content: string): string[] {
+  return content
+    .split("\n")
+    .filter((line) => /^##\s+/.test(line))
+    .map((line) => line.replace(/^##\s+/, "").trim());
+}
+
 export async function generateStaticParams() {
   try {
     const posts = await getPosts();
@@ -77,6 +100,26 @@ export default async function BlogPostPage({
       ? sameTag
       : [...sameTag, ...otherPosts.filter((p) => p.tag !== post.tag)]
   ).slice(0, 3);
+
+  const minutes = readingMinutes(post.content);
+  const headings = extractHeadings(post.content);
+
+  // 태그(독자층)에 맞춘 하단 CTA 문구 — 교육은 교구, 실무 태그는 견적으로
+  const cta =
+    post.tag === "교육"
+      ? {
+          title: "우리 학교·기관만의 교구를 고민 중이신가요?",
+          desc: "수업·체험 프로그램에 맞춘 종이 교구를 설계해 드립니다.",
+        }
+      : post.tag === "사례 연구"
+        ? {
+            title: "비슷한 프로젝트를 검토하고 계신가요?",
+            desc: "캐릭터·행사·굿즈, 어떤 형태든 사례 기준으로 상담해 드립니다.",
+          }
+        : {
+            title: "이런 작업을 직접 의뢰하고 싶으신가요?",
+            desc: "",
+          };
 
   const tagColors: Record<string, string> = {
     "제작 과정": "bg-orange-100 text-orange-700",
@@ -192,6 +235,8 @@ export default async function BlogPostPage({
           <span className="text-xs text-slate-500">
             글쓴이 <span className="font-medium text-slate-700">{AUTHOR.name}</span> · {AUTHOR.title}
           </span>
+          <span className="text-xs text-slate-300" aria-hidden>·</span>
+          <span className="text-xs text-slate-400">약 {minutes}분</span>
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4 leading-tight">
           {post.title}
@@ -203,11 +248,37 @@ export default async function BlogPostPage({
 
       <div className="border-t border-slate-200 mb-10" />
 
+      {/* 목차 — 소제목 3개 이상인 긴 글에만 */}
+      {headings.length >= 3 && (
+        <nav
+          aria-label="목차"
+          className="mb-10 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4"
+        >
+          <p className="text-xs font-semibold text-slate-400 mb-2">목차</p>
+          <ol className="space-y-1.5">
+            {headings.map((h) => (
+              <li key={h}>
+                <a
+                  href={`#${headingId(h)}`}
+                  className="text-sm text-slate-600 hover:text-orange-600 transition-colors"
+                >
+                  {h}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+
       <div className="prose prose-slate prose-lg max-w-none prose-headings:font-bold prose-a:text-orange-600 prose-img:rounded-xl">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeRaw]}
           components={{
+            h2: ({ children }) => {
+              const text = Array.isArray(children) ? children.join("") : String(children ?? "");
+              return <h2 id={headingId(text)}>{children}</h2>;
+            },
             a: ({ href, children }) => {
               const isExternal = !!href && /^https?:\/\//.test(href);
               return isExternal ? (
@@ -277,9 +348,10 @@ export default async function BlogPostPage({
       {/* 전환 CTA — 블로그 → 제품/견적 내부링크 */}
       <div className="mt-12 rounded-2xl border border-slate-200 bg-[#F0F2FF] p-6 text-center">
         <p className="font-semibold text-slate-900" style={{ wordBreak: "keep-all" }}>
-          이런 작업을 직접 의뢰하고 싶으신가요?
+          {cta.title}
         </p>
         <p className="text-sm text-slate-500 mt-1" style={{ wordBreak: "keep-all" }}>
+          {cta.desc && <>{cta.desc}{" "}</>}
           페이퍼 엔지니어링{" "}
           <Link href="/products" className="text-[#1E22B2] underline underline-offset-2">
             주문 제작 서비스
