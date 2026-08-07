@@ -46,3 +46,6 @@ vercel-check.png
 
 # Claude Code local dev config
 .claude/
+
+# claude local settings
+.claude/settings.local.json
