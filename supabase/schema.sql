@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS posts (
   emoji        TEXT NOT NULL DEFAULT '',
   cover_image  TEXT,
   published    BOOLEAN NOT NULL DEFAULT false,
+  queued       BOOLEAN NOT NULL DEFAULT false,
+  auto_published_at TIMESTAMPTZ,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

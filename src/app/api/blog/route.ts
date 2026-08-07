@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     emoji: body.emoji ?? "📝",
     coverImage: body.coverImage,
     published: body.published ?? false,
+    queued: body.queued ?? false,
     createdAt,
     updatedAt: now,
   };
