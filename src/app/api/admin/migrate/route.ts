@@ -39,6 +39,7 @@ const ALLOWED_FILES = new Set([
   "migrations/20260805_quote_sampling_age.sql",
   "migrations/20260806_quote_premium_assembly.sql",
   "migrations/20260807_quote_manual_option.sql",
+  "migrations/20260808_blog_scheduling.sql",
 ]);
 
 const SQL_DIR = "supabase";

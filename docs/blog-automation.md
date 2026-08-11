@@ -26,8 +26,12 @@ Vercel Cron (매일 16:30 KST, 하루 1회)                     ▼
 
 1. **DB 마이그레이션**: `supabase/migrations/20260808_blog_scheduling.sql` 적용
    (posts에 `queued`, `auto_published_at` 컬럼 추가).
-2. **환경변수** (Vercel): `CRON_SECRET` 설정 — Vercel Cron이 자동으로
-   `Authorization: Bearer $CRON_SECRET` 헤더를 붙인다.
+   **어드민 > DB 셋업**에 등록돼 있어 누락 시 화면에 표시되고 거기서 실행할 수 있다.
+   적용 전에도 글 저장은 되도록 `savePost()`가 예약 컬럼 없이 재시도한다(자동 발행만 멈춤).
+   미적용 상태로 크론이 돌면 `503 {"error":"migration-required"}`가 나온다.
+2. **환경변수** (Vercel): `CRON_SECRET` — 2026-08-11 프로덕션에 설정 완료.
+   Vercel Cron이 이 값이 있을 때만 `Authorization: Bearer $CRON_SECRET` 헤더를 붙인다.
+   **없으면 크론 호출이 전부 401**이 되니 지우지 말 것.
    기존 `BLOG_PUBLISH_SECRET`(`x-webhook-secret` 헤더)로도 수동 호출 가능.
 3. **크론 스케줄**: `vercel.json`의 `30 7 * * *` (UTC) = 매일 16:30 KST, 하루 1회.
    마지막 슬롯(16:00 KST)이 지난 뒤 두드리므로 슬롯 요일 당일에 발행된다.

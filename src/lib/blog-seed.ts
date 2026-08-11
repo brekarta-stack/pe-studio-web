@@ -349,7 +349,7 @@ export const SEED_POSTS: Post[] = [
 
   {
     id: "seed-what-is-paper-engineering",
-    coverImage: "https://images.unsplash.com/photo-1661249134048-8f8328708fba?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/13cb54ca-9750-4bad-ad03-256c0ab89bd6.jpg",
     slug: "what-is-paper-engineering",
     title: "페이퍼 엔지니어링은 종이접기와 무엇이 다른가",
     excerpt:
@@ -385,7 +385,7 @@ ${FigGeometry}
   },
   {
     id: "seed-five-ways-to-move-paper",
-    coverImage: "https://images.unsplash.com/photo-1630170947523-1b7b61c442a2?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/7d07db33-9d4c-4232-8b5c-702db03cda3e.jpg",
     slug: "five-ways-to-move-paper",
     title: "종이를 움직이는 다섯 가지 방법",
     excerpt:
@@ -419,7 +419,7 @@ ${FigMechanisms}
   },
   {
     id: "seed-how-pop-up-books-work",
-    coverImage: "https://images.unsplash.com/photo-1778967809341-599c49a47012?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/e55fb0f0-0cd9-4c82-9fb2-3a8685dae019.jpg",
     slug: "how-pop-up-books-work",
     title: "팝업북은 어떻게 펼쳐지는가",
     excerpt:
@@ -449,7 +449,7 @@ ${FigGeometry}
   },
   {
     id: "seed-foamboard-woodlock-structures",
-    coverImage: "https://images.unsplash.com/photo-1509956563346-93a1179cea68?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/ebfd13ac-6fff-41b4-bde7-ec0b31bd0301.jpg",
     slug: "foamboard-woodlock-structures",
     title: "폼보드와 우드락 — 접착제 없이 끼워 세우는 입체",
     excerpt:
@@ -477,7 +477,7 @@ ${FigGeometry}
   },
   {
     id: "seed-paper-grammage-and-grain",
-    coverImage: "https://images.unsplash.com/photo-1688310328604-89c221130049?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/d00978c2-9aa8-415c-a361-f378e98d904d.jpg",
     slug: "paper-grammage-and-grain",
     title: "종이라고 다 같은 종이가 아니다",
     excerpt:
@@ -505,7 +505,7 @@ ${FigGeometry}
   },
   {
     id: "seed-the-net-flat-blueprint",
-    coverImage: "https://images.unsplash.com/photo-1721244653652-268631ec049a?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/c0c2f7c0-9086-4a3a-a479-2e389095f2a6.jpg",
     slug: "the-net-flat-blueprint-of-form",
     title: "전개도, 평면에 그리는 입체의 설계도",
     excerpt:
@@ -539,7 +539,7 @@ ${FigGeometry}
   /* ── 소재 ── */
   {
     id: "seed-why-paper-13-years",
-    coverImage: "https://images.unsplash.com/photo-1691380302827-f7e4b96619c6?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "/home/studio-1.jpg",
     slug: "why-paper-13-years",
     title: "왜 하필 종이였을까",
     excerpt:
@@ -575,7 +575,7 @@ ${FigHandsPaper}
   },
   {
     id: "seed-plastic-goods-forgotten",
-    coverImage: "https://images.unsplash.com/photo-1586162481176-7abc53f1f7c2?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/56782223-caf7-443b-b70f-b0dc22ba0d1d.png",
     slug: "plastic-goods-forgotten-drawer",
     title: "플라스틱 굿즈가 서랍에서 잊히는 동안, 종이가 하는 일",
     excerpt:
@@ -609,7 +609,7 @@ ${FigGoodsCompare}
   },
   {
     id: "seed-instead-of-eco-friendly",
-    coverImage: "https://images.unsplash.com/photo-1613269040024-d414b6ed7570?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/907ca9b4-1a08-490e-82d2-6df93f06b3ea.png",
     slug: "instead-of-eco-friendly-word",
     title: "친환경이라는 말을 아끼는 이유",
     excerpt:
@@ -643,7 +643,7 @@ KAIST와 함께한 교구 작업에서, 아이들이 다 쓴 종이 구조물을
   /* ── 제작 과정 ── */
   {
     id: "seed-how-paper-stands-up",
-    coverImage: "https://images.unsplash.com/photo-1772340163600-ae81082b02df?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/e63186fb-e364-4f83-9936-96dc3f6d3f0d.jpg",
     slug: "how-paper-stands-up-self-structure",
     title: "종이는 어떻게 스스로 일어서는가",
     excerpt: "처음 설계한 종이 인형은 일어서지 못했다. 평면이 스스로 입체가 되는 일에 관한 기록.",
@@ -676,7 +676,7 @@ ${FigGeometry}
   },
   {
     id: "seed-design-is-subtraction",
-    coverImage: "https://images.unsplash.com/photo-1771440047915-29e1655e27c3?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/4a1f2851-b47b-4408-8bff-40bf075da954.jpg",
     slug: "design-is-subtraction-not-addition",
     title: "설계는 더하는 일이 아니라 빼는 일이다",
     excerpt: "초보 시절 도면에는 선이 너무 많았다. 좋은 구조일수록 부품이 적다는 것을 한참 뒤에 알았다.",
@@ -707,7 +707,7 @@ PE Studio가 만드는 건 결국 누군가 받아서 직접 조립하는 물건
   },
   {
     id: "seed-what-eleven-patents-mean",
-    coverImage: "https://images.unsplash.com/photo-1721244654392-9c912a6eb236?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/008d0b70-8bf2-4e52-b423-e395b5522e2f.jpg",
     slug: "what-eleven-patents-actually-mean",
     title: "특허 11종이 실제로 뜻하는 것",
     excerpt: "특허는 자랑하려고 받은 게 아니다. 같은 실패를 두 번 하지 않으려고 적어둔 기록에 가깝다.",
@@ -742,7 +742,7 @@ ${FigGeometry}
   /* ── 교육 ── */
   {
     id: "seed-time-of-assembly-remains",
-    coverImage: "https://images.unsplash.com/photo-1714646793449-6967987cfcae?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/2826a1fd-2f2d-4b99-b464-5e23fff8a7f9.jpg",
     slug: "time-of-assembly-remains",
     title: "완성품보다 조립의 시간이 남는다",
     excerpt: "다 만든 종이 인형은 일주일을 못 넘기고 잊힌다. 정작 오래 기억되는 건 그것을 만들던 한 시간쯤의 어떤 표정이다.",
@@ -773,7 +773,7 @@ ${FigHandsPaper}
   },
   {
     id: "seed-what-happens-when-a-child-folds-paper",
-    coverImage: "https://images.unsplash.com/photo-1723473163257-80da3cc53432?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/590d7896-b69c-4b7f-bccf-d9f67f930150.png",
     slug: "what-happens-when-a-child-folds-paper",
     title: "아이가 종이를 접을 때, 머릿속에서 일어나는 일",
     excerpt: "종이 한 장을 접어 입체를 세우는 동안, 아이의 머릿속에서는 평면을 입체로 옮기는 작은 계산이 쉬지 않고 돌아간다.",
@@ -804,7 +804,7 @@ ${FigGeometry}
   },
   {
     id: "seed-toys-that-allow-failure",
-    coverImage: "https://images.unsplash.com/photo-1714646793450-1cbfc13910e7?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/1fe64728-a772-477a-b641-ae4cc69de56b.jpg",
     slug: "toys-that-allow-failure",
     title: "실패가 허락되는 장난감에 대하여",
     excerpt: "쓰러져도 다시 세우면 되는 종이 앞에서, 아이는 처음으로 실패를 무서워하지 않는 얼굴을 한다.",
@@ -837,7 +837,7 @@ ${FigCognitive}
   /* ── 사례 연구 ── */
   {
     id: "seed-character-in-hand",
-    coverImage: "https://images.unsplash.com/photo-1592194070650-f9b8be886683?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/2059fef7-b689-4241-8999-0ad470766959.jpg",
     slug: "character-in-hand-when-flat-becomes-form",
     title: "캐릭터를 손에 쥐여준다는 것",
     excerpt:
@@ -871,7 +871,7 @@ ${FigHandsPaper}
   },
   {
     id: "seed-touched-once-more",
-    coverImage: "https://images.unsplash.com/photo-1526071326860-5f7d9ba570df?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/9c2f4c93-a9c3-4d87-9248-f2a6670ba165.png",
     slug: "the-thing-people-touch-once-more",
     title: "받는 사람이 한 번 더 만지는 물건",
     excerpt:
@@ -907,7 +907,7 @@ ${FigCostCompare}
   },
   {
     id: "seed-paper-in-shortform",
-    coverImage: "https://images.unsplash.com/photo-1563260797-cb5cd70254c8?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/8938a237-f9b5-4c14-b242-6969c97da26e.jpg",
     slug: "why-moving-paper-survives-in-shortform",
     title: "움직이는 종이가 숏폼에서 살아남는 이유",
     excerpt:
@@ -945,7 +945,7 @@ ${FigFestival}
   /* ── 이야기 ── */
   {
     id: "seed-writing-one-quote",
-    coverImage: "https://images.unsplash.com/photo-1542621334-a254cf47733d?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/38c8897b-1342-4f39-95ae-221d4295e96a.jpg",
     slug: "writing-one-quote",
     title: "견적서 한 장을 쓰기까지",
     excerpt:
@@ -981,7 +981,7 @@ ${FigGeometry}
   },
   {
     id: "seed-sample-first-principle",
-    coverImage: "https://images.unsplash.com/photo-1743243922847-2c94800238fe?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/39e3c44e-172d-4254-a20a-ec37fc28b056.png",
     slug: "sample-first-principle",
     title: "샘플을 먼저 만든다는 원칙",
     excerpt:
@@ -1013,7 +1013,7 @@ ${FigHandsPaper}
   },
   {
     id: "seed-since-2013-paper-living",
-    coverImage: "https://images.unsplash.com/photo-1559125148-869baf508c95?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "/about/studio-2.jpg",
     slug: "since-2013-paper-living",
     title: "Since 2013, 종이로 먹고산다는 것",
     excerpt:
@@ -1069,7 +1069,7 @@ ${FigFestival}
       "도시마다 캐릭터는 다른데, 굿즈는 어쩐지 다 비슷하다. 수원이와 고마곰을 종이로 옮기며 그 닮음의 이유를 다시 생각했다.",
     tag: "사례 연구",
     emoji: "",
-    coverImage: "https://images.unsplash.com/photo-1603929832681-00d8f727063c?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/67c2f87e-0ab5-4707-9bb6-2102d3a912e6.jpg",
     published: true,
     createdAt: "2022-09-20T05:34:00.000Z",
     updatedAt: "2022-09-20T05:34:00.000Z",
@@ -1109,7 +1109,7 @@ ${FigCostCompare}
       "교구는 어디서나 살 수 있어요. 그래서 어느 학교나 같은 수업을 하게 됩니다. 우리 학교만의 종이 교구가 만드는 차이를 이야기해 볼게요.",
     tag: "교육",
     emoji: "",
-    coverImage: "https://images.unsplash.com/photo-1766932901295-d4185660341b?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/c81354bf-6d30-4a46-8e67-60bd13cf2cbf.jpg",
     published: true,
     createdAt: "2022-07-05T01:19:00.000Z",
     updatedAt: "2022-07-05T01:19:00.000Z",
@@ -1149,7 +1149,7 @@ ${FigSnsShare}
       "그림도 글도 영상도 AI가 만들어 준다. 그럴수록 손으로 무언가를 세워 보는 시간이 드물어진다. 그 시간에 대해 적었다.",
     tag: "교육",
     emoji: "",
-    coverImage: "https://images.unsplash.com/photo-1576616519640-692f49128a59?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/ead827a5-0c95-4f59-b2a8-b9829b72a242.jpg",
     published: true,
     createdAt: "2022-05-24T03:55:00.000Z",
     updatedAt: "2022-05-24T03:55:00.000Z",
@@ -1191,7 +1191,7 @@ ${FigCognitive}
       "공들여 만든 굿즈가 받는 즉시 가방 속으로 사라지는 걸 여러 번 봤어요. 그 흐름을 바꾸는 방법을 종이 쪽에서 찾아봤습니다.",
     tag: "사례 연구",
     emoji: "",
-    coverImage: "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/aded82d4-a2e9-4149-932a-02ada322fc9b.jpg",
     published: true,
     createdAt: "2022-03-08T06:27:00.000Z",
     updatedAt: "2022-03-08T06:27:00.000Z",
@@ -1225,7 +1225,7 @@ ${FigGoodsCompare}
       "같은 사양인데 업체마다 견적이 두세 배씩 벌어지는 시장이에요. 발주 전에 확인하면 좋을 것들을 만드는 사람 입장에서 알려 드립니다.",
     tag: "제작 과정",
     emoji: "",
-    coverImage: "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=1200&h=630&fit=crop&crop=faces,center&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/a3065c75-6ac0-4efb-8ac1-da7b1686468e.jpg",
     published: true,
     createdAt: "2022-01-18T02:41:00.000Z",
     updatedAt: "2022-01-18T02:41:00.000Z",
@@ -1259,7 +1259,7 @@ ${FigChecklist}
   /* ─────────────── 2021 추가분 (시작기 회고·기술 노트 6편) ─────────────── */
   {
     id: "seed-paper-die-cutting-and-cut-lines",
-    coverImage: "https://images.unsplash.com/photo-1693031630146-568e2f72db0e?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/231b23b9-8ce0-4522-8930-26850c1d1492.jpg",
     slug: "paper-die-cutting-and-cut-lines",
     title: "도무송과 칼선 — 종이를 정확히 오린다는 것",
     excerpt:
@@ -1287,7 +1287,7 @@ ${FigChecklist}
   },
   {
     id: "seed-mathematics-of-folding-paper",
-    coverImage: "https://images.unsplash.com/photo-1768815210987-591340ed69fb?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "/works/chinese-zodiac-12-1.jpg",
     slug: "the-mathematics-of-folding-paper",
     title: "접기에도 공리가 있다",
     excerpt:
@@ -1315,7 +1315,7 @@ ${FigGeometry}
   },
   {
     id: "seed-how-color-sits-on-paper",
-    coverImage: "https://images.unsplash.com/photo-1642480532034-362360552ccb?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/f3533a21-5098-4409-a49e-009cb43602ed.jpg",
     slug: "how-color-sits-on-paper",
     title: "종이에 색이 입혀지는 자리",
     excerpt:
@@ -1341,7 +1341,7 @@ ${FigGeometry}
   },
   {
     id: "seed-paper-structures-in-exhibitions",
-    coverImage: "https://images.unsplash.com/photo-1553644446-9f8f2762ea42?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/762281f4-e5a6-404c-a604-4270f308b188.png",
     slug: "paper-structures-in-exhibitions",
     title: "전시장에 종이를 세운다는 것 — 가볍고 안전한 조형",
     excerpt:
@@ -1369,7 +1369,7 @@ ${FigFestival}
   },
   {
     id: "seed-why-minimum-one-thousand",
-    coverImage: "https://images.unsplash.com/photo-1639383448535-0b2474a17cfa?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/1da2d843-8480-4e67-9d59-d66c9c77e119.jpg",
     slug: "why-minimum-one-thousand",
     title: "1,000부부터 받는 이유",
     excerpt:
@@ -1397,7 +1397,7 @@ ${FigCostCompare}
   },
   {
     id: "seed-paper-lettering-that-stands",
-    coverImage: "https://images.unsplash.com/photo-1597418895783-f7de85be2839?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/faa46833-1e52-45e6-aba9-622a1e60fb68.jpg",
     slug: "paper-lettering-that-stands",
     title: "오리고 접어 세우는 글자",
     excerpt:
@@ -1431,8 +1431,7 @@ ${FigCostCompare}
       "좋은 학습 도구는 기능이 많은 도구가 아니라, 아이가 포기하는 순간을 줄여 주는 도구다. 중학생이 쓰는 종이 도면 프로그램을 손보며 다시 배운 것.",
     tag: "교육",
     emoji: "",
-    coverImage:
-      "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=1200&h=630&fit=crop&crop=entropy&auto=format&q=80",
+    coverImage: "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/cbd69ec2-fe72-4791-8a00-73324845573f.jpg",
     published: true,
     createdAt: "2026-05-19T01:27:00.000Z",
     updatedAt: "2026-05-19T01:27:00.000Z",
