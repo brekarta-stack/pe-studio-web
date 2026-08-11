@@ -1,0 +1,19 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Vercel 프로젝트의 런타임(24.x)과 맞춘다
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
