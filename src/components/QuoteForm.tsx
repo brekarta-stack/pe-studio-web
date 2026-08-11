@@ -25,9 +25,11 @@ import {
   QUANTITY_STEP,
   estimateLeadWeeks,
   estimateQuote,
-  formatApprox,
+  formatFrom,
   formatKrw,
+  formatPriceRange,
   formatWeeks,
+  rangeMin,
   isManualOption,
   isOrderType,
   type DesignLine,
@@ -296,18 +298,44 @@ function EstimatePanel({
     );
   }
 
+  const headline = (
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <span className="text-sm font-bold text-slate-900">예상 견적</span>
+      <span className="text-xs text-slate-500 tabular-nums">
+        {spec.label} · {estimate.designCount}종
+        {spec.hasQuantity && ` · ${estimate.totalQuantity.toLocaleString("ko-KR")}부`}
+      </span>
+    </div>
+  );
+
+  // 2종 이상은 종 구성·수량 조합에 따라 편차가 커서 금액 대신 담당자 안내로 돌린다
+  if (estimate.designCount >= 2) {
+    return (
+      <div className="rounded-2xl border-2 border-slate-200 bg-white p-5">
+        {headline}
+        <p className="mt-1.5 text-xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
+          담당자가 안내 예정
+        </p>
+        {!compact && (
+          <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500" style={{ wordBreak: "keep-all" }}>
+            2종 이상 제작은 구성에 따라 금액이 달라져, 정확한 견적은 담당자가 상담으로 안내드립니다.
+          </p>
+        )}
+        {consultButton}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border-2 border-slate-200 bg-white p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-sm font-bold text-slate-900">예상 견적</span>
-        <span className="text-xs text-slate-500 tabular-nums">
-          {spec.label} · {estimate.designCount}종
-          {spec.hasQuantity && ` · ${estimate.totalQuantity.toLocaleString("ko-KR")}부`}
-        </span>
-      </div>
+      {headline}
 
-      <p className="mt-1.5 text-2xl font-bold tracking-tight" style={{ color: "#1E22B2" }}>
-        {formatApprox(estimate.totalMin)}
+      {/* 난이도가 걸린 주문(도면만·제품 생산)은 난이도 가격이 하한 표기라
+          총액도 "N만원~" 하한으로. 완제품은 ±25% 범위 그대로 — 길어서 2xl 이면 패널 폭을 넘친다 */}
+      <p className="mt-1.5 text-xl font-bold tracking-tight tabular-nums" style={{ color: "#1E22B2" }}>
+        {spec.hasComplexity
+          ? formatFrom(estimate.totalFloor)
+          : formatPriceRange(estimate.totalMin, estimate.totalMax)}
         <span className="ml-1.5 align-baseline text-xs font-semibold text-slate-400">VAT 별도</span>
       </p>
 
@@ -317,14 +345,16 @@ function EstimatePanel({
             <div className="flex justify-between gap-2">
               <dt>{estimate.costLabel} · {estimate.designCount}종</dt>
               <dd className="tabular-nums whitespace-nowrap">
-                {formatApprox(estimate.designMin)}
+                {spec.hasComplexity
+                  ? formatFrom(estimate.designFloor)
+                  : formatPriceRange(estimate.designMin, estimate.designMax)}
               </dd>
             </div>
             {spec.hasProduction && estimate.productionMin > 0 && (
               <div className="flex justify-between gap-2">
                 <dt>생산비 · {estimate.totalQuantity.toLocaleString("ko-KR")}부</dt>
                 <dd className="tabular-nums whitespace-nowrap">
-                  {formatKrw(estimate.productionMin)}
+                  {formatPriceRange(estimate.productionMin, estimate.productionMax)}
                 </dd>
               </div>
             )}
@@ -332,7 +362,7 @@ function EstimatePanel({
               <div className="flex justify-between gap-2">
                 <dt>설명서{manualLabel ? ` · ${manualLabel}` : ""}</dt>
                 <dd className="tabular-nums whitespace-nowrap">
-                  {formatKrw(estimate.manualCost)}
+                  {formatPriceRange(estimate.manualCost)}
                 </dd>
               </div>
             )}
@@ -345,26 +375,26 @@ function EstimatePanel({
                   </span>
                 </dt>
                 <dd className="tabular-nums whitespace-nowrap">
-                  {formatKrw(estimate.packagingCost)}
+                  {formatPriceRange(estimate.packagingCost)}
                 </dd>
               </div>
             )}
             {estimate.samplingCost > 0 && (
               <div className="flex justify-between gap-2">
                 <dt>샘플링</dt>
-                <dd className="tabular-nums whitespace-nowrap">{formatKrw(estimate.samplingCost)}</dd>
+                <dd className="tabular-nums whitespace-nowrap">{formatPriceRange(estimate.samplingCost)}</dd>
               </div>
             )}
             {estimate.samplingImproveCost > 0 && (
               <div className="flex justify-between gap-2">
                 <dt>디자인 개선</dt>
-                <dd className="tabular-nums whitespace-nowrap">{formatKrw(estimate.samplingImproveCost)}</dd>
+                <dd className="tabular-nums whitespace-nowrap">{formatPriceRange(estimate.samplingImproveCost)}</dd>
               </div>
             )}
             {estimate.supervisionCost > 0 && (
               <div className="flex justify-between gap-2">
                 <dt>생산 감리</dt>
-                <dd className="tabular-nums whitespace-nowrap">{formatKrw(estimate.supervisionCost)}</dd>
+                <dd className="tabular-nums whitespace-nowrap">{formatPriceRange(estimate.supervisionCost)}</dd>
               </div>
             )}
           </dl>
@@ -1221,7 +1251,8 @@ export default function QuoteForm() {
                               ) : t === "production" ? (
                                 <>디자인비 + 생산비 / 종</>
                               ) : (
-                                <>{o.costLabel} {formatKrw(o.costMin)}~ / 종</>
+                                /* 완제품 — 시작 금액도 범위 하한(-25%) 기준으로 안내 */
+                                <>{o.costLabel} {formatKrw(rangeMin(o.costMin))}~ / 종</>
                               )}
                             </div>
                           </button>
@@ -1569,6 +1600,13 @@ export default function QuoteForm() {
                       >
                         ＋ 제작 희망 디자인 추가
                       </button>
+                    )}
+
+                    {/* 대량 생산 할인 안내 — 제품 생산에서만 (생산비 사다리가 있는 주문) */}
+                    {orderSpec.hasProduction && (
+                      <p className="mt-2 text-xs font-medium" style={{ color: "#1E22B2", wordBreak: "keep-all" }}>
+                        생산 수량이 1,100부 이상인 경우, 개당 단가가 표시된 금액보다 추가로 할인됩니다.
+                      </p>
                     )}
 
                     {estimate.quantityMissing && (

@@ -735,6 +735,8 @@ export default function BlogEditor({ post }: Props) {
   const [excerpt, setExcerpt]   = useState(post?.excerpt ?? "");
   const [tag, setTag]           = useState(post?.tag ?? TAGS[0]);
   const [published, setPublished] = useState(post?.published ?? false);
+  /** 자동 발행 대기열 — 비공개 글만 대상. 주간 크론이 화~목 14~16시 랜덤 슬롯에 순서대로 발행 */
+  const [queued, setQueued] = useState(post?.queued ?? false);
   const [coverImage, setCoverImage] = useState(post?.coverImage ?? "");
   const [saving, setSaving]     = useState(false);
   /**
@@ -860,6 +862,8 @@ export default function BlogEditor({ post }: Props) {
           emoji: "",               // 이모지 대신 커버 이미지 사용
           coverImage: coverImage || undefined,
           published: isPublished,
+          queued: isPublished ? false : queued, // 공개된 글은 대기열 의미가 없음
+
           // 게시일 — 노출 순서 기준. 기존 글은 날짜를 바꾼 경우에만 전송해
           // 원래 게시 시각을 불필요하게 덮어쓰지 않는다.
           ...(publishDate && (!post || publishDate !== initialPublishDate)
@@ -886,7 +890,7 @@ export default function BlogEditor({ post }: Props) {
         setSaving(false);
       }
     },
-    [title, excerpt, tag, published, coverImage, publishDate, initialPublishDate, editor, post, router]
+    [title, excerpt, tag, published, queued, coverImage, publishDate, initialPublishDate, editor, post, router]
   );
 
   return (
@@ -982,6 +986,20 @@ export default function BlogEditor({ post }: Props) {
             </div>
             <span className="text-sm text-slate-700 font-medium">공개</span>
           </label>
+          {!published && (
+            <label
+              className="flex items-center gap-2 cursor-pointer pb-2.5"
+              title="체크해 두면 주간 자동 발행(화~목 14~16시 랜덤)이 오래된 순서로 발행합니다"
+            >
+              <input
+                type="checkbox"
+                checked={queued}
+                onChange={(e) => setQueued(e.target.checked)}
+                className="w-4 h-4 accent-[#1E22B2]"
+              />
+              <span className="text-sm text-slate-700 font-medium">자동 발행 대기열</span>
+            </label>
+          )}
         </div>
       </div>
 

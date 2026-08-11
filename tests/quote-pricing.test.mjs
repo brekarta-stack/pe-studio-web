@@ -24,6 +24,7 @@ import {
   parseQuantity,
   formatApprox,
   formatKrw,
+  formatPriceRange,
   formatRange,
   formatFrom,
   formatWeeks,
@@ -36,11 +37,15 @@ import {
   COMPLEXITY_LEVELS,
   COMPLEXITY_SPECS,
   DEFAULT_COMPLEXITY,
+  MANUAL_OPTION_SPECS,
   MANUAL_QR_COST,
   MANUAL_PRINT_DESIGN_COST,
   MANUAL_PRINT_UNIT_COST,
   ORDER_TYPES,
   ORDER_TYPE_SPECS,
+  PRICE_RANGE_RATE,
+  rangeMin,
+  rangeMax,
   SAMPLING_COST,
   SAMPLING_IMPROVE_COST,
   SUPERVISION_COST,
@@ -335,6 +340,61 @@ test("formatApprox — 예상 견적은 '약 N만원' 표기", () => {
 test("formatFrom — 카드 안내용 시작 금액", () => {
   assert.equal(formatFrom(4_500_000), "450만원~");
   assert.equal(formatFrom(500_000), "50만원~");
+});
+
+/* ── ±25% 범위 표기 ── */
+
+test("rangeMin/rangeMax — 산정가 ±25%, 만원 단위로 내림·올림", () => {
+  assert.equal(PRICE_RANGE_RATE, 0.25);
+  assert.equal(rangeMin(1_000_000), 750_000);
+  assert.equal(rangeMax(1_000_000), 1_250_000);
+  // 만원으로 안 떨어지면 하한은 내림, 상한은 올림 — 범위는 넓어지는 쪽으로만
+  assert.equal(rangeMin(500_000), 370_000, "375,000 → 37만원");
+  assert.equal(rangeMax(500_000), 630_000, "625,000 → 63만원");
+});
+
+test("formatPriceRange — '75만원~125만원' 형태", () => {
+  assert.equal(formatPriceRange(1_000_000), "75만원~125만원");
+  assert.equal(formatPriceRange(2_000_000), "150만원~250만원");
+  assert.equal(formatPriceRange(3_000_000), "225만원~375만원");
+  // 하한·상한이 다른 산정 범위 — 하한 -25% ~ 상한 +25%
+  assert.equal(formatPriceRange(3_000_000, 10_000_000), "225만원~1,250만원");
+  assert.equal(formatPriceRange(0), "0원");
+});
+
+test("난이도 가격 라벨 — 금액대가 겹치지 않는 하한 표기", () => {
+  assert.equal(COMPLEXITY_SPECS.simple.priceLabel, "75만원~");
+  assert.equal(COMPLEXITY_SPECS.normal.priceLabel, "150만원~");
+  assert.equal(COMPLEXITY_SPECS.complex.priceLabel, "300만원~");
+  // 하한(floor)이 오름차순으로 벌어져 있어야 구간이 안 겹친다
+  assert.ok(
+    COMPLEXITY_SPECS.simple.floor < COMPLEXITY_SPECS.normal.floor &&
+      COMPLEXITY_SPECS.normal.floor < COMPLEXITY_SPECS.complex.floor,
+    "난이도 floor 는 단순함 < 일반적 < 복잡함"
+  );
+});
+
+test("난이도별 견적 하한 — designFloor·totalFloor 에 floor 가 그대로 실린다", () => {
+  // 도면만 의뢰: 다른 비용이 없어 totalFloor = 난이도 floor
+  assert.equal(estimateQuote("blueprint", [line(0, "l1", "simple")], "").totalFloor, 750_000);
+  assert.equal(estimateQuote("blueprint", [line(0, "l1", "normal")], "").totalFloor, 1_500_000);
+  assert.equal(estimateQuote("blueprint", [line(0, "l1", "complex")], "").totalFloor, 3_000_000);
+  // 제품 생산: floor + 나머지 항목 하한(-25%). 생산비 400만 → 하한 300만
+  const p = estimateQuote("production", [line(1000, "l1", "normal")], "bulk");
+  assert.equal(p.designFloor, 1_500_000);
+  assert.equal(p.totalFloor, 1_500_000 + 3_000_000);
+  // 완제품(난이도 없음): 종당 하한 -25%
+  const f = estimateQuote("finished", [line(1, "l1")], "");
+  assert.equal(f.designFloor, 2_250_000);
+});
+
+test("설명서 가격 라벨 — 산정가 ±25% 범위로 안내", () => {
+  assert.equal(MANUAL_OPTION_SPECS.qr.priceLabel, "종당 75만원~125만원");
+  assert.equal(
+    MANUAL_OPTION_SPECS.print.priceLabel,
+    "설명서 디자인 종당 37만원~63만원\n인쇄비 1,000부당 22만원~38만원"
+  );
+  assert.equal(MANUAL_OPTION_SPECS.guide.priceLabel, "무료");
 });
 
 /* ── B2B 제작 옵션 (샘플링·디자인 개선·감리) ── */

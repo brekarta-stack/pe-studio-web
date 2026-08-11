@@ -14,6 +14,7 @@ import {
   type AnalyticsRow,
 } from "@/lib/analytics";
 import AnalyticsPeriodPicker from "@/components/admin/AnalyticsPeriodPicker";
+import DailyTrendChart from "@/components/admin/DailyTrendChart";
 
 export const dynamic = "force-dynamic";
 
@@ -177,60 +178,14 @@ export default async function AnalyticsPage({
             <SummaryCard label="클릭" value={nf(s.totalClicks)} hint={period.label} bg="#FFF3F9" fg="#E91E8C" />
           </div>
 
-          {/* ── 추이 (일/월) ── */}
+          {/* ── 추이 (일/월) — 방문·페이지뷰 이중 막대 + 마우스 툴팁 ── */}
           <Section title={`${period.unit === "month" ? "월별" : "일별"} 추이 · ${period.label}`}>
-            <div className="pl-9 pr-1 pt-2">
-              {/* 차트 영역 — 기준선(눈금) 위에 막대 */}
-              <div className="relative h-40">
-                {/* Y축 기준선 + 눈금 라벨 (0은 바닥 실선) */}
-                {[0, ...dailyTicks].map((v) => (
-                  <div
-                    key={v}
-                    className="absolute inset-x-0"
-                    style={{ bottom: `${(v / dailyNiceMax) * 100}%` }}
-                  >
-                    <div className={v === 0 ? "border-t border-slate-200" : "border-t border-dashed border-slate-200/80"} />
-                    <span className="absolute right-full top-0 -translate-y-1/2 pr-2 text-[10px] text-slate-400 tabular-nums leading-none">
-                      {nf(v)}
-                    </span>
-                  </div>
-                ))}
-                {/* 막대 */}
-                <div className="absolute inset-0 flex items-end gap-1.5">
-                  {s.daily.map((d) => {
-                    const h = (d.pageviews / dailyNiceMax) * 100;
-                    return (
-                      <div key={d.date} className="flex-1 h-full flex flex-col justify-end group relative">
-                        {/* hover 툴팁 — 정확한 수치 */}
-                        <div
-                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 hidden group-hover:block z-20"
-                          style={{ bottom: `calc(${Math.max(h, 2)}% + 6px)` }}
-                        >
-                          <div className="bg-slate-900 text-white rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap text-center">
-                            <div className="text-[10px] text-slate-300 tabular-nums">{d.date}</div>
-                            <div className="text-[11px] font-semibold tabular-nums">
-                              페이지뷰 {nf(d.pageviews)} · 방문 {nf(d.sessions)}
-                            </div>
-                          </div>
-                        </div>
-                        <div
-                          className="w-full rounded-t-md transition-all group-hover:opacity-75"
-                          style={{ height: `${Math.max(h, 2)}%`, background: d.pageviews ? "#1E22B2" : "#E2E8F0" }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              {/* 추이 라벨 (버킷이 많으면 일부만 표기) */}
-              <div className="flex gap-1.5 mt-1.5">
-                {s.daily.map((d, i) => (
-                  <div key={d.date} className="flex-1 text-center text-[9px] text-slate-400 tabular-nums overflow-hidden">
-                    {i % labelEvery === 0 ? d.label : ""}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <DailyTrendChart
+              data={s.daily}
+              niceMax={dailyNiceMax}
+              ticks={dailyTicks}
+              labelEvery={labelEvery}
+            />
           </Section>
 
           {/* ── 검색 키워드 ── */}

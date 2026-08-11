@@ -11,6 +11,10 @@ export interface Post {
   emoji: string;
   coverImage?: string;
   published: boolean;
+  /** 자동 발행 대기열 — true 인 비공개 글을 주간 크론이 순서대로 발행 */
+  queued?: boolean;
+  /** 자동 발행된 시각 — 주 1회 발행 가드에 사용 */
+  autoPublishedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +31,8 @@ function toPost(row: any): Post {
     emoji: row.emoji,
     coverImage: row.cover_image ?? undefined,
     published: row.published,
+    queued: row.queued ?? false,
+    autoPublishedAt: row.auto_published_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -98,6 +104,8 @@ export async function savePost(post: Post): Promise<void> {
     emoji: post.emoji,
     cover_image: post.coverImage ?? null,
     published: post.published,
+    queued: post.queued ?? false,
+    auto_published_at: post.autoPublishedAt ?? null,
     created_at: post.createdAt,
     updated_at: post.updatedAt,
   });
