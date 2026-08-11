@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   weeklySlot,
   weekStartUtc,
   isoWeekKey,
   SLOT_DAYS,
   SLOT_MINUTE_OFFSETS,
+  WINDOW_START_HOUR_KST,
 } from "../src/lib/blog-schedule-shared.mjs";
 
 const KST_MS = 9 * 3600_000;
@@ -69,4 +71,36 @@ test("isoWeekKey: 주가 바뀌면 키도 바뀐다 (KST 기준)", () => {
   const sunLateKst = new Date("2026-08-09T14:59:00Z"); // 08-09 23:59 KST
   const monEarlyKst = new Date("2026-08-09T15:01:00Z"); // 08-10 00:01 KST
   assert.notEqual(isoWeekKey(sunLateKst), isoWeekKey(monEarlyKst));
+});
+
+test("vercel.json 크론: Hobby 하루 1회 제한을 지키고, 매 슬롯 이후에 두드린다", async () => {
+  const { crons } = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const cron = crons.find((c) => c.path === "/api/cron/blog-publish");
+  assert.ok(cron, "blog-publish 크론이 vercel.json에 없다");
+  // Hobby 플랜은 하루 1회 초과 크론이면 배포 자체가 거부된다 — 분·시가 단일 값이어야 한다
+  const [minute, hour, dom, month, dow] = cron.schedule.split(/\s+/);
+  assert.match(minute, /^\d+$/, `분 필드가 단일 값이 아니다: ${minute}`);
+  assert.match(hour, /^\d+$/, `시 필드가 단일 값이 아니다: ${hour}`);
+  assert.equal(dom, "*");
+  assert.equal(month, "*");
+  assert.equal(dow, "*", "요일을 제한하면 하루 1회여도 슬롯 실패 시 따라잡을 틱이 없다");
+  // 틱(KST)은 가장 늦은 슬롯(16:00 KST)보다 뒤여야 슬롯 당일에 발행된다
+  const tickKstMinutes = ((Number(hour) + 9) % 24) * 60 + Number(minute);
+  const lastSlotMinutes = WINDOW_START_HOUR_KST * 60 + Math.max(...SLOT_MINUTE_OFFSETS);
+  assert.ok(
+    tickKstMinutes > lastSlotMinutes,
+    `크론 틱(${tickKstMinutes}분 KST)이 마지막 슬롯(${lastSlotMinutes}분 KST) 이전이다`
+  );
+});
+
+test("발행 라우트: created_at 은 틱 시각이 아니라 슬롯 시각으로 기록한다", async () => {
+  const src = await readFile(
+    new URL("../src/app/api/cron/blog-publish/route.ts", import.meta.url),
+    "utf8"
+  );
+  assert.ok(
+    src.includes("created_at: slot.toISOString()"),
+    "created_at 이 슬롯 시각이 아니다 — 매일 같은 틱 시각으로 발행되면 발행 시각 랜덤 정책이 깨진다"
+  );
+  assert.ok(src.includes("auto_published_at: nowIso"), "주 1회 가드용 auto_published_at 은 실제 시각이어야 한다");
 });

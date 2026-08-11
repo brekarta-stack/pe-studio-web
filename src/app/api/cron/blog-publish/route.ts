@@ -7,10 +7,12 @@ import { weeklySlot, weekStartUtc } from "@/lib/blog-schedule-shared.mjs";
  * 블로그 주간 자동 발행 크론.
  *
  * 규칙: 주 1회, 화·수·목 중 랜덤 요일, 14:00~16:00 KST 랜덤 슬롯 (주차 시드 결정론).
- * 크론은 화~목 14~16시 KST 사이에 30분 간격으로 이 엔드포인트를 두드리고,
- * 엔드포인트가 "이번 주 슬롯이 지났고 아직 발행 안 했으면" 대기열 맨 앞 글을 발행한다.
+ * 크론은 매일 1회(16:30 KST, 마지막 슬롯 이후 — Vercel Hobby 플랜은 하루 1회 제한)
+ * 이 엔드포인트를 두드리고, "이번 주 슬롯이 지났고 아직 발행 안 했으면"
+ * 대기열 맨 앞 글을 발행한다. 노출되는 발행 시각(created_at)은 호출 시각이 아니라
+ * 슬롯 시각으로 기록해, 실제 틱이 하루 1회여도 발행 시각은 주마다 랜덤하게 흩어진다.
  * 슬롯 계산이 결정론적이라 몇 번을 호출해도 이중 발행되지 않고,
- * 특정 틱이 실패해도 같은 주 다음 틱이 자동으로 이어받는다.
+ * 특정 날 틱이 실패해도 같은 주 다음 날 틱이 자동으로 이어받는다.
  *
  * 인증: Vercel Cron 의 `Authorization: Bearer CRON_SECRET`
  *       또는 기존 발행 웹훅과 같은 `x-webhook-secret: BLOG_PUBLISH_SECRET`.
@@ -74,7 +76,7 @@ async function run(request: Request) {
     .update({
       published: true,
       queued: false,
-      created_at: nowIso, // 노출·정렬 기준을 실제 발행 시각으로
+      created_at: slot.toISOString(), // 노출·정렬 기준은 랜덤 슬롯 시각 (틱 시각이 매일 같아도 발행 시각은 흩어진다)
       updated_at: nowIso,
       auto_published_at: nowIso,
     })
