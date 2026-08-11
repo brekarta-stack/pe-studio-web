@@ -20,6 +20,10 @@ const prv = (skey, f) => path.join(ROOT, "content-private", "studio", VER, skey,
 
 test("index.json: 항목 수(큐레이션 20 이상)와 필수 필드", () => {
   assert.ok(idx.items.length >= 20, `items ${idx.items.length} < 20`);
+  // 대규모 유실 감지 — 181→141 처럼 카탈로그가 통째로 줄어드는 사고를 잡는다.
+  // 카테고리별 하한은 품질 게이트의 정상적인 제외와 구분되지 않으므로 총량으로 본다.
+  assert.ok(idx.items.length >= 180,
+    `카탈로그 ${idx.items.length}종 < 180 (대량 제외 의심)`);
   for (const it of idx.items) {
     for (const field of ["key", "skey", "name_ko", "category", "pieces", "pages",
                          "pdf_pages", "finished_mm", "stars", "est_minutes", "svg_sheets"]) {
@@ -34,9 +38,13 @@ test("카테고리 택소노미: 동물 세분화 + 인기 캐릭터, '동물' �
   for (const it of idx.items) counts[it.category] = (counts[it.category] ?? 0) + 1;
   // 세분화 이전의 뭉뚱그린 '동물'은 남아 있으면 안 된다
   assert.ok(!("동물" in counts), "'동물' 카테고리가 아직 남아 있음(세분화 미반영)");
-  // 세분화 카테고리는 각각 15종 이상
+  // 세분화 카테고리는 각각 8종 이상.
+  // 15종이던 기준을 낮춘 이유: 손작업 절대 규칙 게이트(d781e49c)가 접착탭이
+  // 물리적으로 안 붙는 도면을 buildable=False 로 제외하면서 곤충 6종·수련이
+  // 빠졌다. 유실이 아니라 의도된 품질 개선이라 카테고리 하한으로는 못 막는다.
+  // 대신 아래 총량 검사가 대규모 제외를 잡는다.
   for (const cat of ["바다생물", "육지동물", "곤충", "식물"]) {
-    assert.ok((counts[cat] ?? 0) >= 15, `${cat} ${counts[cat] ?? 0} < 15`);
+    assert.ok((counts[cat] ?? 0) >= 8, `${cat} ${counts[cat] ?? 0} < 8`);
   }
   // 인기 캐릭터 신설(동물형 트렌디 캐릭터)
   assert.ok((counts["인기 캐릭터"] ?? 0) >= 8, `인기 캐릭터 ${counts["인기 캐릭터"] ?? 0} < 8`);
