@@ -25,6 +25,7 @@ import {
   QUANTITY_STEP,
   estimateLeadWeeks,
   estimateQuote,
+  formatFrom,
   formatKrw,
   formatPriceRange,
   formatWeeks,
@@ -329,9 +330,12 @@ function EstimatePanel({
     <div className="rounded-2xl border-2 border-slate-200 bg-white p-5">
       {headline}
 
-      {/* 범위 표기("75만원~125만원")라 한 숫자 표기보다 길다 — 2xl 이면 패널 폭을 넘친다 */}
+      {/* 난이도가 걸린 주문(도면만·제품 생산)은 난이도 가격이 하한 표기라
+          총액도 "N만원~" 하한으로. 완제품은 ±25% 범위 그대로 — 길어서 2xl 이면 패널 폭을 넘친다 */}
       <p className="mt-1.5 text-xl font-bold tracking-tight tabular-nums" style={{ color: "#1E22B2" }}>
-        {formatPriceRange(estimate.totalMin, estimate.totalMax)}
+        {spec.hasComplexity
+          ? formatFrom(estimate.totalFloor)
+          : formatPriceRange(estimate.totalMin, estimate.totalMax)}
         <span className="ml-1.5 align-baseline text-xs font-semibold text-slate-400">VAT 별도</span>
       </p>
 
@@ -341,7 +345,9 @@ function EstimatePanel({
             <div className="flex justify-between gap-2">
               <dt>{estimate.costLabel} · {estimate.designCount}종</dt>
               <dd className="tabular-nums whitespace-nowrap">
-                {formatPriceRange(estimate.designMin, estimate.designMax)}
+                {spec.hasComplexity
+                  ? formatFrom(estimate.designFloor)
+                  : formatPriceRange(estimate.designMin, estimate.designMax)}
               </dd>
             </div>
             {spec.hasProduction && estimate.productionMin > 0 && (

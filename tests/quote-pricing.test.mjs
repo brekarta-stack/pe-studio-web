@@ -362,10 +362,33 @@ test("formatPriceRange — '75만원~125만원' 형태", () => {
   assert.equal(formatPriceRange(0), "0원");
 });
 
-test("난이도·설명서 가격 라벨 — 산정가 ±25% 범위로 안내", () => {
-  assert.equal(COMPLEXITY_SPECS.simple.priceLabel, "75만원~125만원");
-  assert.equal(COMPLEXITY_SPECS.normal.priceLabel, "150만원~250만원");
-  assert.equal(COMPLEXITY_SPECS.complex.priceLabel, "225만원~375만원");
+test("난이도 가격 라벨 — 금액대가 겹치지 않는 하한 표기", () => {
+  assert.equal(COMPLEXITY_SPECS.simple.priceLabel, "75만원~");
+  assert.equal(COMPLEXITY_SPECS.normal.priceLabel, "150만원~");
+  assert.equal(COMPLEXITY_SPECS.complex.priceLabel, "300만원~");
+  // 하한(floor)이 오름차순으로 벌어져 있어야 구간이 안 겹친다
+  assert.ok(
+    COMPLEXITY_SPECS.simple.floor < COMPLEXITY_SPECS.normal.floor &&
+      COMPLEXITY_SPECS.normal.floor < COMPLEXITY_SPECS.complex.floor,
+    "난이도 floor 는 단순함 < 일반적 < 복잡함"
+  );
+});
+
+test("난이도별 견적 하한 — designFloor·totalFloor 에 floor 가 그대로 실린다", () => {
+  // 도면만 의뢰: 다른 비용이 없어 totalFloor = 난이도 floor
+  assert.equal(estimateQuote("blueprint", [line(0, "l1", "simple")], "").totalFloor, 750_000);
+  assert.equal(estimateQuote("blueprint", [line(0, "l1", "normal")], "").totalFloor, 1_500_000);
+  assert.equal(estimateQuote("blueprint", [line(0, "l1", "complex")], "").totalFloor, 3_000_000);
+  // 제품 생산: floor + 나머지 항목 하한(-25%). 생산비 400만 → 하한 300만
+  const p = estimateQuote("production", [line(1000, "l1", "normal")], "bulk");
+  assert.equal(p.designFloor, 1_500_000);
+  assert.equal(p.totalFloor, 1_500_000 + 3_000_000);
+  // 완제품(난이도 없음): 종당 하한 -25%
+  const f = estimateQuote("finished", [line(1, "l1")], "");
+  assert.equal(f.designFloor, 2_250_000);
+});
+
+test("설명서 가격 라벨 — 산정가 ±25% 범위로 안내", () => {
   assert.equal(MANUAL_OPTION_SPECS.qr.priceLabel, "종당 75만원~125만원");
   assert.equal(
     MANUAL_OPTION_SPECS.print.priceLabel,

@@ -85,15 +85,19 @@ test("설명 문구(desc) — 마침표 누락 없음", async () => {
   }
 });
 
-test("예상 견적 — 총액·내역은 ±25% 범위 표기(formatPriceRange)를 쓴다", async () => {
+test("예상 견적 — 난이도 주문은 하한 표기, 완제품은 ±25% 범위 표기", async () => {
   const src = await readFile(SRC, "utf8");
+  // 난이도가 걸린 주문(도면만·제품 생산): 총액·디자인비는 "N만원~" 하한
+  assert.ok(src.includes("formatFrom(estimate.totalFloor)"), "총액이 하한 표기여야 한다");
+  assert.ok(src.includes("formatFrom(estimate.designFloor)"), "디자인비도 하한 표기여야 한다");
+  // 완제품(난이도 없음)은 범위 표기 유지
   assert.ok(
     src.includes("formatPriceRange(estimate.totalMin, estimate.totalMax)"),
-    "총액이 범위로 표기되어야 한다"
+    "완제품 총액은 범위로 표기되어야 한다"
   );
   assert.ok(
     src.includes("formatPriceRange(estimate.designMin, estimate.designMax)"),
-    "디자인비 내역도 범위로 표기되어야 한다"
+    "완제품 제작비 내역도 범위로 표기되어야 한다"
   );
   assert.ok(!src.includes("formatApprox("), "'약 N만원' 단일 표기가 남아 있으면 안 된다");
 });
