@@ -84,3 +84,31 @@ test("설명 문구(desc) — 마침표 누락 없음", async () => {
     assert.match(d, /다\.$/, `마침표·존댓말 종결이 아니다: ${d}`);
   }
 });
+
+test("예상 견적 — 총액·내역은 ±25% 범위 표기(formatPriceRange)를 쓴다", async () => {
+  const src = await readFile(SRC, "utf8");
+  assert.ok(
+    src.includes("formatPriceRange(estimate.totalMin, estimate.totalMax)"),
+    "총액이 범위로 표기되어야 한다"
+  );
+  assert.ok(
+    src.includes("formatPriceRange(estimate.designMin, estimate.designMax)"),
+    "디자인비 내역도 범위로 표기되어야 한다"
+  );
+  assert.ok(!src.includes("formatApprox("), "'약 N만원' 단일 표기가 남아 있으면 안 된다");
+});
+
+test("예상 견적 — 2종 이상이면 금액 대신 '담당자가 안내 예정'", async () => {
+  const src = await readFile(SRC, "utf8");
+  assert.ok(src.includes("estimate.designCount >= 2"), "2종 이상 분기가 있어야 한다");
+  assert.ok(src.includes("담당자가 안내 예정"), "안내 문구가 있어야 한다");
+});
+
+test("제작 희망 디자인 — 제품 생산이면 대량 생산 할인 안내가 붙는다", async () => {
+  const src = await readFile(SRC, "utf8");
+  const msg = "생산 수량이 1,100부 이상인 경우, 개당 단가가 표시된 금액보다 추가로 할인됩니다.";
+  assert.ok(src.includes(msg), "할인 안내 문구가 있어야 한다");
+  const idx = src.indexOf(msg);
+  const before = src.slice(Math.max(0, idx - 300), idx);
+  assert.ok(before.includes("orderSpec.hasProduction"), "제품 생산에서만 노출되어야 한다");
+});

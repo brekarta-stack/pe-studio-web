@@ -1,8 +1,10 @@
 /**
  * 제작 문의 개략 견적 — 클라이언트/서버 공용 순수 로직.
  *
- * 확정 견적이 아니라 **개략 안내**다. 화면에는 "약 N만원"으로 보여주고,
- * 실제 금액은 구조 난이도·용지·후가공에 따라 달라지므로 회신으로 안내한다.
+ * 확정 견적이 아니라 **개략 안내**다. 화면의 모든 가격은 산정가를 가운데 두고
+ * -25% ~ +25% 범위("75만원~125만원")로 보여준다 — 실제 금액은 구조 난이도·
+ * 용지·후가공에 따라 달라지므로 정확한 금액은 회신으로 안내한다.
+ * 계산(estimateQuote)은 산정가 기준으로 하고, 범위는 표기 단계에서만 적용한다.
  *
  * 금액 구조는 주문 형태(무엇을 받을 것인가)에 따라 통째로 달라진다.
  * 메인 캐릭터 및 디자인을 1종으로 계산한다:
@@ -25,6 +27,38 @@ export function isOrderType(v: unknown): v is OrderType {
   return typeof v === "string" && (ORDER_TYPES as readonly string[]).includes(v);
 }
 
+/* ── ±25% 범위 표기 ──
+ * 고객 화면의 모든 가격은 산정가를 가운데 두고 -25% ~ +25% 범위로 안내한다.
+ * 산식이 확정적이어도 실제 금액은 구조·용지·후가공으로 달라지므로,
+ * 단일 숫자 대신 범위로 기대치를 잡고 정확한 금액은 상담으로 잇는다. */
+
+/** 범위 폭 — 산정가 기준 ±25% */
+export const PRICE_RANGE_RATE = 0.25;
+
+/** 범위 하한 = 산정가 -25%. 1만원 이상이면 만원 단위로 내림 (범위는 넓어지는 쪽으로만) */
+export function rangeMin(n: number): number {
+  const v = n * (1 - PRICE_RANGE_RATE);
+  return v >= 10_000 ? Math.floor(v / 10_000) * 10_000 : Math.round(v);
+}
+
+/** 범위 상한 = 산정가 +25%. 1만원 이상이면 만원 단위로 올림 */
+export function rangeMax(n: number): number {
+  const v = n * (1 + PRICE_RANGE_RATE);
+  return v >= 10_000 ? Math.ceil(v / 10_000) * 10_000 : Math.round(v);
+}
+
+/**
+ * 산정가(또는 산정 하한·상한) → "75만원~125만원" 범위 문자열.
+ * 인자 하나면 그 값 ±25%, 둘이면 하한 -25% ~ 상한 +25%.
+ */
+export function formatPriceRange(min: number, max: number = min): string {
+  if (max <= 0) return formatKrw(0);
+  const lo = rangeMin(min);
+  const hi = rangeMax(max);
+  if (lo === hi) return formatKrw(lo);
+  return `${formatKrw(lo)}~${formatKrw(hi)}`;
+}
+
 /* ── 모델 설계 난이도 ──
  * 디자인비는 모델 구조에 따라 결정된다. 고객이 라인마다 골라 견적을 미리
  * 가늠하게 하되, 최종 난이도는 PE 스튜디오가 책정한다(폼에 안내 문구). */
@@ -40,9 +74,10 @@ export const COMPLEXITY_SPECS: Record<
   Complexity,
   { label: string; cost: number; priceLabel: string }
 > = {
-  simple:  { label: "단순함", cost: 1_000_000, priceLabel: "~100만원" },
-  normal:  { label: "일반적", cost: 2_000_000, priceLabel: "200만원" },
-  complex: { label: "복잡함", cost: 3_000_000, priceLabel: "300만원~" },
+  // priceLabel 은 산정가 ±25% 범위 — cost 를 바꾸면 라벨도 따라온다
+  simple:  { label: "단순함", cost: 1_000_000, priceLabel: formatPriceRange(1_000_000) },
+  normal:  { label: "일반적", cost: 2_000_000, priceLabel: formatPriceRange(2_000_000) },
+  complex: { label: "복잡함", cost: 3_000_000, priceLabel: formatPriceRange(3_000_000) },
 };
 
 /** 난이도 미선택 라인은 '일반적'으로 계산한다 — 가장 흔한 케이스라 "약"에 걸맞다 */
@@ -127,13 +162,15 @@ export const MANUAL_OPTION_SPECS: Record<
   qr: {
     label: "도면 내 QR 코드·영상 삽입",
     desc: "QR 코드를 스캔하면 조립 영상으로 연결됩니다.",
-    priceLabel: "종당 100만원~",
+    priceLabel: `종당 ${formatPriceRange(MANUAL_QR_COST)}`,
   },
   print: {
     label: "설명서 및 표지 생산",
     desc: "OPP 및 박스 생산 시 추천합니다.",
     // "\n" 은 카드에서 줄바꿈으로 렌더된다 (whiteSpace: pre-line)
-    priceLabel: "설명서 디자인 종당 +50만원\n인쇄비 1,000부당 30만원",
+    priceLabel:
+      `설명서 디자인 종당 ${formatPriceRange(MANUAL_PRINT_DESIGN_COST)}\n` +
+      `인쇄비 1,000부당 ${formatPriceRange(MANUAL_PRINT_UNIT_COST * 1_000)}`,
   },
 };
 
@@ -405,9 +442,8 @@ export function formatRange(min: number, max: number): string {
 /**
  * "약 100만원" 형태의 개략 금액 문자열.
  *
- * 고객 화면의 예상 견적은 범위("N만원~")가 아니라 이 표기를 쓴다 —
- * 난이도·수량 기반으로 산식이 확정적이 되면서 "대략 이 정도"를
- * 한 숫자로 말하는 편이 읽기 쉽다. 정확한 금액은 상담으로 잇는다.
+ * 예상 견적이 범위 표기(formatPriceRange)로 바뀌면서 고객 화면에서는
+ * 더 쓰지 않는다 — 관리자 화면·이메일 등 한 숫자가 필요한 곳용으로 남긴다.
  */
 export function formatApprox(n: number): string {
   return `약 ${formatKrw(n)}`;
