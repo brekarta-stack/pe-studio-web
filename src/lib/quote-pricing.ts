@@ -1,10 +1,12 @@
 /**
  * 제작 문의 개략 견적 — 클라이언트/서버 공용 순수 로직.
  *
- * 확정 견적이 아니라 **개략 안내**다. 화면의 모든 가격은 산정가를 가운데 두고
+ * 확정 견적이 아니라 **개략 안내**다. 화면의 가격은 산정가를 가운데 두고
  * -25% ~ +25% 범위("75만원~125만원")로 보여준다 — 실제 금액은 구조 난이도·
  * 용지·후가공에 따라 달라지므로 정확한 금액은 회신으로 안내한다.
- * 계산(estimateQuote)은 산정가 기준으로 하고, 범위는 표기 단계에서만 적용한다.
+ * 단, 설계 난이도(디자인비)는 범위로 쓰면 인접 난이도와 금액대가 겹쳐서
+ * 겹치지 않는 하한("150만원~")만 안내한다 — 난이도가 걸린 견적 총액도 같다.
+ * 계산(estimateQuote)은 산정가 기준으로 하고, 범위·하한은 표기 단계에서만 적용한다.
  *
  * 금액 구조는 주문 형태(무엇을 받을 것인가)에 따라 통째로 달라진다.
  * 메인 캐릭터 및 디자인을 1종으로 계산한다:
@@ -28,9 +30,10 @@ export function isOrderType(v: unknown): v is OrderType {
 }
 
 /* ── ±25% 범위 표기 ──
- * 고객 화면의 모든 가격은 산정가를 가운데 두고 -25% ~ +25% 범위로 안내한다.
+ * 고객 화면의 가격은 산정가를 가운데 두고 -25% ~ +25% 범위로 안내한다.
  * 산식이 확정적이어도 실제 금액은 구조·용지·후가공으로 달라지므로,
- * 단일 숫자 대신 범위로 기대치를 잡고 정확한 금액은 상담으로 잇는다. */
+ * 단일 숫자 대신 범위로 기대치를 잡고 정확한 금액은 상담으로 잇는다.
+ * 예외: 설계 난이도(디자인비)는 겹치지 않는 하한 표기 — COMPLEXITY_SPECS 참고. */
 
 /** 범위 폭 — 산정가 기준 ±25% */
 export const PRICE_RANGE_RATE = 0.25;
@@ -72,12 +75,14 @@ export function isComplexity(v: unknown): v is Complexity {
 
 export const COMPLEXITY_SPECS: Record<
   Complexity,
-  { label: string; cost: number; priceLabel: string }
+  { label: string; cost: number; floor: number; priceLabel: string }
 > = {
-  // priceLabel 은 산정가 ±25% 범위 — cost 를 바꾸면 라벨도 따라온다
-  simple:  { label: "단순함", cost: 1_000_000, priceLabel: formatPriceRange(1_000_000) },
-  normal:  { label: "일반적", cost: 2_000_000, priceLabel: formatPriceRange(2_000_000) },
-  complex: { label: "복잡함", cost: 3_000_000, priceLabel: formatPriceRange(3_000_000) },
+  // 난이도 가격은 ±25% 범위로 쓰면 인접 난이도끼리 겹친다(150~250 vs 225~375).
+  // 그래서 겹치지 않는 하한(floor)만 "75만원~" 형태로 안내한다 —
+  // 단순함·일반적은 산정가 -25%, 복잡함은 위 단계가 없어 산정가 그대로.
+  simple:  { label: "단순함", cost: 1_000_000, floor:   750_000, priceLabel: formatFrom(750_000) },
+  normal:  { label: "일반적", cost: 2_000_000, floor: 1_500_000, priceLabel: formatFrom(1_500_000) },
+  complex: { label: "복잡함", cost: 3_000_000, floor: 3_000_000, priceLabel: formatFrom(3_000_000) },
 };
 
 /** 난이도 미선택 라인은 '일반적'으로 계산한다 — 가장 흔한 케이스라 "약"에 걸맞다 */
@@ -87,6 +92,12 @@ export const DEFAULT_COMPLEXITY: Complexity = "normal";
 export function designCostOf(line: Pick<DesignLine, "complexity">): number {
   const c = isComplexity(line.complexity) ? line.complexity : DEFAULT_COMPLEXITY;
   return COMPLEXITY_SPECS[c].cost;
+}
+
+/** 라인의 디자인비 표기 하한 — 난이도별 겹치지 않는 floor 기준 */
+export function designFloorOf(line: Pick<DesignLine, "complexity">): number {
+  const c = isComplexity(line.complexity) ? line.complexity : DEFAULT_COMPLEXITY;
+  return COMPLEXITY_SPECS[c].floor;
 }
 
 /* ── 생산비 (제품 생산일 때만) ──
@@ -320,6 +331,8 @@ export interface QuoteEstimate {
   totalQuantity: number;
   designMin: number;
   designMax: number;
+  /** 디자인비 표기 하한 — 난이도 floor 합 (난이도 없는 완제품은 종당 하한 -25%) */
+  designFloor: number;
   productionMin: number;
   productionMax: number;
   /** 포장비 = 총수량 × 개당 단가. 하한·상한 양쪽에 더해진다 */
@@ -336,6 +349,12 @@ export interface QuoteEstimate {
   supervisionCost: number;
   totalMin: number;
   totalMax: number;
+  /**
+   * 총액 표기 하한 = 디자인비 floor + 나머지 항목 하한(-25%).
+   * 난이도가 걸린 주문(도면만·제품 생산)은 총액을 범위 대신 "N만원~"로 안내한다
+   * — 난이도 가격이 하한 표기라 상한을 못 박을 수 없기 때문.
+   */
+  totalFloor: number;
   /** 수량이 필요한 주문인데 하나도 입력되지 않은 상태 */
   quantityMissing: boolean;
 }
@@ -370,6 +389,10 @@ export function estimateQuote(
     ? lines.reduce((sum, l) => sum + designCostOf(l), 0)
     : designCount * spec.costMin;
   const designMax = spec.hasComplexity ? designMin : designCount * spec.costMax;
+  /* 표기 하한 — 난이도는 겹치지 않는 floor, 난이도 없는 완제품은 종당 하한 -25% */
+  const designFloor = spec.hasComplexity
+    ? lines.reduce((sum, l) => sum + designFloorOf(l), 0)
+    : rangeMin(designMin);
 
   /* 생산비 — 종마다 그 종의 수량을 1,000부 사다리에 태워 합산. 정액이라 하한=상한 */
   const production = spec.hasProduction
@@ -397,6 +420,8 @@ export function estimateQuote(
   const supervisionCost = extras.supervision ? SUPERVISION_COST : 0;
   const optionsCost = samplingCost + samplingImproveCost + supervisionCost + manualCost;
 
+  const nonDesignMin = productionMin + packagingCost + optionsCost;
+
   return {
     orderType,
     costLabel: spec.costLabel,
@@ -404,6 +429,7 @@ export function estimateQuote(
     totalQuantity,
     designMin,
     designMax,
+    designFloor,
     productionMin,
     productionMax,
     packagingCost,
@@ -412,8 +438,9 @@ export function estimateQuote(
     samplingCost,
     samplingImproveCost,
     supervisionCost,
-    totalMin: designMin + productionMin + packagingCost + optionsCost,
+    totalMin: designMin + nonDesignMin,
     totalMax: designMax + productionMax + packagingCost + optionsCost,
+    totalFloor: designFloor + rangeMin(nonDesignMin),
     quantityMissing: spec.hasQuantity && designCount > 0 && totalQuantity === 0,
   };
 }
