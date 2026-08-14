@@ -56,9 +56,8 @@ export const metadata: Metadata = {
   publisher: SITE_NAME,
   alternates: {
     canonical: "/",
-    // RSS 자동 발견 — 리더·수집기가 <link rel="alternate"> 로 피드를 찾는다.
-    // 값은 배열이 아니라 문자열이어야 렌더된다 (타입상 배열도 통과하지만 출력되지 않음).
-    types: { "application/rss+xml": `${SITE_URL}/rss.xml` },
+    // RSS 자동 발견 링크는 여기(metadata)가 아니라 layout 의 <head> 에서 직접 렌더한다.
+    // 이유는 그쪽 주석 참고 — 하위 페이지의 alternates 선언에 덮이지 않게 하기 위함.
   },
   openGraph: {
     type: "website",
@@ -227,6 +226,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${pretendard.variable}`}>
+      <head>
+        {/*
+          RSS 자동 발견. metadata.alternates.types 로 넣으면 하위 페이지가
+          alternates(canonical)를 자체 선언하는 순간 통째로 교체돼 사라진다
+          — Next 의 metadata 는 필드 단위 병합이 아니다. 전 페이지에 남아야 하는
+          링크라 여기서 직접 렌더한다.
+        */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title={`${SITE_NAME} 블로그`}
+          href={`${SITE_URL}/rss.xml`}
+        />
+      </head>
       <body className="min-h-screen flex flex-col antialiased">
         <OrganizationJsonLd />
         <WebSiteJsonLd />
