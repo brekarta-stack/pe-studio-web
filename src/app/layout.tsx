@@ -56,8 +56,9 @@ export const metadata: Metadata = {
   publisher: SITE_NAME,
   alternates: {
     canonical: "/",
-    // RSS 자동 발견 — 리더·수집기가 <link rel="alternate"> 로 피드를 찾는다
-    types: { "application/rss+xml": [{ url: "/rss.xml", title: `${SITE_NAME} 블로그` }] },
+    // RSS 자동 발견 — 리더·수집기가 <link rel="alternate"> 로 피드를 찾는다.
+    // 값은 배열이 아니라 문자열이어야 렌더된다 (타입상 배열도 통과하지만 출력되지 않음).
+    types: { "application/rss+xml": `${SITE_URL}/rss.xml` },
   },
   openGraph: {
     type: "website",
