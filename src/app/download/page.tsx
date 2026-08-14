@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PageHero from "@/components/PageHero";
-import { PAGE_META, DOWNLOAD, SITE_URL } from "@/lib/site";
+import { PAGE_META, DOWNLOAD, SITE_URL, OG_IMAGE } from "@/lib/site";
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   description: PAGE_META.download.description,
   alternates: { canonical: "/download" },
   openGraph: {
+    images: [OG_IMAGE],
     title: PAGE_META.download.title,
     description: PAGE_META.download.description,
     url: "/download",

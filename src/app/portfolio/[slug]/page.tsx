@@ -4,6 +4,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getItemBySlug, getItems } from "@/lib/portfolio";
 import { deriveSlug, deriveSummary, getAllKeywords, getImageAlt } from "@/lib/portfolio-meta";
+import { derivePortfolioFaq } from "@/lib/portfolio-faq";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { ArrowRightIcon } from "@/components/icons";
 import { PaperNetBg } from "@/components/paper-art";
@@ -108,6 +109,18 @@ function PortfolioItemJsonLd({ item, slug }: { item: Awaited<ReturnType<typeof g
     ],
   };
 
+  // 사례별 FAQ — 본문에 실제로 보이는 Q&A 와 같은 내용이어야 한다(구글 정책)
+  const faq = derivePortfolioFaq(item);
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.question,
+      acceptedAnswer: { "@type": "Answer", text: f.answer },
+    })),
+  };
+
   return (
     <>
       <script
@@ -119,6 +132,11 @@ function PortfolioItemJsonLd({ item, slug }: { item: Awaited<ReturnType<typeof g
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
       />
     </>
   );
@@ -134,6 +152,7 @@ export default async function PortfolioDetailPage({ params }: Props) {
   const otherImages = (item.images ?? []).slice(1);
   const tags = item.tags ?? [];
   const canonicalSlug = deriveSlug(item);
+  const faq = derivePortfolioFaq(item);
 
   return (
     <>
@@ -246,6 +265,33 @@ export default async function PortfolioDetailPage({ params }: Props) {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* 사례별 자주 묻는 질문 — JSON-LD(FAQPage)와 같은 내용을 본문에도 노출한다 */}
+            {faq.length > 0 && (
+              <section className="mt-12">
+                <h2 className="text-2xl font-bold text-slate-900 mb-4 tracking-tight">
+                  이 작업에 대해 자주 묻는 질문
+                </h2>
+                <dl className="divide-y divide-slate-200 border-t border-slate-200">
+                  {faq.map((f) => (
+                    <div key={f.question} className="py-5">
+                      <dt
+                        className="text-base font-semibold text-slate-900 mb-2"
+                        style={{ wordBreak: "keep-all" }}
+                      >
+                        {f.question}
+                      </dt>
+                      <dd
+                        className="text-slate-700 leading-relaxed"
+                        style={{ wordBreak: "keep-all" }}
+                      >
+                        {f.answer}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
             )}
           </div>
 

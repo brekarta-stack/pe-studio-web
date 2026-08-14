@@ -1,7 +1,7 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { getPosts } from "@/lib/blog";
-import { PAGE_META, SITE_SHORT, BRAND_TAGLINE_KR } from "@/lib/site";
+import { PAGE_META, SITE_SHORT, BRAND_TAGLINE_KR, OG_IMAGE } from "@/lib/site";
 import { PencilIcon, ArrowRightIcon } from "@/components/icons";
 import { PaperNetBg } from "@/components/paper-art";
 import BlogList from "@/components/BlogList";
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   description: PAGE_META.blog.description,
   alternates: { canonical: "/blog" },
   openGraph: {
+    images: [OG_IMAGE],
     title: PAGE_META.blog.title,
     description: PAGE_META.blog.description,
     url: "/blog",

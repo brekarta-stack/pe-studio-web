@@ -160,3 +160,20 @@ export const DOWNLOAD = {
   url: "https://github.com/brekarta-stack/papercraft-studio-releases/releases/download/v1.3/PapercraftStudio-windows-x64.zip",
   price: "무료",
 } as const;
+
+/**
+ * 페이지 공용 오픈그래프 대표 이미지.
+ *
+ * app/opengraph-image.tsx 는 파일이 놓인 세그먼트(=홈)에만 적용되고 하위 라우트로
+ * 상속되지 않는다. 게다가 페이지가 metadata.openGraph 를 자체 선언하면 그 객체가
+ * 통째로 교체돼 이미지가 사라진다 — 실제로 /about·/products·/faq·/quote·/download·
+ * /blog·/portfolio·/studio 에서 og:image 가 비어 있었다(네이버 URL 검사 지적).
+ *
+ * 그래서 openGraph 를 선언하는 페이지는 반드시 `images: [OG_IMAGE]` 를 함께 넣는다.
+ */
+export const OG_IMAGE = {
+  url: `${SITE_URL}/opengraph-image`,
+  width: 1200,
+  height: 630,
+  alt: `${SITE_NAME} — ${BRAND_TAGLINE_KR}`,
+} as const;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PAGE_META } from "@/lib/site";
+import { PAGE_META, OG_IMAGE } from "@/lib/site";
 import { ArrowRightIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   description: PAGE_META.faq.description,
   alternates: { canonical: "/faq" },
   openGraph: {
+    images: [OG_IMAGE],
     title: PAGE_META.faq.title,
     description: PAGE_META.faq.description,
     url: "/faq",

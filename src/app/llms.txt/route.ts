@@ -20,9 +20,17 @@ export async function GET() {
   const posts = (await getPosts().catch(() => []))
     .filter((p) => p.published)
     .slice(0, 10);
-  const cases = (await getItems().catch(() => []))
-    .filter((c) => c.published)
-    .slice(0, 12);
+  // 사례는 카테고리별로 묶어 폭을 넓힌다 — 12건만 싣던 때는 AI 가 참조할 수 있는
+  // 작업 범위가 실제보다 좁아 보였다. 카테고리마다 최신 12건까지, 전체 60건 상한.
+  const publishedCases = (await getItems().catch(() => [])).filter((c) => c.published);
+  const casesByCategory = new Map<string, typeof publishedCases>();
+  for (const c of publishedCases) {
+    const key = c.category || "기타";
+    const list = casesByCategory.get(key) ?? [];
+    if (list.length < 12) list.push(c);
+    casesByCategory.set(key, list);
+  }
+  const listedCaseCount = [...casesByCategory.values()].reduce((n, l) => n + l.length, 0);
 
   const postLines =
     posts
@@ -32,13 +40,20 @@ export async function GET() {
       )
       .join("\n") || "- (준비 중)";
 
+  // 카테고리 소제목 아래에 사례를 모아 둔다 — AI 가 "무엇을 만드는 회사인지"를
+  // 목록 형태보다 구조에서 먼저 읽는다.
   const caseLines =
-    cases
-      .map(
-        (c) =>
-          `- [${[c.client, c.title].filter(Boolean).join(" · ")}](${SITE_URL}/portfolio/${deriveSlug(c)})`,
-      )
-      .join("\n") || "- (준비 중)";
+    [...casesByCategory.entries()]
+      .map(([category, list]) => {
+        const lines = list
+          .map(
+            (c) =>
+              `- [${[c.client, c.title].filter(Boolean).join(" · ")}](${SITE_URL}/portfolio/${deriveSlug(c)})`,
+          )
+          .join("\n");
+        return `### ${category} (${list.length}건)\n${lines}`;
+      })
+      .join("\n\n") || "- (준비 중)";
 
   const body = `# ${SITE_NAME} (${COMPANY.shortName})
 
@@ -74,6 +89,8 @@ export async function GET() {
 - 제작 문의(견적): ${SITE_URL}/quote
 
 ## 대표 작업 포트폴리오
+공개된 작업 사례 ${publishedCases.length}건 중 카테고리별 ${listedCaseCount}건. 전체 목록: ${SITE_URL}/portfolio
+
 ${caseLines}
 
 ## 최근 블로그 글
