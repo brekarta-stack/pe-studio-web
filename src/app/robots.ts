@@ -19,12 +19,23 @@ const AI_BOTS = [
   "CCBot", // Common Crawl (다수 LLM 학습 데이터)
 ];
 
+/**
+ * 일반 검색 크롤러 중 명시가 필요한 것.
+ * Yeti(네이버)는 `User-Agent: *` 로도 수집되지만, 네이버 서치어드바이저 가이드가
+ * 자사 봇 이름으로의 명시적 허용을 권장한다 — 국내 검색 유입이 큰 만큼 명시해 둔다.
+ */
+const SEARCH_BOTS = [
+  "Yeti", // 네이버
+  "Daumoa", // 다음(카카오)
+];
+
 export default function robots(): MetadataRoute.Robots {
   // /studio 는 품질 정비 전까지 비공개 — 크롤 차단(복구 시 이 항목 삭제, 2026-07-11)
   const disallow = ["/admin/", "/api/", "/studio"];
   return {
     rules: [
       { userAgent: "*", allow: "/", disallow },
+      ...SEARCH_BOTS.map((userAgent) => ({ userAgent, allow: "/", disallow })),
       ...AI_BOTS.map((userAgent) => ({ userAgent, allow: "/", disallow })),
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

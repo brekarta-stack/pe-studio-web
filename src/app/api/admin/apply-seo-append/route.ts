@@ -7,20 +7,33 @@ import updates from "@/../data/seo-append-updates.json";
 /**
  * SEO/GEO 보강 문구 일괄 반영 (어드민 전용, 1회성 운영 도구)
  *
- *   GET /api/admin/apply-seo-append          — 드라이런: 반영 대상 개수만 보고
- *   GET /api/admin/apply-seo-append?apply=1  — 실제 반영
+ *   GET  /api/admin/apply-seo-append   — 드라이런: 반영 대상 개수만 보고 (읽기 전용)
+ *   POST /api/admin/apply-seo-append   — 실제 반영
+ *
+ * 쓰기를 POST 로 둔 이유: GET 은 브라우저가 링크·프리페치·이미지 로드만으로도
+ * 보내는 메서드라 상태 변경에 쓰면 안 된다. 관리자가 악성 링크를 한 번 클릭하는
+ * 것만으로 실행되는 CSRF 경로가 생긴다. 반영은 반드시 POST 로 호출한다.
+ *
+ *   fetch("/api/admin/apply-seo-append", { method: "POST" })
  *
  * data/seo-append-updates.json 은 "기존 내용 + 추가 문구"가 합쳐진 완성본이라
  * 여러 번 실행해도 결과가 같다 (멱등). 원본 백업은 data/portfolio-dump.json.
  */
-export async function GET(request: Request) {
+export async function GET() {
   const guard = await requireAdminApi();
   if (guard) return guard;
 
-  const apply = new URL(request.url).searchParams.get("apply") === "1";
-  if (!apply) {
-    return NextResponse.json({ ok: true, dryRun: true, total: updates.length });
-  }
+  return NextResponse.json({
+    ok: true,
+    dryRun: true,
+    total: updates.length,
+    hint: "실제 반영은 같은 경로로 POST",
+  });
+}
+
+export async function POST() {
+  const guard = await requireAdminApi();
+  if (guard) return guard;
 
   let applied = 0;
   const failed: { id: string; title: string; error: string }[] = [];
