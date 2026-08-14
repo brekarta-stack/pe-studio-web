@@ -12,7 +12,7 @@ import Link from "next/link";
 import StudioCatalog from "@/components/StudioCatalog";
 import { categoryLandings, type StudioItem } from "@/lib/studio";
 import { getExposedItems } from "@/lib/studio-review";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_URL, OG_IMAGE } from "@/lib/site";
 
 export const revalidate = 300; // 검수 상태 반영(ISR) — 검수 API 가 즉시 revalidatePath 도 한다
 
@@ -25,6 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "3D로 미리 돌려 보고, 도면을 확인하고, 인쇄용 PDF를 내려받아 바로 만들어 보세요.",
     alternates: { canonical: "/studio" },
     openGraph: {
+      images: [OG_IMAGE],
       title: `종이모형 스튜디오 (베타) | ${SITE_NAME}`,
       description: "3D로 미리 보고 인쇄해서 만드는 종이모형 도안.",
       url: "/studio",

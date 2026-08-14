@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PAGE_META, BRAND_TAGLINE_KR, SITE_NAME } from "@/lib/site";
+import { PAGE_META, BRAND_TAGLINE_KR, SITE_NAME, OG_IMAGE } from "@/lib/site";
 import {
   PatentIcon,
   GlobeIcon,
@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   description: PAGE_META.about.description,
   alternates: { canonical: "/about" },
   openGraph: {
+    images: [OG_IMAGE],
     title: PAGE_META.about.title,
     description: PAGE_META.about.description,
     url: "/about",

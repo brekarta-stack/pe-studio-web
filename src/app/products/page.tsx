@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PAGE_META, SITE_URL, SITE_NAME, BRAND_TAGLINE_KR } from "@/lib/site";
+import { PAGE_META, SITE_URL, SITE_NAME, BRAND_TAGLINE_KR, OG_IMAGE } from "@/lib/site";
 import {
   ArrowRightIcon,
   type IconKey,
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   description: PAGE_META.products.description,
   alternates: { canonical: "/products" },
   openGraph: {
+    images: [OG_IMAGE],
     title: PAGE_META.products.title,
     description: PAGE_META.products.description,
     url: "/products",

@@ -3,7 +3,7 @@ import { getItems, CATEGORIES } from "@/lib/portfolio";
 import { deriveSlug, deriveSummary } from "@/lib/portfolio-meta";
 import PortfolioGallery from "@/components/PortfolioGallery";
 import PageHero from "@/components/PageHero";
-import { PAGE_META, SITE_NAME, SITE_URL } from "@/lib/site";
+import { PAGE_META, SITE_NAME, SITE_URL, OG_IMAGE } from "@/lib/site";
 import { PaperNetBg } from "@/components/paper-art";
 import { ArrowRightIcon } from "@/components/icons";
 
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   description: PAGE_META.portfolio.description,
   alternates: { canonical: "/portfolio" },
   openGraph: {
+    images: [OG_IMAGE],
     title: PAGE_META.portfolio.title,
     description: PAGE_META.portfolio.description,
     url: "/portfolio",

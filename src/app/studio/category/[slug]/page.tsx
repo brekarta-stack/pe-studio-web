@@ -14,7 +14,7 @@ import {
   categoryFromSlug,
 } from "@/lib/studio";
 import { getExposedItems } from "@/lib/studio-review";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_URL, OG_IMAGE } from "@/lib/site";
 
 export const revalidate = 300; // 검수 큐레이션 게이트 반영(ISR)
 
@@ -47,6 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: { canonical: `/studio/category/${slug}` },
     openGraph: {
+      images: [OG_IMAGE],
       title: `${title} | ${SITE_NAME}`,
       description,
       url: `/studio/category/${slug}`,
