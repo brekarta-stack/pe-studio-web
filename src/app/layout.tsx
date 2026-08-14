@@ -56,6 +56,8 @@ export const metadata: Metadata = {
   publisher: SITE_NAME,
   alternates: {
     canonical: "/",
+    // RSS 자동 발견 — 리더·수집기가 <link rel="alternate"> 로 피드를 찾는다
+    types: { "application/rss+xml": [{ url: "/rss.xml", title: `${SITE_NAME} 블로그` }] },
   },
   openGraph: {
     type: "website",
