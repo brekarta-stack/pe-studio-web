@@ -47,8 +47,10 @@ const securityHeaders = [
       scriptSrc,
       // Tailwind 인라인 스타일
       "style-src 'self' 'unsafe-inline'",
-      // Supabase Storage + Wikimedia Commons (파트너 로고) + 정부/박물관 도메인 + Unsplash CDN (블로그 커버) + data/blob
-      `img-src 'self' data: blob: https://${SUPABASE_HOST} https://upload.wikimedia.org https://images.unsplash.com https://image.pollinations.ai`,
+      // Supabase Storage + Wikimedia Commons (파트너 로고) + Pollinations(어드민 AI 커버 생성) + data/blob.
+      // 외부 스톡 사진(Unsplash)은 블로그 커버를 실제 납품 사례 사진으로 바꾸면서 제거했다 —
+      // 다시 허용하면 "남의 사진"이 슬그머니 돌아온다. docs/blog-content-guide.md 참고.
+      `img-src 'self' data: blob: https://${SUPABASE_HOST} https://upload.wikimedia.org https://image.pollinations.ai`,
       // Supabase API + Google OAuth
       `connect-src 'self' https://${SUPABASE_HOST} https://accounts.google.com https://oauth2.googleapis.com`,
       // 폰트
@@ -85,7 +87,7 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * 이미지 최적화 — next/image 가 원본(Supabase Storage·Unsplash·Pollinations)을
+   * 이미지 최적화 — next/image 가 원본(Supabase Storage·Pollinations)을
    * AVIF/WebP 로 자동 변환·리사이즈해 LCP/총 전송 바이트를 줄인다.
    * (Wikimedia 파트너 로고는 SVG 라 next/image 미적용 → 여기 미등록)
    */
@@ -93,7 +95,6 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: SUPABASE_HOST },
-      { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "image.pollinations.ai" },
     ],
   },

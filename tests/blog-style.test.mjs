@@ -54,6 +54,22 @@ test("slug 는 중복이 없다", () => {
   assert.equal(new Set(slugs).size, slugs.length);
 });
 
+test("커버는 외부 스톡 사진이 아니라 자사 자산이어야 한다", () => {
+  const covers = [...src.matchAll(/coverImage:\s*\n?\s*"([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(covers.length, titles.length, "커버가 없는 글이 있다");
+  const stock = covers.filter((u) => /unsplash|pexels|pixabay|shutterstock|gettyimages/i.test(u));
+  assert.equal(stock.length, 0, `외부 스톡 커버: ${stock.join(", ")}`);
+  // 자사 Supabase 스토리지(실제 납품 사례) 또는 /public 로컬 자산만 허용
+  const foreign = covers.filter((u) => !u.startsWith("/") && !/\.supabase\.co\//.test(u));
+  assert.equal(foreign.length, 0, `허용되지 않은 커버 호스트: ${foreign.join(", ")}`);
+});
+
+test("커버 사진은 글마다 서로 다르다", () => {
+  const covers = [...src.matchAll(/coverImage:\s*\n?\s*"([^"]+)"/g)].map((m) => m[1]);
+  const dupes = covers.filter((u, i) => covers.indexOf(u) !== i);
+  assert.equal(dupes.length, 0, `중복 커버: ${[...new Set(dupes)].join(", ")}`);
+});
+
 test("해요체 실용 글이 최소 4편 존재한다 (문체 편차 유지)", () => {
   const contents = [...src.matchAll(/content: `([\s\S]*?)`,\n\s*\}/g)].map((m) => m[1]);
   const polite = contents.filter((c) => /(이에요|예요|합니다|해요|드릴게요|보세요)/.test(c.slice(0, 400)));

@@ -114,6 +114,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20260807_quote_manual_option.sql",
     note: "quotes.manual_option (설명서 생산 — 가이드/QR·영상/인쇄)",
   },
+  {
+    table: "posts",
+    column: "queued",
+    sql: "migrations/20260808_blog_scheduling.sql",
+    note: "posts.queued / auto_published_at (블로그 주간 자동 발행 대기열)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

@@ -93,8 +93,18 @@ export async function getPostBySlug(slug: string): Promise<Post | undefined> {
   return seed;
 }
 
+/** PostgREST 가 "그런 컬럼 없다"고 답했는지 — 스키마 캐시 오류 코드/문구로 판별 */
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST204" ||
+    !!error.message?.includes("schema cache") ||
+    !!error.message?.includes("does not exist")
+  );
+}
+
 export async function savePost(post: Post): Promise<void> {
-  const { error } = await supabaseAdmin.from("posts").upsert({
+  const base = {
     id: post.id,
     slug: post.slug,
     title: post.title,
@@ -104,12 +114,25 @@ export async function savePost(post: Post): Promise<void> {
     emoji: post.emoji,
     cover_image: post.coverImage ?? null,
     published: post.published,
-    queued: post.queued ?? false,
-    auto_published_at: post.autoPublishedAt ?? null,
     created_at: post.createdAt,
     updated_at: post.updatedAt,
+  };
+
+  const { error } = await supabaseAdmin.from("posts").upsert({
+    ...base,
+    queued: post.queued ?? false,
+    auto_published_at: post.autoPublishedAt ?? null,
   });
-  if (error) throw error;
+  if (!error) return;
+
+  // 20260808_blog_scheduling 마이그레이션 전이면 예약 컬럼이 없다.
+  // 이 코드는 마이그레이션보다 먼저 배포되므로, 그 사이에도 글 저장은 계속 되어야 한다.
+  if (isMissingColumnError(error)) {
+    const { error: retryError } = await supabaseAdmin.from("posts").upsert(base);
+    if (retryError) throw retryError;
+    return;
+  }
+  throw error;
 }
 
 export async function deletePost(id: string): Promise<void> {

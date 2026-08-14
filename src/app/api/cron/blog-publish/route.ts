@@ -48,6 +48,22 @@ async function run(request: Request) {
     .gte("auto_published_at", weekStart)
     .limit(1);
   if (guardError) {
+    // 마이그레이션(20260808_blog_scheduling) 전이면 예약 컬럼이 없다 —
+    // 원인이 명확히 드러나도록 일반 500 대신 안내를 돌려준다.
+    const missingColumn =
+      guardError.code === "PGRST204" ||
+      guardError.message?.includes("schema cache") ||
+      guardError.message?.includes("does not exist");
+    if (missingColumn) {
+      return NextResponse.json(
+        {
+          error: "migration-required",
+          detail:
+            "posts.queued / auto_published_at 컬럼이 없습니다. 어드민 > DB 셋업에서 20260808_blog_scheduling 마이그레이션을 실행하세요.",
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: guardError.message }, { status: 500 });
   }
   if (already && already.length > 0) {
