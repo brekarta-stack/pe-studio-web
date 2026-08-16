@@ -107,7 +107,9 @@ function OrganizationJsonLd() {
     legalName: COMPANY.legalName,
     alternateName: COMPANY.shortName,
     url: SITE_URL,
-    logo: `${SITE_URL}/opengraph-image`,
+    // schema.org logo 는 홍보 배너가 아니라 로고 자체여야 한다 —
+    // OG 배너(1200×630) 대신 정사각 브랜드 아이콘을 가리킨다.
+    logo: `${SITE_URL}/brand/pe-studio-icon-512.png`,
     description: SITE_DESCRIPTION,
     slogan: BRAND_TAGLINE_KR,
     foundingDate: COMPANY.foundingYear,

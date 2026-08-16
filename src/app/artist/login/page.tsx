@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -30,15 +31,14 @@ export default async function ArtistLoginPage({
     <div className="mx-auto flex min-h-[70vh] max-w-md items-center px-4 py-12">
       <div className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
-          <div
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl"
-            style={{ background: "#1E22B2" }}
-          >
-            <svg viewBox="0 0 28 28" className="h-6 w-6" fill="none" aria-hidden>
-              <path d="M6 4 H14 A6 6 0 0 1 14 16 H10 V24 H6 Z" fill="white" />
-              <path d="M14 4 L20 10 V24 H22 V8 L16 2 H14 Z" fill="white" opacity="0.6" />
-            </svg>
-          </div>
+          <Image
+            src="/brand/pe-studio-mark.png"
+            alt=""
+            width={202}
+            height={256}
+            className="mx-auto mb-4 h-14 w-auto"
+            aria-hidden
+          />
           <h1 className="text-xl font-bold text-slate-900">아티스트 포털</h1>
           <p className="mt-1 text-sm text-slate-500">
             배정된 업무와 정산 내역을 확인하세요.

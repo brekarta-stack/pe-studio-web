@@ -1,4 +1,16 @@
 import { ImageResponse } from "next/og";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/**
+ * 브랜드 마크(만세 인형)를 data URI 로 인라인한다.
+ * Satori 는 외부 URL 을 못 받는 환경이 있어 파일을 직접 읽어 넣는다.
+ * 이 파일이 서버리스 번들에 포함되도록 next.config.ts 의
+ * outputFileTracingIncludes 에 "/opengraph-image" 항목이 있어야 한다.
+ */
+const MARK_SRC = `data:image/png;base64,${readFileSync(
+  join(process.cwd(), "public/brand/pe-studio-mark-512.png")
+).toString("base64")}`;
 
 /**
  * 사이트 공통 OG 이미지 (1200×630).
@@ -26,24 +38,21 @@ export default function OpengraphImage() {
           background: "linear-gradient(135deg, #1E22B2 0%, #171AB0 60%, #0F1280 100%)",
           color: "white",
           position: "relative",
+          // 오른쪽 마크(358px @ right:72px)와 글자가 겹치지 않도록 텍스트 폭을 제한
+          paddingRight: "500px",
         }}
       >
-        {/* 우상단 종이접기 모티프 */}
+        {/* 우측 브랜드 마크 — 만세 인형 */}
         <div
           style={{
             position: "absolute",
-            top: "-60px",
-            right: "-40px",
-            width: "420px",
-            height: "420px",
+            right: "72px",
+            top: "50%",
+            transform: "translateY(-50%)",
             display: "flex",
           }}
         >
-          <svg width="420" height="420" viewBox="0 0 200 200" fill="none">
-            <path d="M40 60 L100 20 L160 60 L160 140 L100 180 L40 140 Z" fill="#06C6C8" opacity="0.18" />
-            <path d="M100 20 L160 60 L100 100 L40 60 Z" fill="#F5C518" opacity="0.22" />
-            <path d="M100 100 L160 60 L160 140 L100 180 Z" fill="#E91E8C" opacity="0.16" />
-          </svg>
+          <img src={MARK_SRC} alt="" width={358} height={454} />
         </div>
 
         {/* 작은 라벨 */}
