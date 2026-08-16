@@ -181,8 +181,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           <Image
             src="/brand/pe-studio-mark.png"
             alt=""
-            width={202}
-            height={256}
+            width={25}
+            height={32}
             className="h-8 w-auto flex-shrink-0"
             aria-hidden
           />

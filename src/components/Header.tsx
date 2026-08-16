@@ -29,12 +29,14 @@ export default function Header() {
           <Link href="/" className="flex items-center gap-2.5" aria-label="Paper Engineering Studio 홈으로 이동">
             {/* 만세 인형 마크 — 밝은 배경이라 별도 판 없이 그대로 얹는다.
                 글자는 이미지가 아니라 아래 HTML 텍스트라 어느 폭에서도 선명하다. */}
+            {/* width/height 는 원본이 아니라 실제 렌더 크기(h-9 = 36px)로 준다 —
+                원본 202×256 을 주면 next/image 가 256·640 변환을 요청해 히어로 이미지와
+                대역폭을 다툰다. priority 도 같은 이유로 쓰지 않는다(LCP 는 히어로 쪽). */}
             <Image
               src="/brand/pe-studio-mark.png"
               alt=""
-              width={202}
-              height={256}
-              priority
+              width={28}
+              height={36}
               className="h-9 w-auto flex-shrink-0"
               aria-hidden
             />

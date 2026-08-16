@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -23,6 +23,14 @@ const pretendard = localFont({
   display: "swap",
   weight: "45 920",
 });
+
+/**
+ * manifest 의 theme_color 는 설치된 PWA 에만 적용된다.
+ * 크롬 안드로이드 브라우저의 주소창 색은 <meta name="theme-color"> 를 본다.
+ */
+export const viewport: Viewport = {
+  themeColor: "#1E22B2",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -192,7 +200,8 @@ function LocalBusinessJsonLd() {
     alternateName: COMPANY.shortName,
     description: SITE_DESCRIPTION,
     url: SITE_URL,
-    image: `${SITE_URL}/opengraph-image`,
+    // LocalBusiness.image 는 사업장을 보여주는 사진이어야 한다 (홍보 배너 아님).
+    image: `${SITE_URL}/home/studio-1.jpg`,
     ...(COMPANY.phone ? { telephone: COMPANY.phone } : {}),
     email: COMPANY.email,
     priceRange: "₩₩",

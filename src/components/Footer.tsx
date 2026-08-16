@@ -16,8 +16,8 @@ export default function Footer() {
                 <Image
                   src="/brand/pe-studio-mark.png"
                   alt=""
-                  width={202}
-                  height={256}
+                  width={22}
+                  height={28}
                   className="h-full w-auto"
                 />
               </div>

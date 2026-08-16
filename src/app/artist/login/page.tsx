@@ -34,8 +34,8 @@ export default async function ArtistLoginPage({
           <Image
             src="/brand/pe-studio-mark.png"
             alt=""
-            width={202}
-            height={256}
+            width={44}
+            height={56}
             className="mx-auto mb-4 h-14 w-auto"
             aria-hidden
           />

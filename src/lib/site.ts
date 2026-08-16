@@ -171,8 +171,15 @@ export const DOWNLOAD = {
  *
  * 그래서 openGraph 를 선언하는 페이지는 반드시 `images: [OG_IMAGE]` 를 함께 넣는다.
  */
+/**
+ * OG 이미지 버전. 이미지 내용이 바뀌어도 URL 이 그대로면 카카오톡·페이스북·네이버가
+ * 캐시된 옛 썸네일을 계속 보여준다. 디자인을 바꿀 때마다 이 값을 올려 URL 을 갈아 준다.
+ * (2 = 2026-08 만세 인형 로고 적용)
+ */
+const OG_VERSION = "2";
+
 export const OG_IMAGE = {
-  url: `${SITE_URL}/opengraph-image`,
+  url: `${SITE_URL}/opengraph-image?v=${OG_VERSION}`,
   width: 1200,
   height: 630,
   alt: `${SITE_NAME} — ${BRAND_TAGLINE_KR}`,
