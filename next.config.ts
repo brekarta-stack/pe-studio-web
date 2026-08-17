@@ -84,6 +84,9 @@ const nextConfig: NextConfig = {
     // 마이그레이션 실행 API 도 같은 SQL 파일을 읽어 Management API 로 보낸다.
     // 여기 빠뜨리면 번들에 .sql 이 없어 "파일을 읽을 수 없습니다" 로 실패한다.
     "/api/admin/migrate": ["./supabase/**/*"],
+    // OG 이미지가 브랜드 마크 PNG 를 읽어 data URI 로 인라인한다.
+    // public/ 은 함수 번들에 자동 포함되지 않으므로 명시해야 한다.
+    "/opengraph-image": ["./public/brand/pe-studio-mark-512.png"],
   },
 
   /**

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { COMPANY } from "@/lib/site";
 
 export default function Footer() {
@@ -9,11 +10,16 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0" aria-hidden>
-                <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none">
-                  <path d="M6 4 H14 A6 6 0 0 1 14 16 H10 V24 H6 Z" fill="white" />
-                  <path d="M14 4 L20 10 V24 H22 V8 L16 2 H14 Z" fill="white" opacity="0.55" />
-                </svg>
+              {/* 마크가 남색 계열이라 푸터(#1E22B2) 위에 그대로 얹으면 묻힌다 —
+                  흰 판을 깔아 대비를 확보한다. */}
+              <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center flex-shrink-0 p-1" aria-hidden>
+                <Image
+                  src="/brand/pe-studio-mark.png"
+                  alt=""
+                  width={22}
+                  height={28}
+                  className="h-full w-auto"
+                />
               </div>
               <div className="leading-tight">
                 <span className="font-bold text-white text-lg block">PE Studio</span>

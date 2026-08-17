@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 
 /* ─── 아이콘 ───
    NAV_GROUPS 안에 SVG 를 그대로 두면 메뉴 구성이 안 보인다.
@@ -177,15 +178,14 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* 로고 */}
       <div className="px-4 py-5 border-b border-slate-100">
         <Link href="/admin" className="flex items-center gap-2.5" onClick={onNavClick}>
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: "#1E22B2" }}
-          >
-            <svg viewBox="0 0 28 28" className="w-4 h-4" fill="none">
-              <path d="M6 4 H14 A6 6 0 0 1 14 16 H10 V24 H6 Z" fill="white" />
-              <path d="M14 4 L20 10 V24 H22 V8 L16 2 H14 Z" fill="white" opacity="0.6" />
-            </svg>
-          </div>
+          <Image
+            src="/brand/pe-studio-mark.png"
+            alt=""
+            width={25}
+            height={32}
+            className="h-8 w-auto flex-shrink-0"
+            aria-hidden
+          />
           <div className="leading-tight">
             <div className="font-bold text-slate-900 text-sm">PE Studio</div>
             <div className="text-[11px] text-slate-400">관리자</div>

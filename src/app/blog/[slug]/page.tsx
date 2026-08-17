@@ -152,7 +152,7 @@ export default async function BlogPostPage({
       "@type": "Organization",
       "@id": `${SITE_URL}/#organization`,
       name: SITE_NAME,
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/opengraph-image` },
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/brand/pe-studio-icon-512.png` },
     },
     mainEntityOfPage: {
       "@type": "WebPage",

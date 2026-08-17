@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const navLinks = [
@@ -26,17 +27,19 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5" aria-label="Paper Engineering Studio 홈으로 이동">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
-              style={{ background: "#1E22B2" }}
+            {/* 만세 인형 마크 — 밝은 배경이라 별도 판 없이 그대로 얹는다.
+                글자는 이미지가 아니라 아래 HTML 텍스트라 어느 폭에서도 선명하다. */}
+            {/* width/height 는 원본이 아니라 실제 렌더 크기(h-9 = 36px)로 준다 —
+                원본 202×256 을 주면 next/image 가 256·640 변환을 요청해 히어로 이미지와
+                대역폭을 다툰다. priority 도 같은 이유로 쓰지 않는다(LCP 는 히어로 쪽). */}
+            <Image
+              src="/brand/pe-studio-mark.png"
+              alt=""
+              width={28}
+              height={36}
+              className="h-9 w-auto flex-shrink-0"
               aria-hidden
-            >
-              {/* PE 모노그램 — 종이 접힘 형태 */}
-              <svg viewBox="0 0 28 28" className="w-5 h-5" fill="none">
-                <path d="M6 4 H14 A6 6 0 0 1 14 16 H10 V24 H6 Z" fill="white" />
-                <path d="M14 4 L20 10 V24 H22 V8 L16 2 H14 Z" fill="white" opacity="0.55" />
-              </svg>
-            </div>
+            />
             <span className="font-bold text-lg text-slate-900 tracking-tight">
               PE Studio
               <span className="hidden lg:inline text-slate-400 font-medium text-sm ml-1.5">

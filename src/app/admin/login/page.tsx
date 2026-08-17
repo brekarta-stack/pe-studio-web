@@ -1,15 +1,23 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import Image from "next/image";
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900">
       <div className="bg-white rounded-2xl p-10 shadow-xl text-center max-w-sm w-full mx-4">
-        <div className="text-4xl mb-4">✏️</div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">CES 블로그 관리자</h1>
+        <Image
+          src="/brand/pe-studio-mark.png"
+          alt=""
+          width={44}
+          height={56}
+          className="mx-auto mb-4 h-14 w-auto"
+          aria-hidden
+        />
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">PE Studio 관리자</h1>
         <p className="text-slate-500 text-sm mb-8">
-          관리자 계정으로 로그인하여 블로그를 관리하세요.
+          관리자 계정으로 로그인해 주세요.
         </p>
         <button
           onClick={() => signIn("google", { callbackUrl: "/admin" })}
