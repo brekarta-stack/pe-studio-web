@@ -50,5 +50,15 @@ vercel-check.png
 # claude local settings
 .claude/settings.local.json
 
+# 예외 — BMAD 스킬은 로컬 설정이 아니라 팀 공유 방법론이다.
+# Codex 쪽(.agents/skills)은 추적되므로 이쪽도 추적해야 두 에이전트가 같은 것을 본다.
+!.claude/skills/
+
 # Orca 워크트리 드롭 폴더 (에이전트 전달용 원본 — 배포물 아님)
 .orca/
+
+# BMAD — 스킬 안 테스트 스크립트가 만드는 캐시, 개인 설정
+__pycache__/
+*.pyc
+.pytest_cache/
+_bmad/custom/*.user.toml
