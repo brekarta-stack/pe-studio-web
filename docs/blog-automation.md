@@ -46,7 +46,22 @@ Vercel Cron (매일 16:30 KST, 하루 1회)                     ▼
 ```bash
 # 상태 확인 겸 수동 트리거 (슬롯 전이면 before-slot, 발행 후면 already-published 응답)
 curl -H "x-webhook-secret: $BLOG_PUBLISH_SECRET" https://www.papercraft.kr/api/cron/blog-publish
+
+# 점검 모드 — 아무것도 바꾸지 않고 상태만 본다.
+# 슬롯 전에는 위 호출이 DB 에 닿기 전에 끝나므로, 마이그레이션 적용 여부와
+# 대기열 상태를 확인하려면 이쪽을 쓴다.
+curl -H "x-webhook-secret: $BLOG_PUBLISH_SECRET" \
+  "https://www.papercraft.kr/api/cron/blog-publish?probe=1"
 ```
+
+점검 모드 응답:
+
+```json
+{ "ok": true, "migration": "applied", "slot": "…", "beforeSlot": true,
+  "publishedThisWeek": 0, "queueLength": 0, "nextInQueue": null }
+```
+
+`migration: "required"` (503) 가 나오면 컬럼이 아직 없다는 뜻이다.
 
 응답의 `skipped` 값: `before-slot`(아직 슬롯 전) / `already-published-this-week` /
 `empty-queue`(대기열 비어 있음 — 글을 채워야 다음 주에 나간다).

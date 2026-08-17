@@ -26,6 +26,70 @@ function authorized(request: Request): boolean {
   return false;
 }
 
+/** PostgREST 가 "그런 컬럼 없다"고 답했는지 — 마이그레이션 미적용 판별 */
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST204" ||
+    !!error.message?.includes("schema cache") ||
+    !!error.message?.includes("does not exist")
+  );
+}
+
+/**
+ * 점검 모드 (`?probe=1`) — 아무것도 바꾸지 않고 상태만 돌려준다.
+ *
+ * 슬롯 전(before-slot)에는 본 로직이 DB 에 닿기 전에 끝나므로,
+ * 마이그레이션이 적용됐는지·대기열에 무엇이 있는지 알 수 없다.
+ * 배포 후 "자동 발행이 실제로 돌 준비가 됐는가"를 확인하려면 이 모드를 쓴다.
+ */
+async function probe(now: Date) {
+  const slot = weeklySlot(now);
+  const weekStart = weekStartUtc(now).toISOString();
+
+  const { data: published, error: publishedError } = await supabaseAdmin
+    .from("posts")
+    .select("id, slug")
+    .gte("auto_published_at", weekStart);
+
+  if (isMissingColumn(publishedError)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        migration: "required",
+        detail:
+          "posts.queued / auto_published_at 컬럼이 없습니다. 어드민 > DB 셋업에서 20260808_blog_scheduling 마이그레이션을 실행하세요.",
+        slot: slot.toISOString(),
+      },
+      { status: 503 }
+    );
+  }
+  if (publishedError) {
+    return NextResponse.json({ ok: false, error: publishedError.message }, { status: 500 });
+  }
+
+  const { data: queue, error: queueError } = await supabaseAdmin
+    .from("posts")
+    .select("id, slug, title, created_at")
+    .eq("published", false)
+    .eq("queued", true)
+    .order("created_at", { ascending: true });
+  if (queueError) {
+    return NextResponse.json({ ok: false, error: queueError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    migration: "applied",
+    now: now.toISOString(),
+    slot: slot.toISOString(),
+    beforeSlot: now < slot,
+    publishedThisWeek: published?.length ?? 0,
+    queueLength: queue?.length ?? 0,
+    nextInQueue: queue?.[0] ? { slug: queue[0].slug, title: queue[0].title } : null,
+  });
+}
+
 async function run(request: Request) {
   if (!process.env.CRON_SECRET && !process.env.BLOG_PUBLISH_SECRET) {
     return NextResponse.json({ error: "Cron endpoint not configured" }, { status: 503 });
@@ -35,6 +99,12 @@ async function run(request: Request) {
   }
 
   const now = new Date();
+
+  // 점검 모드 — 슬롯 가드보다 앞에 둬야 슬롯 전에도 DB 상태를 볼 수 있다
+  if (new URL(request.url).searchParams.get("probe")) {
+    return probe(now);
+  }
+
   const slot = weeklySlot(now);
   if (now < slot) {
     return NextResponse.json({ ok: true, skipped: "before-slot", slot: slot.toISOString() });
@@ -50,11 +120,7 @@ async function run(request: Request) {
   if (guardError) {
     // 마이그레이션(20260808_blog_scheduling) 전이면 예약 컬럼이 없다 —
     // 원인이 명확히 드러나도록 일반 500 대신 안내를 돌려준다.
-    const missingColumn =
-      guardError.code === "PGRST204" ||
-      guardError.message?.includes("schema cache") ||
-      guardError.message?.includes("does not exist");
-    if (missingColumn) {
+    if (isMissingColumn(guardError)) {
       return NextResponse.json(
         {
           error: "migration-required",
