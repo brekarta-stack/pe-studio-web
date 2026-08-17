@@ -45,7 +45,8 @@ vercel-check.png
 *-check.png
 
 # Claude Code local dev config
-.claude/
+# 디렉토리째(.claude/) 제외하면 하위 예외(!)가 먹지 않는다 — 그래서 내용만 제외한다.
+.claude/*
 
 # claude local settings
 .claude/settings.local.json
