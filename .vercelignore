@@ -1,0 +1,18 @@
+# Vercel 배포 업로드에서 제외 — 빌드·런타임에 필요 없는 것만.
+#
+# 주의: outputFileTracingIncludes 가 참조하는 supabase/, public/, content-private/ 는
+# 절대 넣지 말 것. 여기 넣으면 마이그레이션 SQL·도면 PDF·브랜드 자산이 사라진다.
+
+# 에이전트 도구 — BMAD 스킬 2,200여 개 파일. 앱과 무관하다.
+.claude/
+.agents/
+_bmad/
+
+# Orca 워크트리 드롭 폴더
+.orca/
+
+# 개발 문서
+docs/
+
+# 로컬 산출물
+*-check.png
