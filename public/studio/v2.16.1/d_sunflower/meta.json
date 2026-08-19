@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.1",
+ "est_minutes": 93,
+ "files": {
+  "glb_kb": 11,
+  "pdf_kb": 112,
+  "svg_sheets": 6
+ },
+ "finished_mm": 293.7,
+ "key": "d:sunflower",
+ "min_tab_sum_mm": 18.2,
+ "name_ko": "해바라기",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 16,
+ "stars": 3
+}

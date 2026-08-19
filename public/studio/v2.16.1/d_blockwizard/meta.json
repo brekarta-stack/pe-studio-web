@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "게임 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.1",
+ "est_minutes": 42,
+ "files": {
+  "glb_kb": 8,
+  "pdf_kb": 82,
+  "svg_sheets": 7
+ },
+ "finished_mm": 229.6,
+ "key": "d:blockwizard",
+ "min_tab_sum_mm": 16.2,
+ "name_ko": "꼬마 마법사",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}
