@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "인기 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.0",
+ "est_minutes": 86,
+ "files": {
+  "glb_kb": 13,
+  "pdf_kb": 101,
+  "svg_sheets": 5
+ },
+ "finished_mm": 244.6,
+ "key": "d:redpanda",
+ "min_tab_sum_mm": 16.9,
+ "name_ko": "레서판다",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 16,
+ "stars": 3
+}

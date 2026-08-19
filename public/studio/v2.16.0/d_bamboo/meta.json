@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.0",
+ "est_minutes": 96,
+ "files": {
+  "glb_kb": 13,
+  "pdf_kb": 112,
+  "svg_sheets": 13
+ },
+ "finished_mm": 439.0,
+ "key": "d:bamboo",
+ "min_tab_sum_mm": 21.4,
+ "name_ko": "대나무",
+ "pages": 13,
+ "paper": "A4",
+ "pieces": 17,
+ "stars": 3
+}
