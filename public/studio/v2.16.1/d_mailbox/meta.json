@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "캐릭터·오브젝트",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.1",
+ "est_minutes": 16,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 70,
+  "svg_sheets": 3
+ },
+ "finished_mm": 181.9,
+ "key": "d:mailbox",
+ "min_tab_sum_mm": 22.1,
+ "name_ko": "우체통",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 3,
+ "stars": 1
+}
