@@ -12,7 +12,7 @@ import test from "node:test";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const idx = JSON.parse(
-  readFileSync(path.join(ROOT, "public", "studio", "v2.15.0", "index.json"), "utf-8"),
+  readFileSync(path.join(ROOT, "public", "studio", "v2.16.0", "index.json"), "utf-8"),
 );
 const VER = idx.engine;
 const pub = (skey, f) => path.join(ROOT, "public", "studio", VER, skey, f);
@@ -22,8 +22,10 @@ test("index.json: 항목 수(큐레이션 20 이상)와 필수 필드", () => {
   assert.ok(idx.items.length >= 20, `items ${idx.items.length} < 20`);
   // 대규모 유실 감지 — 181→141 처럼 카탈로그가 통째로 줄어드는 사고를 잡는다.
   // 카테고리별 하한은 품질 게이트의 정상적인 제외와 구분되지 않으므로 총량으로 본다.
-  assert.ok(idx.items.length >= 180,
-    `카탈로그 ${idx.items.length}종 < 180 (대량 제외 의심)`);
+  // 180→160 (2026-08-20): 외톨이 조각 게이트(R4)·보류 씸 차단이 21종을 의도적으로
+  // 제외했다(v2.16.0, 판다·고양이 등 스킨 회귀 포함). 유실 사고가 아니라 품질 게이트.
+  assert.ok(idx.items.length >= 160,
+    `카탈로그 ${idx.items.length}종 < 160 (대량 제외 의심)`);
   for (const it of idx.items) {
     for (const field of ["key", "skey", "name_ko", "category", "pieces", "pages",
                          "pdf_pages", "finished_mm", "stars", "est_minutes", "svg_sheets"]) {

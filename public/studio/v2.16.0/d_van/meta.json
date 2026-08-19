@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.0",
+ "est_minutes": 58,
+ "files": {
+  "glb_kb": 8,
+  "pdf_kb": 89,
+  "svg_sheets": 8
+ },
+ "finished_mm": 190.6,
+ "key": "d:van",
+ "min_tab_sum_mm": 16.3,
+ "name_ko": "승합차",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 11,
+ "stars": 2
+}

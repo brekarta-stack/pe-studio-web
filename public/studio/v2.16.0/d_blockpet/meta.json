@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "게임 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.0",
+ "est_minutes": 51,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 82,
+  "svg_sheets": 4
+ },
+ "finished_mm": 155.0,
+ "key": "d:blockpet",
+ "min_tab_sum_mm": 16.5,
+ "name_ko": "블록 강아지",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 11,
+ "stars": 2
+}
