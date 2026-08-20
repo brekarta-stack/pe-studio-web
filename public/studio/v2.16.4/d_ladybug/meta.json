@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.4",
+ "est_minutes": 73,
+ "files": {
+  "glb_kb": 10,
+  "pdf_kb": 97,
+  "svg_sheets": 5
+ },
+ "finished_mm": 162.0,
+ "key": "d:ladybug",
+ "min_tab_sum_mm": 15.4,
+ "name_ko": "무당벌레",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 14,
+ "stars": 3
+}

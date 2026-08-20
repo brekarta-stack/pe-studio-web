@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.4",
+ "est_minutes": 74,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 97,
+  "svg_sheets": 10
+ },
+ "finished_mm": 215.7,
+ "key": "d:biplane",
+ "min_tab_sum_mm": 15.2,
+ "name_ko": "복엽기",
+ "pages": 10,
+ "paper": "A4",
+ "pieces": 14,
+ "stars": 3
+}

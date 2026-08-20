@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "한국 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.4",
+ "est_minutes": 90,
+ "files": {
+  "glb_kb": 13,
+  "pdf_kb": 103,
+  "svg_sheets": 11
+ },
+ "finished_mm": 237.4,
+ "key": "d:dabotap",
+ "min_tab_sum_mm": 18.0,
+ "name_ko": "다보탑",
+ "pages": 11,
+ "paper": "A4",
+ "pieces": 18,
+ "stars": 4
+}
