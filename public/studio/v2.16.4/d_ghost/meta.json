@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "캐릭터·오브젝트",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.4",
+ "est_minutes": 69,
+ "files": {
+  "glb_kb": 8,
+  "pdf_kb": 98,
+  "svg_sheets": 8
+ },
+ "finished_mm": 206.1,
+ "key": "d:ghost",
+ "min_tab_sum_mm": 17.1,
+ "name_ko": "유령",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 14,
+ "stars": 3
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "도형",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.4",
+ "est_minutes": 8,
+ "files": {
+  "glb_kb": 2,
+  "pdf_kb": 69,
+  "svg_sheets": 1
+ },
+ "finished_mm": 75.9,
+ "key": "dodeca",
+ "min_tab_sum_mm": 30.5,
+ "name_ko": "정십이면체",
+ "pages": 1,
+ "paper": "A4",
+ "pieces": 1,
+ "stars": 2
+}

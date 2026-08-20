@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "게임 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.4",
+ "est_minutes": 29,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 74,
+  "svg_sheets": 3
+ },
+ "finished_mm": 111.6,
+ "key": "d:slimecube",
+ "min_tab_sum_mm": 22.2,
+ "name_ko": "슬라임",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 7,
+ "stars": 2
+}
