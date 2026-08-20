@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "캐릭터·오브젝트",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.3",
+ "est_minutes": 6,
+ "files": {
+  "glb_kb": 1,
+  "pdf_kb": 67,
+  "svg_sheets": 1
+ },
+ "finished_mm": 75.0,
+ "key": "d:gem",
+ "min_tab_sum_mm": 52.2,
+ "name_ko": "보석",
+ "pages": 1,
+ "paper": "A4",
+ "pieces": 1,
+ "stars": 1
+}

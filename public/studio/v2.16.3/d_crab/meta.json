@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.3",
+ "est_minutes": 25,
+ "files": {
+  "glb_kb": 2,
+  "pdf_kb": 79,
+  "svg_sheets": 5
+ },
+ "finished_mm": 199.2,
+ "key": "d:crab",
+ "min_tab_sum_mm": 24.4,
+ "name_ko": "게",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 6,
+ "stars": 2
+}
