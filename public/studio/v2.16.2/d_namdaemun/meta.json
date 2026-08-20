@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "한국 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 51,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 87,
+  "svg_sheets": 8
+ },
+ "finished_mm": 135.4,
+ "key": "d:namdaemun",
+ "min_tab_sum_mm": 17.0,
+ "name_ko": "숭례문(남대문)",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}

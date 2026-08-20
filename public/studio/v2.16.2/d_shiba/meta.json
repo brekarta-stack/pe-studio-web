@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "인기 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 20,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 77,
+  "svg_sheets": 2
+ },
+ "finished_mm": 119.3,
+ "key": "d:shiba",
+ "min_tab_sum_mm": 16.0,
+ "name_ko": "시바견",
+ "pages": 2,
+ "paper": "A4",
+ "pieces": 3,
+ "stars": 2
+}

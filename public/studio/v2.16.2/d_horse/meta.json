@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 27,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 80,
+  "svg_sheets": 6
+ },
+ "finished_mm": 219.4,
+ "key": "d:horse",
+ "min_tab_sum_mm": 20.6,
+ "name_ko": "말",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 6,
+ "stars": 2
+}

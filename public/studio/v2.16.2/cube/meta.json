@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "도형",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 4,
+ "files": {
+  "glb_kb": 1,
+  "pdf_kb": 64,
+  "svg_sheets": 1
+ },
+ "finished_mm": 63.0,
+ "key": "cube",
+ "min_tab_sum_mm": 65.7,
+ "name_ko": "정육면체",
+ "pages": 1,
+ "paper": "A4",
+ "pieces": 1,
+ "stars": 1
+}
