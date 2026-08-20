@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.3",
+ "est_minutes": 23,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 79,
+  "svg_sheets": 3
+ },
+ "finished_mm": 153.0,
+ "key": "d:elephant",
+ "min_tab_sum_mm": 18.5,
+ "name_ko": "코끼리",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 4,
+ "stars": 2
+}

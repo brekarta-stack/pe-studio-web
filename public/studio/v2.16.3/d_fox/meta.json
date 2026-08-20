@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.3",
+ "est_minutes": 49,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 90,
+  "svg_sheets": 8
+ },
+ "finished_mm": 358.6,
+ "key": "d:fox",
+ "min_tab_sum_mm": 19.7,
+ "name_ko": "여우",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 11,
+ "stars": 3
+}

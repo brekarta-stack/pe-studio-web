@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.3",
+ "est_minutes": 68,
+ "files": {
+  "glb_kb": 12,
+  "pdf_kb": 93,
+  "svg_sheets": 5
+ },
+ "finished_mm": 223.0,
+ "key": "d:dog",
+ "min_tab_sum_mm": 19.0,
+ "name_ko": "강아지",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 13,
+ "stars": 3
+}

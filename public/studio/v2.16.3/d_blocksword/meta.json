@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "게임 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.3",
+ "est_minutes": 24,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 71,
+  "svg_sheets": 2
+ },
+ "finished_mm": 185.7,
+ "key": "d:blocksword",
+ "min_tab_sum_mm": 17.4,
+ "name_ko": "검",
+ "pages": 2,
+ "paper": "A4",
+ "pieces": 5,
+ "stars": 1
+}
