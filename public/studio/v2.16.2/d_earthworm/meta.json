@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 79,
+ "files": {
+  "glb_kb": 11,
+  "pdf_kb": 104,
+  "svg_sheets": 13
+ },
+ "finished_mm": 619.2,
+ "key": "d:earthworm",
+ "min_tab_sum_mm": 24.3,
+ "name_ko": "지렁이",
+ "pages": 13,
+ "paper": "A4",
+ "pieces": 14,
+ "stars": 3
+}

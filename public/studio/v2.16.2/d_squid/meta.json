@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 60,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 95,
+  "svg_sheets": 10
+ },
+ "finished_mm": 371.2,
+ "key": "d:squid",
+ "min_tab_sum_mm": 18.0,
+ "name_ko": "오징어",
+ "pages": 10,
+ "paper": "A4",
+ "pieces": 16,
+ "stars": 3
+}

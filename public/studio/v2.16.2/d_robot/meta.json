@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "캐릭터·오브젝트",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.2",
+ "est_minutes": 83,
+ "files": {
+  "glb_kb": 16,
+  "pdf_kb": 93,
+  "svg_sheets": 5
+ },
+ "finished_mm": 227.2,
+ "key": "d:robot",
+ "min_tab_sum_mm": 16.6,
+ "name_ko": "로봇",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 18,
+ "stars": 4
+}
