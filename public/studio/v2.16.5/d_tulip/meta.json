@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 46,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 88,
+  "svg_sheets": 6
+ },
+ "finished_mm": 259.0,
+ "key": "d:tulip",
+ "min_tab_sum_mm": 17.3,
+ "name_ko": "튤립",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 8,
+ "stars": 2
+}

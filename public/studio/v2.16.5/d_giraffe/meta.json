@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 25,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 77,
+  "svg_sheets": 3
+ },
+ "finished_mm": 177.3,
+ "key": "d:giraffe",
+ "min_tab_sum_mm": 18.2,
+ "name_ko": "기린",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 5,
+ "stars": 2
+}

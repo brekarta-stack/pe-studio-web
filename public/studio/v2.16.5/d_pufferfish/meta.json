@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 30,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 82,
+  "svg_sheets": 6
+ },
+ "finished_mm": 213.0,
+ "key": "d:pufferfish",
+ "min_tab_sum_mm": 25.1,
+ "name_ko": "복어",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 7,
+ "stars": 2
+}
