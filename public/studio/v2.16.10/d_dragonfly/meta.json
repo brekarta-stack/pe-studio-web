@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 74,
+ "files": {
+  "glb_kb": 10,
+  "pdf_kb": 97,
+  "svg_sheets": 9
+ },
+ "finished_mm": 480.0,
+ "key": "d:dragonfly",
+ "min_tab_sum_mm": 19.3,
+ "name_ko": "잠자리",
+ "pages": 9,
+ "paper": "A4",
+ "pieces": 13,
+ "stars": 3
+}

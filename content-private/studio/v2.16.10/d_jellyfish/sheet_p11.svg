@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210.00mm" height="297.00mm" viewBox="0 0 210.00 297.00">
+<rect x="0" y="0" width="210.00" height="297.00" fill="#ffffff" stroke="#cccccc" stroke-width="0.2"/>
+<polygon points="140.917,52.92 145.16,46.45 142.73,31.052 136.7,26.203" fill="rgb(216,216,216)"/>
+<polygon points="140.917,52.92 114.583,52.334 46.031,36.936 21.976,26.203" fill="rgb(216,216,216)"/>
+<polygon points="140.917,52.92 114.583,52.334 46.031,36.936 21.976,26.203" fill="#99d9fa"/>
+<line x1="21.976" y1="26.203" x2="136.7" y2="26.203" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="19.72" y1="5.0" x2="21.976" y2="26.203" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="5.0" y1="23.28" x2="21.976" y2="26.203" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="136.7" y1="26.203" x2="140.917" y2="52.92" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="21.976" y1="26.203" x2="140.917" y2="52.92" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="21.976" y1="26.203" x2="22.44" y2="148.107" stroke="#141414" stroke-width="0.4"/>
+<line x1="22.44" y1="148.107" x2="5.0" y2="23.28" stroke="#141414" stroke-width="0.4"/>
+<line x1="19.72" y1="5.0" x2="136.7" y2="26.203" stroke="#141414" stroke-width="0.4"/>
+<line x1="5.0" y1="23.28" x2="19.72" y2="5.0" stroke="#141414" stroke-width="0.4"/>
+<line x1="140.917" y1="52.92" x2="145.16" y2="46.45" stroke="#141414" stroke-width="0.4"/>
+<line x1="145.16" y1="46.45" x2="142.73" y2="31.052" stroke="#141414" stroke-width="0.4"/>
+<line x1="142.73" y1="31.052" x2="136.7" y2="26.203" stroke="#141414" stroke-width="0.4"/>
+<line x1="140.917" y1="52.92" x2="114.583" y2="52.334" stroke="#141414" stroke-width="0.4"/>
+<line x1="114.583" y1="52.334" x2="46.031" y2="36.936" stroke="#141414" stroke-width="0.4"/>
+<line x1="46.031" y1="36.936" x2="21.976" y2="26.203" stroke="#141414" stroke-width="0.4"/>
+<circle cx="141.377" cy="39.156" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="141.377" y="39.94" font-size="2.24" text-anchor="middle" fill="#141414">99</text>
+<circle cx="80.877" cy="42.098" r="2.29" fill="#99d9fa" stroke="#464646" stroke-width="0.2"/>
+<text x="80.877" y="42.88" font-size="2.24" text-anchor="middle" fill="#141414">100</text>
+<circle cx="15.565" cy="18.161" r="4.01" fill="#eaf1fe" stroke="#2e78e6" stroke-width="0.3"/>
+<text x="15.565" y="19.73" font-size="4.54" text-anchor="middle" fill="#14306e" font-weight="bold">16</text>
+<text x="205.0" y="295.0" font-size="3.2" text-anchor="end" fill="#737373" font-family="sans-serif">11 / 13</text>
+</svg>

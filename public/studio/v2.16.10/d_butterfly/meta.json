@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 85,
+ "files": {
+  "glb_kb": 10,
+  "pdf_kb": 103,
+  "svg_sheets": 6
+ },
+ "finished_mm": 219.9,
+ "key": "d:butterfly",
+ "min_tab_sum_mm": 15.5,
+ "name_ko": "나비",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 15,
+ "stars": 3
+}

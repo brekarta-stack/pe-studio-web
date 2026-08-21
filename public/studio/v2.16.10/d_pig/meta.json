@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 70,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 99,
+  "svg_sheets": 15
+ },
+ "finished_mm": 343.9,
+ "key": "d:pig",
+ "min_tab_sum_mm": 20.6,
+ "name_ko": "돼지",
+ "pages": 15,
+ "paper": "A4",
+ "pieces": 20,
+ "stars": 3
+}

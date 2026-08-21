@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 109,
+ "files": {
+  "glb_kb": 13,
+  "pdf_kb": 114,
+  "svg_sheets": 9
+ },
+ "finished_mm": 313.1,
+ "key": "d:grasshopper",
+ "min_tab_sum_mm": 16.3,
+ "name_ko": "메뚜기",
+ "pages": 9,
+ "paper": "A4",
+ "pieces": 19,
+ "stars": 4
+}

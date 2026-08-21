@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 96,
+ "files": {
+  "glb_kb": 14,
+  "pdf_kb": 103,
+  "svg_sheets": 10
+ },
+ "finished_mm": 155.0,
+ "key": "d:owl",
+ "min_tab_sum_mm": 15.4,
+ "name_ko": "부엉이",
+ "pages": 10,
+ "paper": "A4",
+ "pieces": 20,
+ "stars": 4
+}

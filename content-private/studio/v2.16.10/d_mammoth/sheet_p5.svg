@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210.00mm" height="297.00mm" viewBox="0 0 210.00 297.00">
+<rect x="0" y="0" width="210.00" height="297.00" fill="#ffffff" stroke="#cccccc" stroke-width="0.2"/>
+<polygon points="151.744,20.966 147.651,32.826 118.34,63.685 106.706,68.382" fill="rgb(216,216,216)"/>
+<line x1="9.487" y1="5.0" x2="40.175" y2="73.842" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="65.535" y1="20.966" x2="40.175" y2="73.842" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="40.175" y1="73.842" x2="106.706" y2="68.382" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="106.706" y1="68.382" x2="65.535" y2="20.966" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="106.706" y1="68.382" x2="151.744" y2="20.966" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="9.487" y1="5.0" x2="65.535" y2="20.966" stroke="#141414" stroke-width="0.4"/>
+<line x1="5.0" y1="55.035" x2="9.487" y2="5.0" stroke="#141414" stroke-width="0.4"/>
+<line x1="65.535" y1="20.966" x2="151.744" y2="20.966" stroke="#141414" stroke-width="0.4"/>
+<line x1="106.706" y1="68.382" x2="68.5" y2="101.927" stroke="#141414" stroke-width="0.4"/>
+<line x1="151.744" y1="20.966" x2="147.651" y2="32.826" stroke="#141414" stroke-width="0.4"/>
+<line x1="147.651" y1="32.826" x2="118.34" y2="63.685" stroke="#141414" stroke-width="0.4"/>
+<line x1="118.34" y1="63.685" x2="106.706" y2="68.382" stroke="#141414" stroke-width="0.4"/>
+<circle cx="131.11" cy="46.465" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="131.11" y="47.55" font-size="3.11" text-anchor="middle" fill="#141414">11</text>
+<circle cx="18.221" cy="44.626" r="4.60" fill="#eaf1fe" stroke="#2e78e6" stroke-width="0.3"/>
+<text x="18.221" y="46.43" font-size="5.20" text-anchor="middle" fill="#14306e" font-weight="bold">5</text>
+<polygon points="53.81,219.201 41.67,214.682 9.904,183.912 5.0,171.922" fill="rgb(216,216,216)"/>
+<polygon points="24.293,120.453 24.108,113.928 35.568,104.705 41.902,106.282" fill="rgb(216,216,216)"/>
+<line x1="5.0" y1="171.923" x2="41.902" y2="106.282" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="5.0" y1="171.922" x2="53.81" y2="219.201" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="41.902" y1="106.282" x2="24.293" y2="120.453" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="109.292" y1="171.923" x2="53.81" y2="219.201" stroke="#141414" stroke-width="0.4"/>
+<line x1="41.902" y1="106.282" x2="109.292" y2="171.923" stroke="#141414" stroke-width="0.4"/>
+<line x1="5.0" y1="171.923" x2="24.293" y2="120.453" stroke="#141414" stroke-width="0.4"/>
+<line x1="53.81" y1="219.201" x2="41.67" y2="214.682" stroke="#141414" stroke-width="0.4"/>
+<line x1="41.67" y1="214.682" x2="9.904" y2="183.912" stroke="#141414" stroke-width="0.4"/>
+<line x1="9.904" y1="183.912" x2="5.0" y2="171.922" stroke="#141414" stroke-width="0.4"/>
+<line x1="24.293" y1="120.453" x2="24.108" y2="113.928" stroke="#141414" stroke-width="0.4"/>
+<line x1="24.108" y1="113.928" x2="35.568" y2="104.705" stroke="#141414" stroke-width="0.4"/>
+<line x1="35.568" y1="104.705" x2="41.902" y2="106.282" stroke="#141414" stroke-width="0.4"/>
+<circle cx="27.596" cy="197.429" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="27.596" y="198.52" font-size="3.11" text-anchor="middle" fill="#141414">14</text>
+<circle cx="31.468" cy="111.342" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="31.468" y="112.43" font-size="3.11" text-anchor="middle" fill="#141414">27</text>
+<circle cx="52.065" cy="150.042" r="4.60" fill="#eaf1fe" stroke="#2e78e6" stroke-width="0.3"/>
+<text x="52.065" y="151.84" font-size="5.20" text-anchor="middle" fill="#14306e" font-weight="bold">6</text>
+<text x="205.0" y="295.0" font-size="3.2" text-anchor="end" fill="#737373" font-family="sans-serif">5 / 6</text>
+</svg>

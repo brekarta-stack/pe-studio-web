@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "세계 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 70,
+ "files": {
+  "glb_kb": 12,
+  "pdf_kb": 87,
+  "svg_sheets": 7
+ },
+ "finished_mm": 184.4,
+ "key": "d:brandenburg",
+ "min_tab_sum_mm": 15.6,
+ "name_ko": "브란덴부르크문",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 16,
+ "stars": 3
+}
