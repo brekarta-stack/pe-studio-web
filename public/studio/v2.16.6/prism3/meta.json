@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "도형",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.6",
+ "est_minutes": 4,
+ "files": {
+  "glb_kb": 1,
+  "pdf_kb": 63,
+  "svg_sheets": 1
+ },
+ "finished_mm": 72.8,
+ "key": "prism3",
+ "min_tab_sum_mm": 65.7,
+ "name_ko": "삼각기둥",
+ "pages": 1,
+ "paper": "A4",
+ "pieces": 1,
+ "stars": 1
+}
