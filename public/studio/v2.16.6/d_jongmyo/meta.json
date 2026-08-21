@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "한국 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.6",
+ "est_minutes": 26,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 75,
+  "svg_sheets": 7
+ },
+ "finished_mm": 153.1,
+ "key": "d:jongmyo",
+ "min_tab_sum_mm": 15.5,
+ "name_ko": "종묘",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 7,
+ "stars": 2
+}

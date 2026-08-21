@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.6",
+ "est_minutes": 102,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 117,
+  "svg_sheets": 20
+ },
+ "finished_mm": 640.8,
+ "key": "d:snake",
+ "min_tab_sum_mm": 16.0,
+ "name_ko": "뱀",
+ "pages": 20,
+ "paper": "A4",
+ "pieces": 25,
+ "stars": 3
+}

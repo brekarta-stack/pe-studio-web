@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "캐릭터·오브젝트",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.6",
+ "est_minutes": 19,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 74,
+  "svg_sheets": 3
+ },
+ "finished_mm": 139.9,
+ "key": "d:lifering",
+ "min_tab_sum_mm": 20.6,
+ "name_ko": "구명튜브",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 4,
+ "stars": 1
+}

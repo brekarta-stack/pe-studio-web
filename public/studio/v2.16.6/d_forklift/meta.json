@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.6",
+ "est_minutes": 49,
+ "files": {
+  "glb_kb": 6,
+  "pdf_kb": 86,
+  "svg_sheets": 6
+ },
+ "finished_mm": 148.8,
+ "key": "d:forklift",
+ "min_tab_sum_mm": 15.1,
+ "name_ko": "지게차",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}
