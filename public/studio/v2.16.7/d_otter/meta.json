@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "인기 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.7",
+ "est_minutes": 94,
+ "files": {
+  "glb_kb": 12,
+  "pdf_kb": 108,
+  "svg_sheets": 10
+ },
+ "finished_mm": 400.9,
+ "key": "d:otter",
+ "min_tab_sum_mm": 20.0,
+ "name_ko": "수달",
+ "pages": 10,
+ "paper": "A4",
+ "pieces": 17,
+ "stars": 3
+}
