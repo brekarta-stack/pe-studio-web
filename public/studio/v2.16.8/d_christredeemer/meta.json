@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "세계 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 29,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 78,
+  "svg_sheets": 3
+ },
+ "finished_mm": 179.9,
+ "key": "d:christredeemer",
+ "min_tab_sum_mm": 15.5,
+ "name_ko": "예수상",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 5,
+ "stars": 1
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 44,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 89,
+  "svg_sheets": 6
+ },
+ "finished_mm": 191.9,
+ "key": "d:turtle",
+ "min_tab_sum_mm": 16.1,
+ "name_ko": "거북이",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 3
+}

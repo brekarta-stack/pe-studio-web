@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "공룡",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 30,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 81,
+  "svg_sheets": 6
+ },
+ "finished_mm": 275.2,
+ "key": "d:spinosaurus",
+ "min_tab_sum_mm": 22.1,
+ "name_ko": "스피노사우루스",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 7,
+ "stars": 2
+}

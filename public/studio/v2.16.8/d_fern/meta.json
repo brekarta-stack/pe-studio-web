@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 103,
+ "files": {
+  "glb_kb": 12,
+  "pdf_kb": 108,
+  "svg_sheets": 8
+ },
+ "finished_mm": 322.6,
+ "key": "d:fern",
+ "min_tab_sum_mm": 16.4,
+ "name_ko": "고사리",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 18,
+ "stars": 4
+}
