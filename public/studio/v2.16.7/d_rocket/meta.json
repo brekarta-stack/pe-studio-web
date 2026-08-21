@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.7",
+ "est_minutes": 26,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 73,
+  "svg_sheets": 3
+ },
+ "finished_mm": 174.5,
+ "key": "d:rocket",
+ "min_tab_sum_mm": 17.7,
+ "name_ko": "로켓",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 5,
+ "stars": 1
+}

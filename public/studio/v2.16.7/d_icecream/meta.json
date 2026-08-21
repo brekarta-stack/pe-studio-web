@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "캐릭터·오브젝트",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.7",
+ "est_minutes": 11,
+ "files": {
+  "glb_kb": 2,
+  "pdf_kb": 69,
+  "svg_sheets": 2
+ },
+ "finished_mm": 150.0,
+ "key": "d:icecream",
+ "min_tab_sum_mm": 31.4,
+ "name_ko": "아이스크림",
+ "pages": 2,
+ "paper": "A4",
+ "pieces": 2,
+ "stars": 1
+}

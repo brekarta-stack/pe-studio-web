@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "세계 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.7",
+ "est_minutes": 38,
+ "files": {
+  "glb_kb": 7,
+  "pdf_kb": 77,
+  "svg_sheets": 2
+ },
+ "finished_mm": 163.9,
+ "key": "d:bigben",
+ "min_tab_sum_mm": 15.0,
+ "name_ko": "빅벤",
+ "pages": 2,
+ "paper": "A4",
+ "pieces": 8,
+ "stars": 2
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.7",
+ "est_minutes": 50,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 94,
+  "svg_sheets": 6
+ },
+ "finished_mm": 203.5,
+ "key": "d:monkey",
+ "min_tab_sum_mm": 15.8,
+ "name_ko": "원숭이",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 10,
+ "stars": 3
+}
