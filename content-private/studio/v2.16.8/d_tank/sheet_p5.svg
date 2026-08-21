@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210.00mm" height="297.00mm" viewBox="0 0 210.00 297.00">
+<rect x="0" y="0" width="210.00" height="297.00" fill="#ffffff" stroke="#cccccc" stroke-width="0.2"/>
+<polygon points="5.0,150.939 22.524,142.533 108.34,129.124 127.594,131.784" fill="rgb(216,216,216)"/>
+<line x1="127.594" y1="131.784" x2="130.587" y2="150.939" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="154.411" y1="127.594" x2="127.594" y2="131.784" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="127.594" y1="131.784" x2="5.0" y2="150.939" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="7.993" y1="170.094" x2="5.0" y2="150.939" stroke="#141414" stroke-width="0.4"/>
+<line x1="130.587" y1="150.939" x2="7.993" y2="170.094" stroke="#141414" stroke-width="0.4"/>
+<line x1="108.438" y1="9.19" x2="135.256" y2="5.0" stroke="#141414" stroke-width="0.4"/>
+<line x1="127.594" y1="131.784" x2="108.438" y2="9.19" stroke="#141414" stroke-width="0.4"/>
+<line x1="135.256" y1="5.0" x2="154.411" y2="127.594" stroke="#141414" stroke-width="0.4"/>
+<line x1="157.404" y1="146.749" x2="130.587" y2="150.939" stroke="#141414" stroke-width="0.4"/>
+<line x1="154.411" y1="127.594" x2="157.404" y2="146.749" stroke="#141414" stroke-width="0.4"/>
+<line x1="5.0" y1="150.939" x2="22.524" y2="142.533" stroke="#141414" stroke-width="0.4"/>
+<line x1="22.524" y1="142.533" x2="108.34" y2="129.124" stroke="#141414" stroke-width="0.4"/>
+<line x1="108.34" y1="129.124" x2="127.594" y2="131.784" stroke="#141414" stroke-width="0.4"/>
+<circle cx="65.864" cy="138.595" r="2.46" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="65.864" y="139.77" font-size="3.34" text-anchor="middle" fill="#141414">30</text>
+<circle cx="87.727" cy="144.554" r="4.60" fill="#eaf1fe" stroke="#2e78e6" stroke-width="0.3"/>
+<text x="87.727" y="146.35" font-size="5.20" text-anchor="middle" fill="#14306e" font-weight="bold">6</text>
+<text x="205.0" y="295.0" font-size="3.2" text-anchor="end" fill="#737373" font-family="sans-serif">5 / 7</text>
+</svg>

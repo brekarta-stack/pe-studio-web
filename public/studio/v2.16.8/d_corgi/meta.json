@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "인기 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 34,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 84,
+  "svg_sheets": 6
+ },
+ "finished_mm": 235.6,
+ "key": "d:corgi",
+ "min_tab_sum_mm": 19.2,
+ "name_ko": "코기",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 7,
+ "stars": 2
+}

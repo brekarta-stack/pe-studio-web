@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 20,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 73,
+  "svg_sheets": 3
+ },
+ "finished_mm": 197.9,
+ "key": "d:tree",
+ "min_tab_sum_mm": 21.9,
+ "name_ko": "나무",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 4,
+ "stars": 1
+}

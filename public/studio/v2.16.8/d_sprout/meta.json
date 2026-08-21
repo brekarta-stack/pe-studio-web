@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 27,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 77,
+  "svg_sheets": 4
+ },
+ "finished_mm": 151.9,
+ "key": "d:sprout",
+ "min_tab_sum_mm": 20.7,
+ "name_ko": "새싹",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 5,
+ "stars": 1
+}

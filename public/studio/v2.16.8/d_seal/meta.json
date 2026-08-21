@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.8",
+ "est_minutes": 81,
+ "files": {
+  "glb_kb": 6,
+  "pdf_kb": 108,
+  "svg_sheets": 13
+ },
+ "finished_mm": 349.9,
+ "key": "d:seal",
+ "min_tab_sum_mm": 17.1,
+ "name_ko": "물개",
+ "pages": 13,
+ "paper": "A4",
+ "pieces": 20,
+ "stars": 3
+}
