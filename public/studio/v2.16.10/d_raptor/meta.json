@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "공룡",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 32,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 80,
+  "svg_sheets": 7
+ },
+ "finished_mm": 327.8,
+ "key": "d:raptor",
+ "min_tab_sum_mm": 20.3,
+ "name_ko": "벨로키랍토르",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 8,
+ "stars": 2
+}

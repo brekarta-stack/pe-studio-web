@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "세계 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 65,
+ "files": {
+  "glb_kb": 9,
+  "pdf_kb": 91,
+  "svg_sheets": 11
+ },
+ "finished_mm": 175.7,
+ "key": "d:arctriomphe",
+ "min_tab_sum_mm": 16.8,
+ "name_ko": "개선문",
+ "pages": 11,
+ "paper": "A4",
+ "pieces": 15,
+ "stars": 3
+}

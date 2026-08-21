@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 71,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 103,
+  "svg_sheets": 13
+ },
+ "finished_mm": 240.8,
+ "key": "d:jellyfish",
+ "min_tab_sum_mm": 20.1,
+ "name_ko": "해파리",
+ "pages": 13,
+ "paper": "A4",
+ "pieces": 19,
+ "stars": 3
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 24,
+ "files": {
+  "glb_kb": 2,
+  "pdf_kb": 76,
+  "svg_sheets": 4
+ },
+ "finished_mm": 161.0,
+ "key": "d:frog",
+ "min_tab_sum_mm": 18.9,
+ "name_ko": "개구리",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 6,
+ "stars": 2
+}

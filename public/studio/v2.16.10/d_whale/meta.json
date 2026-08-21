@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 49,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 88,
+  "svg_sheets": 8
+ },
+ "finished_mm": 363.8,
+ "key": "d:whale",
+ "min_tab_sum_mm": 17.6,
+ "name_ko": "고래",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 11,
+ "stars": 3
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "공룡",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.10",
+ "est_minutes": 30,
+ "files": {
+  "glb_kb": 2,
+  "pdf_kb": 77,
+  "svg_sheets": 4
+ },
+ "finished_mm": 254.3,
+ "key": "d:trex",
+ "min_tab_sum_mm": 15.6,
+ "name_ko": "티라노사우루스",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 8,
+ "stars": 2
+}
