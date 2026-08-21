@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "공룡",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 31,
+ "files": {
+  "glb_kb": 2,
+  "pdf_kb": 76,
+  "svg_sheets": 5
+ },
+ "finished_mm": 253.3,
+ "key": "d:pterodactyl",
+ "min_tab_sum_mm": 20.1,
+ "name_ko": "프테라노돈",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}

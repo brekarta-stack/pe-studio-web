@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 108,
+ "files": {
+  "glb_kb": 15,
+  "pdf_kb": 112,
+  "svg_sheets": 7
+ },
+ "finished_mm": 254.4,
+ "key": "d:flowerpot",
+ "min_tab_sum_mm": 15.2,
+ "name_ko": "화분꽃",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 18,
+ "stars": 4
+}

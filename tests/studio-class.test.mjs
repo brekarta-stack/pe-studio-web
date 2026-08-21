@@ -19,7 +19,7 @@ import {
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const idx = JSON.parse(
-  readFileSync(path.join(ROOT, "public", "studio", "v2.16.8", "index.json"), "utf-8"),
+  readFileSync(path.join(ROOT, "public", "studio", "v2.16.9", "index.json"), "utf-8"),
 );
 const prv = (skey, f) =>
   path.join(ROOT, "content-private", "studio", idx.engine, skey, f);

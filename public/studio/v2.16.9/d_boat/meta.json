@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 20,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 68,
+  "svg_sheets": 2
+ },
+ "finished_mm": 163.5,
+ "key": "d:boat",
+ "min_tab_sum_mm": 16.2,
+ "name_ko": "배",
+ "pages": 2,
+ "paper": "A4",
+ "pieces": 4,
+ "stars": 1
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 29,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 75,
+  "svg_sheets": 3
+ },
+ "finished_mm": 139.5,
+ "key": "d:ufo",
+ "min_tab_sum_mm": 17.1,
+ "name_ko": "비행접시",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 6,
+ "stars": 2
+}

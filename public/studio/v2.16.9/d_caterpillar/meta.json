@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 90,
+ "files": {
+  "glb_kb": 12,
+  "pdf_kb": 106,
+  "svg_sheets": 9
+ },
+ "finished_mm": 427.5,
+ "key": "d:caterpillar",
+ "min_tab_sum_mm": 18.6,
+ "name_ko": "애벌레",
+ "pages": 9,
+ "paper": "A4",
+ "pieces": 16,
+ "stars": 3
+}

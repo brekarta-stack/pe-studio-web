@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 31,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 74,
+  "svg_sheets": 3
+ },
+ "finished_mm": 211.5,
+ "key": "d:submarine",
+ "min_tab_sum_mm": 19.6,
+ "name_ko": "잠수함",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 6,
+ "stars": 2
+}
