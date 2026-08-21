@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 23,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 77,
+  "svg_sheets": 4
+ },
+ "finished_mm": 201.8,
+ "key": "d:fish",
+ "min_tab_sum_mm": 19.6,
+ "name_ko": "물고기",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 4,
+ "stars": 2
+}

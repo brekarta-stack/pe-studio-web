@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "세계 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 84,
+ "files": {
+  "glb_kb": 16,
+  "pdf_kb": 95,
+  "svg_sheets": 7
+ },
+ "finished_mm": 149.7,
+ "key": "d:taj",
+ "min_tab_sum_mm": 15.5,
+ "name_ko": "타지마할",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 17,
+ "stars": 3
+}

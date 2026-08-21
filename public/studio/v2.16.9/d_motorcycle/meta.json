@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 59,
+ "files": {
+  "glb_kb": 13,
+  "pdf_kb": 90,
+  "svg_sheets": 6
+ },
+ "finished_mm": 229.9,
+ "key": "d:motorcycle",
+ "min_tab_sum_mm": 15.3,
+ "name_ko": "오토바이",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 10,
+ "stars": 2
+}

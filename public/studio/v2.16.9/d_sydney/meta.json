@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "세계 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 45,
+ "files": {
+  "glb_kb": 6,
+  "pdf_kb": 80,
+  "svg_sheets": 6
+ },
+ "finished_mm": 168.6,
+ "key": "d:sydney",
+ "min_tab_sum_mm": 15.7,
+ "name_ko": "시드니 오페라하우스",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}

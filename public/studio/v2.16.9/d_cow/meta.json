@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "육지동물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 86,
+ "files": {
+  "glb_kb": 14,
+  "pdf_kb": 95,
+  "svg_sheets": 3
+ },
+ "finished_mm": 147.9,
+ "key": "d:cow",
+ "min_tab_sum_mm": 15.7,
+ "name_ko": "소",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 16,
+ "stars": 3
+}

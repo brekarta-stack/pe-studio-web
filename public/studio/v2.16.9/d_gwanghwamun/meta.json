@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "한국 건축물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 55,
+ "files": {
+  "glb_kb": 9,
+  "pdf_kb": 82,
+  "svg_sheets": 7
+ },
+ "finished_mm": 111.2,
+ "key": "d:gwanghwamun",
+ "min_tab_sum_mm": 17.6,
+ "name_ko": "광화문",
+ "pages": 7,
+ "paper": "A4",
+ "pieces": 12,
+ "stars": 3
+}

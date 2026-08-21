@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210.00mm" height="297.00mm" viewBox="0 0 210.00 297.00">
+<rect x="0" y="0" width="210.00" height="297.00" fill="#ffffff" stroke="#cccccc" stroke-width="0.2"/>
+<polygon points="11.904,126.21 9.677,115.933 9.677,90.003 11.904,90.003" fill="rgb(216,216,216)"/>
+<polygon points="11.904,126.21 39.781,128.518 77.972,130.527 99.404,123.675" fill="rgb(216,216,216)"/>
+<polygon points="99.404,247.42 99.404,252.67 106.778,252.67 107.249,247.42" fill="rgb(216,216,216)"/>
+<polygon points="11.904,90.003 11.932,89.015 88.413,91.23 99.404,92.537" fill="rgb(216,216,216)"/>
+<polygon points="107.249,211.212 110.867,211.058 109.78,132.275 106.042,123.675" fill="rgb(216,216,216)"/>
+<polygon points="107.249,5.0 110.324,14.14 109.242,92.674 106.042,92.537" fill="rgb(216,216,216)"/>
+<polygon points="194.758,213.747 196.954,224.05 196.954,244.885 194.758,244.885" fill="rgb(216,216,216)"/>
+<polygon points="11.904,126.21 9.677,115.933 9.677,90.003 11.904,90.003" fill="#99d9fa"/>
+<line x1="107.249" y1="211.212" x2="99.404" y2="211.212" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="107.249" y1="211.212" x2="107.249" y2="247.419" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="99.404" y1="92.537" x2="99.404" y2="123.675" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="99.404" y1="123.675" x2="106.042" y2="123.675" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="99.404" y1="92.537" x2="106.042" y2="92.537" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="11.904" y1="90.003" x2="11.904" y2="126.21" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="99.404" y1="123.675" x2="11.904" y2="126.21" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="107.249" y1="247.42" x2="99.404" y2="247.42" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="99.404" y1="92.537" x2="11.904" y2="90.003" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="106.042" y1="123.675" x2="107.249" y2="211.212" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="106.042" y1="92.537" x2="107.249" y2="5.0" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="194.758" y1="244.885" x2="194.758" y2="213.747" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="99.404" y1="247.419" x2="99.404" y2="211.212" stroke="#141414" stroke-width="0.4"/>
+<line x1="99.404" y1="211.212" x2="99.404" y2="123.675" stroke="#141414" stroke-width="0.4"/>
+<line x1="99.404" y1="5.0" x2="107.249" y2="5.0" stroke="#141414" stroke-width="0.4"/>
+<line x1="99.404" y1="92.537" x2="99.404" y2="5.0" stroke="#141414" stroke-width="0.4"/>
+<line x1="107.249" y1="211.212" x2="194.758" y2="213.747" stroke="#141414" stroke-width="0.4"/>
+<line x1="194.758" y1="244.885" x2="107.249" y2="247.419" stroke="#141414" stroke-width="0.4"/>
+<line x1="106.042" y1="92.537" x2="106.042" y2="123.675" stroke="#141414" stroke-width="0.4"/>
+<line x1="11.904" y1="126.21" x2="9.677" y2="115.933" stroke="#141414" stroke-width="0.4"/>
+<line x1="9.677" y1="115.933" x2="9.677" y2="90.003" stroke="#141414" stroke-width="0.4"/>
+<line x1="9.677" y1="90.003" x2="11.904" y2="90.003" stroke="#141414" stroke-width="0.4"/>
+<line x1="11.904" y1="126.21" x2="39.781" y2="128.518" stroke="#141414" stroke-width="0.4"/>
+<line x1="39.781" y1="128.518" x2="77.972" y2="130.527" stroke="#141414" stroke-width="0.4"/>
+<line x1="77.972" y1="130.527" x2="99.404" y2="123.675" stroke="#141414" stroke-width="0.4"/>
+<line x1="99.404" y1="247.42" x2="99.404" y2="252.67" stroke="#141414" stroke-width="0.4"/>
+<line x1="99.404" y1="252.67" x2="106.778" y2="252.67" stroke="#141414" stroke-width="0.4"/>
+<line x1="106.778" y1="252.67" x2="107.249" y2="247.42" stroke="#141414" stroke-width="0.4"/>
+<line x1="11.904" y1="90.003" x2="11.932" y2="89.015" stroke="#141414" stroke-width="0.4"/>
+<line x1="11.932" y1="89.015" x2="88.413" y2="91.23" stroke="#141414" stroke-width="0.4"/>
+<line x1="88.413" y1="91.23" x2="99.404" y2="92.537" stroke="#141414" stroke-width="0.4"/>
+<line x1="107.249" y1="211.212" x2="110.867" y2="211.058" stroke="#141414" stroke-width="0.4"/>
+<line x1="110.867" y1="211.058" x2="109.78" y2="132.275" stroke="#141414" stroke-width="0.4"/>
+<line x1="109.78" y1="132.275" x2="106.042" y2="123.675" stroke="#141414" stroke-width="0.4"/>
+<line x1="107.249" y1="5.0" x2="110.324" y2="14.14" stroke="#141414" stroke-width="0.4"/>
+<line x1="110.324" y1="14.14" x2="109.242" y2="92.674" stroke="#141414" stroke-width="0.4"/>
+<line x1="109.242" y1="92.674" x2="106.042" y2="92.537" stroke="#141414" stroke-width="0.4"/>
+<line x1="194.758" y1="213.747" x2="196.954" y2="224.05" stroke="#141414" stroke-width="0.4"/>
+<line x1="196.954" y1="224.05" x2="196.954" y2="244.885" stroke="#141414" stroke-width="0.4"/>
+<line x1="196.954" y1="244.885" x2="194.758" y2="244.885" stroke="#141414" stroke-width="0.4"/>
+<circle cx="57.265" cy="127.232" r="2.30" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="57.265" y="128.02" font-size="2.25" text-anchor="middle" fill="#141414">100</text>
+<circle cx="103.209" cy="250.045" r="2.30" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="103.209" y="250.83" font-size="2.25" text-anchor="middle" fill="#141414">101</text>
+<circle cx="41.07" cy="102.917" r="4.60" fill="#eaf1fe" stroke="#2e78e6" stroke-width="0.3"/>
+<text x="41.07" y="104.72" font-size="5.20" text-anchor="middle" fill="#14306e" font-weight="bold">15</text>
+<text x="205.0" y="295.0" font-size="3.2" text-anchor="end" fill="#737373" font-family="sans-serif">15 / 15</text>
+</svg>

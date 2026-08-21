@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.9",
+ "est_minutes": 37,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 76,
+  "svg_sheets": 4
+ },
+ "finished_mm": 157.7,
+ "key": "d:bicycle",
+ "min_tab_sum_mm": 16.6,
+ "name_ko": "자전거",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 7,
+ "stars": 2
+}
