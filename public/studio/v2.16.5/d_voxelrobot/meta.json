@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "게임 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 46,
+ "files": {
+  "glb_kb": 8,
+  "pdf_kb": 81,
+  "svg_sheets": 6
+ },
+ "finished_mm": 232.3,
+ "key": "d:voxelrobot",
+ "min_tab_sum_mm": 20.6,
+ "name_ko": "복셀 로봇",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 10,
+ "stars": 2
+}

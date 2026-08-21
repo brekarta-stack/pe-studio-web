@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 39,
+ "files": {
+  "glb_kb": 3,
+  "pdf_kb": 84,
+  "svg_sheets": 8
+ },
+ "finished_mm": 426.6,
+ "key": "d:dolphin",
+ "min_tab_sum_mm": 23.3,
+ "name_ko": "돌고래",
+ "pages": 8,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}

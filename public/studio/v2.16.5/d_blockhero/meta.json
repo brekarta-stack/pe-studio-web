@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "게임 캐릭터",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 41,
+ "files": {
+  "glb_kb": 6,
+  "pdf_kb": 79,
+  "svg_sheets": 5
+ },
+ "finished_mm": 199.0,
+ "key": "d:blockhero",
+ "min_tab_sum_mm": 25.0,
+ "name_ko": "블록 영웅",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}

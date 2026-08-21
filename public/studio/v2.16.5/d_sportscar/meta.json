@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.5",
+ "est_minutes": 49,
+ "files": {
+  "glb_kb": 6,
+  "pdf_kb": 85,
+  "svg_sheets": 5
+ },
+ "finished_mm": 143.8,
+ "key": "d:sportscar",
+ "min_tab_sum_mm": 16.5,
+ "name_ko": "스포츠카",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}
