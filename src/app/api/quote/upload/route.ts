@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { randomUUID } from "crypto";
 import path from "path";
+import {
+  UPLOAD_EXT_MIME,
+  UPLOAD_FORMAT_LABEL,
+  UPLOAD_MAX_BYTES,
+  fileExt,
+  magicOk,
+} from "@/lib/upload-rules";
 
 /**
  * POST /api/quote/upload — 제작 문의 폼의 첨부파일 공개 업로드.
@@ -12,22 +19,6 @@ import path from "path";
  *
  * 반환: { url, name } — url=공개 URL(어드민/이메일 열람용), name=표시용 원본 파일명.
  */
-
-// 확장자 → 저장 시 사용할 안전한 content-type. file.type 을 신뢰하지 않고 여기서 강제.
-const EXT_MIME: Record<string, string> = {
-  ".jpg":  "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png":  "image/png",
-  ".webp": "image/webp",
-  ".gif":  "image/gif",
-  ".pdf":  "application/pdf",
-  ".ai":   "application/pdf",   // 최신 .ai 는 PDF 호환 — 브라우저에서 열림
-  ".svg":  "image/svg+xml",     // 로고용
-  ".zip":  "application/zip",
-};
-
-// Vercel serverless 요청 본문 한도(~4.5MB) 안쪽. 이미지는 클라이언트에서 미리 축소해 보냄.
-const MAX_SIZE_BYTES = 4 * 1024 * 1024; // 4 MB
 
 /* ── IP 레이트 리밋 (분당 20회 — 다중 파일 첨부 여유) ── */
 const rateMap = new Map<string, { count: number; reset: number }>();
@@ -43,32 +34,6 @@ function checkRateLimit(ip: string): boolean {
   if (entry.count >= RATE_LIMIT) return false;
   entry.count++;
   return true;
-}
-
-/** 매직 바이트 기본 검증 — 이미지/PDF/ZIP 위변조 최소 차단. ai(=PDF/PS)는 관대. */
-function magicOk(ext: string, h: Uint8Array): boolean {
-  switch (ext) {
-    case ".jpg":
-    case ".jpeg":
-      return h[0] === 0xff && h[1] === 0xd8;
-    case ".png":
-      return h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4e && h[3] === 0x47;
-    case ".gif":
-      return h[0] === 0x47 && h[1] === 0x49 && h[2] === 0x46; // GIF
-    case ".webp":
-      return h[0] === 0x52 && h[1] === 0x49 && h[2] === 0x46 && h[3] === 0x46; // RIFF
-    case ".pdf":
-      return h[0] === 0x25 && h[1] === 0x50 && h[2] === 0x44 && h[3] === 0x46; // %PDF
-    case ".zip":
-      return h[0] === 0x50 && h[1] === 0x4b; // PK
-    case ".ai":
-      // 최신 .ai=%PDF, 구형=%!PS — 둘 다 허용, 그 외에도 저장은 허용(관대)
-      return true;
-    case ".svg":
-      return true;
-    default:
-      return false;
-  }
 }
 
 export async function POST(request: Request) {
@@ -92,18 +57,19 @@ export async function POST(request: Request) {
   if (file.size === 0) {
     return NextResponse.json({ error: "빈 파일입니다." }, { status: 400 });
   }
-  if (file.size > MAX_SIZE_BYTES) {
+  if (file.size > UPLOAD_MAX_BYTES) {
+    const mb = Math.round(UPLOAD_MAX_BYTES / (1024 * 1024));
     return NextResponse.json(
-      { error: "파일이 너무 큽니다. 이미지는 자동 축소되며, 문서·PDF·ZIP은 4MB 이하만 첨부됩니다." },
+      { error: `파일이 너무 큽니다. 사진은 자동 축소되며, 문서·PDF·AI·ZIP 은 ${mb}MB 이하만 첨부됩니다.` },
       { status: 400 },
     );
   }
 
-  const ext = path.extname(file.name).toLowerCase();
-  const mime = EXT_MIME[ext];
+  const ext = fileExt(file.name);
+  const mime = UPLOAD_EXT_MIME[ext];
   if (!mime) {
     return NextResponse.json(
-      { error: "허용되지 않는 파일 형식입니다. (PNG·JPG·WEBP·GIF·PDF·AI·SVG·ZIP)" },
+      { error: `허용되지 않는 파일 형식입니다. (${UPLOAD_FORMAT_LABEL})` },
       { status: 400 },
     );
   }

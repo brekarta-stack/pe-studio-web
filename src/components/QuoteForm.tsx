@@ -38,6 +38,7 @@ import {
 } from "@/lib/quote-pricing";
 import { prepareImageForUpload } from "@/lib/image-resize";
 import { QUOTE_LIMITS, isEmailLike, normalizeEmail } from "@/lib/quote-schema";
+import { LOGO_ACCEPT, UPLOAD_ACCEPT } from "@/lib/upload-rules";
 import {
   PaperToyIcon,
   GearIcon,
@@ -1656,7 +1657,7 @@ export default function QuoteForm() {
                                   <input
                                     type="file"
                                     className="hidden"
-                                    accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
+                                    accept={UPLOAD_ACCEPT}
                                     disabled={designUploading !== null}
                                     onChange={(e) => handleDesignFilePick(d.id, e)}
                                   />
@@ -1904,7 +1905,7 @@ export default function QuoteForm() {
                       <input
                         type="file"
                         className="hidden"
-                        accept=".svg,.png,.ai,.pdf,.jpg,.jpeg"
+                        accept={LOGO_ACCEPT}
                         disabled={uploading.logo}
                         onChange={handleLogoPick}
                       />
