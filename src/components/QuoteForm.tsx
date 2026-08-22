@@ -14,7 +14,7 @@
  *   (/quote 는 정적 페이지라 useSearchParams 대신 window.location 사용 — Suspense 멈춤 회피)
  */
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import {
   COMPLEXITY_LEVELS,
   COMPLEXITY_SPECS,
@@ -37,6 +37,8 @@ import {
   type QuoteEstimate,
 } from "@/lib/quote-pricing";
 import { prepareImageForUpload } from "@/lib/image-resize";
+import { QUOTE_LIMITS, isEmailLike, normalizeEmail } from "@/lib/quote-schema";
+import { LOGO_ACCEPT, UPLOAD_ACCEPT } from "@/lib/upload-rules";
 import {
   PaperToyIcon,
   GearIcon,
@@ -204,6 +206,11 @@ const PACKAGING_OPTIONS: { value: PackagingType; label: string; desc: string }[]
   { value: "opp",       label: "OPP 필름",  desc: "제품을 비닐 필름에 넣어 포장합니다. 일반 제품에 적합합니다." },
   { value: "bulk",      label: "벌크 납품", desc: "포장비를 아껴 저렴하게 제작합니다. 교육 행사 진행에 적합합니다." },
 ];
+
+/** Enter 를 누르면 폼이 암묵적으로 제출되는 입력 종류 (버튼·파일·체크박스는 해당 없음) */
+const IMPLICIT_SUBMIT_INPUTS = new Set([
+  "text", "email", "tel", "number", "date", "search", "url", "password",
+]);
 
 const STORAGE_KEY = "pe-quote-form-draft";
 /**
@@ -479,6 +486,8 @@ export default function QuoteForm() {
   const [uploadErr, setUploadErr] = useState({ file: "", logo: "" });
   /** 연락처 단계 미입력 항목 하이라이트 (제출 시도 후에만) */
   const [contactTouched, setContactTouched] = useState(false);
+  /** 제출 실패 사유 — 화면에 남긴다. alert 은 인앱 브라우저(카카오·네이버)에서 삼켜지곤 한다 */
+  const [submitError, setSubmitError] = useState("");
 
   /** 스텝 전환 시 폼 상단으로 스크롤하기 위한 앵커 */
   const formTopRef = useRef<HTMLDivElement>(null);
@@ -648,6 +657,9 @@ export default function QuoteForm() {
   }, [form, step, hydrated, draftPrompt]);
 
   const update = (key: keyof FormState, value: string | boolean) => {
+    /* 무언가를 고치면 지난 실패 안내는 치운다. 남겨 두면 같은 오류가 다시 났을 때
+       DOM 이 그대로라 스크린리더가 다시 읽지 않고, 화면상으로도 "또 아무 일이 없다"로 보인다. */
+    setSubmitError("");
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -796,8 +808,11 @@ export default function QuoteForm() {
     }
   };
 
-  /** 연락처 유효성 — 유일한 필수 게이트 (이메일은 형식까지 — 서버 400 을 미리 차단) */
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  /** 연락처 유효성 — 유일한 필수 게이트.
+   *  이메일은 **서버와 똑같은 규칙**으로 본다. 예전에는 폼 정규식이 더 느슨해서
+   *  "a@b.co.kr;" 처럼 끝에 구두점이 붙은 복붙 주소가 폼은 통과하고 서버에서 400 이 났다. */
+  const normalizedEmail = normalizeEmail(form.email);
+  const emailValid = isEmailLike(normalizedEmail);
   const contactValid = form.name.trim() !== "" && emailValid && form.phone.trim() !== "";
 
   /** '담당자와 상의' — 어느 단계에서든 연락처로 직행 (선택해 둔 제품은 보존) */
@@ -806,31 +821,90 @@ export default function QuoteForm() {
     setStep(TOTAL_STEPS);
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!contactValid) {
-      setContactTouched(true);
+  /** 업로드가 하나라도 진행 중인가 — 디자인 줄 첨부까지 포함한다 */
+  const uploadBusy = uploading.file || uploading.logo || designUploading !== null;
+
+  /**
+   * Enter 로 인한 조기 제출 차단.
+   *
+   * 3단계가 하나의 <form> 안에 있다. 그래서 Step 1·2 의 입력란에서 Enter 를 누르면
+   * 폼이 그대로 제출됐다 — 연락처를 채운 뒤 요약의 '수정' 으로 Step 2 에 돌아와
+   * 수량을 고치다 Enter 를 누르면 작성 중인 문의가 그대로 접수됐다.
+   * 반대로 연락처가 비어 있으면 아무 반응도 없어서 "제출이 안 된다"로 보였다.
+   * 여러 줄 입력(textarea)의 줄바꿈은 그대로 살린다.
+   */
+  const handleKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== "Enter") return;
+    /* 한글 입력 조합 중의 Enter 는 글자를 확정하는 동작이지 제출이 아니다.
+       (마지막 단계에서도 조합 중 Enter 로 접수돼 버리면 안 된다) */
+    if (e.nativeEvent.isComposing) {
+      e.preventDefault();
       return;
     }
-    if (uploading.file || uploading.logo) return; // 업로드 완료 후 제출
+    if (step >= TOTAL_STEPS) return;
+    const el = e.target as HTMLElement | null;
+    /* 암묵적 제출을 일으키는 것은 한 줄 텍스트 입력뿐이다.
+       버튼·링크의 Enter 까지 막으면 키보드로는 선택지를 고를 수 없게 된다. */
+    if (el?.tagName !== "INPUT") return;
+    if (!IMPLICIT_SUBMIT_INPUTS.has((el as HTMLInputElement).type)) return;
+    e.preventDefault();
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    /* 마지막 단계에서만 접수한다 (Enter·프로그램 제출 대비 이중 방어) */
+    if (step < TOTAL_STEPS) return;
+    if (!contactValid) {
+      setContactTouched(true);
+      setSubmitError("");
+      return;
+    }
+    /* 업로드 중 제출은 첨부를 잃는다. 예전에는 말없이 return 해서
+       "제출을 눌러도 아무 일이 없다"로 보였다 — 이유를 화면에 남긴다.
+       (디자인 줄 첨부 designUploading 도 예전에는 이 가드에서 빠져 있었다) */
+    if (uploadBusy) {
+      setSubmitError("첨부파일 업로드가 끝난 뒤 다시 눌러 주세요.");
+      return;
+    }
+    setSubmitError("");
     setSaving(true);
     const acquisition = getStoredAcquisition();
     try {
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // 제품 미선택은 '미정(담당자 상의)' 으로 접수 — 서버 스키마는 빈 값을 받지 않음
+        // 제품 미선택은 '미정(담당자 상의)' 으로 접수
         body: JSON.stringify({
           ...form,
           product: form.product || "unsure",
           // 수량은 디자인 라인 합계 — 화면에 보여준 값과 접수 값이 어긋나지 않게
           quantity: estimate.totalQuantity > 0 ? String(estimate.totalQuantity) : form.quantity,
+          // 앞뒤 공백·복붙 군더더기는 여기서 턴다 (서버도 같은 규칙으로 한 번 더 정리한다)
+          name: form.name.trim(),
+          email: normalizedEmail,
+          phone: form.phone.trim(),
           acquisition,
         }),
       });
-      if (!res.ok) throw new Error("제출 실패");
+      if (!res.ok) {
+        /* 예전에는 서버가 알려준 사유를 버리고 "제출 실패" 만 던졌다 —
+           고객은 무엇을 고쳐야 하는지 알 방법이 없었다. */
+        const json = (await res.json().catch(() => ({}))) as { error?: string; field?: string };
+        if (json.field === "name" || json.field === "email") setContactTouched(true);
+        setSubmitError(
+          json.error ||
+            (res.status === 429
+              ? "잠시 후 다시 시도해 주세요. (짧은 시간에 여러 번 제출됐습니다)"
+              : "제출 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
+        );
+        return;
+      }
       setSubmitted(true);
-      localStorage.removeItem(STORAGE_KEY);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* 시크릿 모드 등 저장소가 막힌 브라우저 — 접수는 이미 끝났다 */
+      }
       /* 광고 전환 신호 — 외부 픽셀 없이 1st-party 로 '견적 제출 완료' 전환을 /admin/analytics 에 기록 */
       try {
         const beacon = JSON.stringify({
@@ -849,7 +923,8 @@ export default function QuoteForm() {
         /* 전환 신호 실패는 무시 */
       }
     } catch {
-      alert("제출 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      /* 네트워크·타임아웃 — 작성 내용은 초안으로 남아 있으니 그 사실을 알린다 */
+      setSubmitError("연결이 끊겼습니다. 네트워크를 확인한 뒤 다시 눌러 주세요. 작성하신 내용은 그대로 남아 있습니다.");
     } finally {
       setSaving(false);
     }
@@ -860,6 +935,7 @@ export default function QuoteForm() {
     setStep(1);
     setForm(INITIAL_FORM);
     setContactTouched(false);
+    setSubmitError("");
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -1022,7 +1098,7 @@ export default function QuoteForm() {
 
         {/* Form Card */}
         <div className="bg-white rounded-3xl pe-paper-shadow border border-slate-100 p-8 md:p-12">
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} onKeyDown={handleKeyDown}>
             {/* ───────── Step 1: 제품 선택 ───────── */}
             {step === 1 && (
               <div>
@@ -1484,6 +1560,7 @@ export default function QuoteForm() {
                               <input
                                 type="text"
                                 value={d.name}
+                                maxLength={QUOTE_LIMITS.designName}
                                 onChange={(e) => patchDesign(d.id, { name: e.target.value })}
                                 placeholder="캐릭터 이름을 입력해 주세요."
                                 aria-label={`디자인 ${i + 1} 이름`}
@@ -1580,7 +1657,7 @@ export default function QuoteForm() {
                                   <input
                                     type="file"
                                     className="hidden"
-                                    accept=".pdf,.ai,.png,.jpg,.jpeg,.webp,.gif,.zip"
+                                    accept={UPLOAD_ACCEPT}
                                     disabled={designUploading !== null}
                                     onChange={(e) => handleDesignFilePick(d.id, e)}
                                   />
@@ -1768,6 +1845,7 @@ export default function QuoteForm() {
                     <input
                       id="productText"
                       type="text"
+                      maxLength={QUOTE_LIMITS.productText}
                       placeholder="예: 회사명·슬로건·이벤트명·QR 코드 옆 문구"
                       value={form.productText}
                       onChange={(e) => update("productText", e.target.value)}
@@ -1784,11 +1862,18 @@ export default function QuoteForm() {
                     <textarea
                       id="color"
                       rows={2}
+                      maxLength={QUOTE_LIMITS.colorRequest}
                       placeholder="예: 회사 브랜드 컬러(파란색 계열)로 제작, 로고 삽입 원함"
                       value={form.colorRequest}
                       onChange={(e) => update("colorRequest", e.target.value)}
                       className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 resize-none"
                     />
+                    {/* 상한이 가까워질 때만 알린다 — 넘겨 쓴 요구사항이 접수 단계에서 잘리지 않게 */}
+                    {form.colorRequest.length > QUOTE_LIMITS.colorRequest - 200 && (
+                      <p className="mt-1 text-right text-xs text-slate-400 tabular-nums">
+                        {form.colorRequest.length.toLocaleString()} / {QUOTE_LIMITS.colorRequest.toLocaleString()}자
+                      </p>
+                    )}
                   </div>
 
 
@@ -1820,7 +1905,7 @@ export default function QuoteForm() {
                       <input
                         type="file"
                         className="hidden"
-                        accept=".svg,.png,.ai,.pdf,.jpg,.jpeg"
+                        accept={LOGO_ACCEPT}
                         disabled={uploading.logo}
                         onChange={handleLogoPick}
                       />
@@ -1841,11 +1926,18 @@ export default function QuoteForm() {
                     <textarea
                       id="notes"
                       rows={2}
+                      maxLength={QUOTE_LIMITS.notes}
                       placeholder="기타 요청사항을 자유롭게 입력해 주세요."
                       value={form.notes}
                       onChange={(e) => update("notes", e.target.value)}
                       className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E22B2]/30 focus:border-[#1E22B2] text-slate-900 resize-none"
                     />
+                    {/* 상한이 가까워질 때만 알린다 — 넘겨 쓴 요구사항이 접수 단계에서 잘리지 않게 */}
+                    {form.notes.length > QUOTE_LIMITS.notes - 200 && (
+                      <p className="mt-1 text-right text-xs text-slate-400 tabular-nums">
+                        {form.notes.length.toLocaleString()} / {QUOTE_LIMITS.notes.toLocaleString()}자
+                      </p>
+                    )}
                   </div>
 
 
@@ -1924,6 +2016,7 @@ export default function QuoteForm() {
                   <input
                     id="name"
                     type="text"
+                    maxLength={QUOTE_LIMITS.name}
                     autoComplete="name"
                     placeholder="홍길동"
                     value={form.name}
@@ -1940,6 +2033,7 @@ export default function QuoteForm() {
                   <input
                     id="email"
                     type="email"
+                    maxLength={QUOTE_LIMITS.email}
                     autoComplete="email"
                     inputMode="email"
                     placeholder="example@company.com"
@@ -1957,6 +2051,7 @@ export default function QuoteForm() {
                   <input
                     id="phone"
                     type="tel"
+                    maxLength={QUOTE_LIMITS.phone}
                     autoComplete="tel"
                     inputMode="tel"
                     placeholder="010-0000-0000"
@@ -1977,6 +2072,19 @@ export default function QuoteForm() {
                 <p className="text-slate-400 text-xs" style={{ wordBreak: "keep-all" }}>
                   즉시 연락은 홈페이지 하단 정보를 참조해 주세요.
                 </p>
+              </div>
+            )}
+
+            {/* 제출 실패 안내 — 서버가 알려준 사유를 그대로 보여준다.
+                alert 은 카카오·네이버 인앱 브라우저에서 삼켜져 "눌러도 아무 일이 없다"가 됐다 */}
+            {submitError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                style={{ wordBreak: "keep-all" }}
+              >
+                ⚠ {submitError}
               </div>
             )}
 
@@ -2006,19 +2114,19 @@ export default function QuoteForm() {
               ) : (
                 <button
                   type="submit"
-                  disabled={saving || uploading.file || uploading.logo}
+                  disabled={saving || uploadBusy}
                   className={`inline-flex items-center gap-1.5 px-7 py-3 font-semibold rounded-xl transition-all ${
-                    !saving && !uploading.file && !uploading.logo
+                    !saving && !uploadBusy
                       ? "text-white shadow-lg shadow-pink-500/25 hover:-translate-y-0.5"
                       : "bg-slate-200 text-slate-400 cursor-not-allowed"
                   }`}
                   style={
-                    !saving && !uploading.file && !uploading.logo
+                    !saving && !uploadBusy
                       ? { background: "linear-gradient(135deg, #06C6C8, #E91E8C)" }
                       : {}
                   }
                 >
-                  {saving ? "제출 중…" : uploading.file || uploading.logo ? "파일 업로드 중…" : "제작 문의 제출"}
+                  {saving ? "제출 중…" : uploadBusy ? "파일 업로드 중…" : "제작 문의 제출"}
                   {!saving && <ArrowRightIcon size={18} />}
                 </button>
               )}

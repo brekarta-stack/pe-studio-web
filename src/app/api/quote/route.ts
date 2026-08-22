@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { randomUUID } from "crypto";
-import { z } from "zod";
 import { Resend } from "resend";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
 import { parseQuantity } from "@/lib/quote-pricing";
 import { MANUAL_OPTION_LABELS, STYLE_LABELS } from "@/lib/quote-labels";
 import { requireAdminApi } from "@/lib/session";
+import { normalizeQuoteInput } from "@/lib/quote-schema";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
 const PRODUCT_LABEL: Record<string, string> = {
@@ -215,120 +216,25 @@ async function sendCustomerAckEmail(s: QuoteSubmission): Promise<void> {
   if (error) throw new Error(`Resend(고객 확인): ${error.message ?? JSON.stringify(error)}`);
 }
 
-/* 첨부파일 URL 검증 — 빈 문자열이거나, 우리 스토리지의 공개 https URL만 허용.
-   (javascript:/data: 등 주입 차단 — 어드민/이메일에서 href 로 렌더되므로) */
-const QuoteFileUrl = z
-  .string()
-  .max(1024)
-  .default("")
-  .refine((v) => v === "" || /^https:\/\/[^\s"'<>]+\/storage\/v1\/object\/public\//.test(v), {
-    message: "허용되지 않는 파일 URL 입니다.",
-  });
+/* ── IP 레이트 리밋 ──
+ * 규칙과 배경은 src/lib/rate-limit.ts 참고. 핵심은 "실패한 시도는 한도를 깎지 않는다".
+ *   · 접수 성공 5건/분  — 중복 제출 방지
+ *   · 총 요청  60건/분  — 남용 방지 (고객사 사무실은 공용 IP 라 넉넉해야 한다)
+ */
+const quoteRate = createRateLimiter({ acceptLimit: 5, totalLimit: 60, windowMs: 60_000 });
 
-/* ── 입력 스키마 (Zod) ── */
-const QuoteSchema = z.object({
-  product:      z.enum(["papercraft", "action", "popup", "foamboard", "unsure", "education", "promotion", "hobby"]),
-  quantity:     z.string().max(20).default(""),
-  deliveryDate: z.string().max(30).default(""),
-  purpose:      z.string().max(100).default(""),
-  // 기존 customDesign 은 호환 유지 (구버전 제출 케이스), 신규 폼은 styleType 사용
-  customDesign: z.enum(["yes", "no", ""]).default(""),
-  // 선호 작가 (오세기/김철호/문재호/추천받기) — 구 '디자인 스타일' 값도 호환 유지.
-  // 현행 값을 빠뜨리면 작가를 고른 제출이 통째로 400 이 된다.
-  styleType:    z.enum(["osegi", "cheolho", "jaeho", "recommend", "realism", "characterize", "expert", ""]).default(""),
-  // 신규: 제품에 삽입할 문구
-  productText:  z.string().max(200).default(""),
-  colorRequest: z.string().max(500).default(""),
-  notes:        z.string().max(500).default(""),
-  name:         z.string().min(1, "이름은 필수입니다").max(100),
-  email:        z.string().email("올바른 이메일을 입력하세요").max(200),
-  phone:        z.string().max(30).default(""),
-  fileName:     z.string().max(255).default(""),
-  // 신규: 참고 자료 파일의 공개 URL (Supabase Storage) — 레거시 단일
-  fileUrl:      QuoteFileUrl,
-  // 다중 첨부파일 (최대 5개) — 신규 폼은 여기에 담는다
-  files:        z
-    .array(z.object({ name: z.string().max(255).default(""), url: QuoteFileUrl }))
-    .max(5)
-    .default([]),
-  // 제작 희망 디자인 목록 — 한 줄 = { 이름, 수량, 참고 자료 1개 }
-  designs: z
-    .array(
-      z.object({
-        id:       z.string().max(64).default(""),
-        name:     z.string().max(200).default(""),
-        quantity: z.string().max(20).default(""),
-        // 모델 설계 난이도 — 디자인비 산정 근거 (미선택은 빈 문자열)
-        complexity: z.enum(["simple", "normal", "complex", ""]).default(""),
-        file: z
-          .object({ name: z.string().max(255).default(""), url: QuoteFileUrl })
-          .nullable()
-          .default(null),
-      })
-    )
-    .max(20)
-    .default([]),
-  // 신규: 회사 로고 파일명 (선택)
-  logoFileName: z.string().max(255).default(""),
-  // 신규: 회사 로고 파일의 공개 URL (선택)
-  logoFileUrl:  QuoteFileUrl,
-  // 제작 옵션 (Step 3 확장)
-  sampling:     z.boolean().default(false),
-  // 샘플링을 보고 디자인 개선 희망 / 생산 시 감리 진행 희망 / 별도 가공·고급 소재
-  samplingImprove: z.boolean().default(false),
-  supervision:  z.boolean().default(false),
-  premiumFinish: z.boolean().default(false),
-  // 제품 이용 연령 — 복수 선택 (폼의 AGE_GROUPS 라벨 그대로)
-  ageGroups:    z.array(z.string().max(60)).max(10).default([]),
-  // 만드는 방식 / 디자인 설계 스타일 — 폼 라벨 그대로
-  assemblyMethod: z.string().max(60).default(""),
-  designStyle:  z.string().max(60).default(""),
-  // 설명서 생산 — guide(무료) / qr(종당 100만) / print(부수당 300원)
-  manualOption: z.enum(["guide", "qr", "print", ""]).default(""),
-  rushed:       z.boolean().default(false),
-  packaging:    z.enum(["paper-box", "opp", "bulk", ""]).default(""),
-  // 주문 형태 — 견적 구조를 정한다 (도면만 / 제품 생산 / 완제품)
-  orderType:    z.enum(["blueprint", "production", "finished", ""]).default(""),
-  // 광고 유입정보 (gclid·UTM) — 선택. 전환 측정/오프라인 임포트용
-  acquisition: z
-    .object({
-      referrer:    z.string().max(1024).default(""),
-      utmSource:   z.string().max(120).default(""),
-      utmMedium:   z.string().max(120).default(""),
-      utmCampaign: z.string().max(120).default(""),
-      gclid:       z.string().max(400).default(""),
-      adHint:      z.string().max(20).default(""),
-    })
-    .nullable()
-    .optional(),
-});
-
-/* ── 단순 IP 레이트 리밋 (분당 5회) ── */
-const rateMap = new Map<string, { count: number; reset: number }>();
-const RATE_LIMIT = 5;
-const WINDOW_MS  = 60_000;
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateMap.get(ip);
-  if (!entry || now > entry.reset) {
-    rateMap.set(ip, { count: 1, reset: now + WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT) return false;
-  entry.count++;
-  return true;
-}
+/* 알림 메일 2통은 응답을 보낸 뒤 after() 안에서 나간다 — 그 시간까지 포함한 상한 */
+export const maxDuration = 60;
 
 // POST /api/quote — 제작 문의 저장 (누구나 가능)
 export async function POST(request: Request) {
   /* 레이트 리밋 */
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(ip)) {
+  if (!quoteRate.allow(ip)) {
     return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, { status: 429 });
   }
 
-  /* 입력 파싱 & 검증 */
+  /* 입력 파싱 */
   let raw: unknown;
   try {
     raw = await request.json();
@@ -336,13 +242,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청 형식입니다." }, { status: 400 });
   }
 
-  const parsed = QuoteSchema.safeParse(raw);
-  if (!parsed.success) {
-    const firstError = parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.";
-    return NextResponse.json({ error: firstError }, { status: 400 });
+  /* 정규화 — 길이 초과·모르는 선택지·이상한 첨부 URL 은 잘라내거나 버리고 접수는 살린다.
+     거절은 회신 수단이 없을 때(이름·이메일)뿐. 자세한 규칙은 src/lib/quote-schema.ts */
+  const parsed = normalizeQuoteInput(raw);
+  if (!parsed.ok) {
+    /* 예전에는 400 을 아무 기록 없이 내보냈다 — 고객은 오류를 봤는데 로그에는 아무것도 없었다 */
+    console.warn(`[api/quote] 입력 거절 (${parsed.field}): ${parsed.message}`);
+    return NextResponse.json({ error: parsed.message, field: parsed.field }, { status: 400 });
+  }
+  if (parsed.dropped.length > 0) {
+    console.warn("[api/quote] 일부 값을 잘라서 접수:", parsed.dropped.join(", "));
   }
 
-  const data = parsed.data;
+  const data = parsed.value;
 
   /* 총 수량은 클라이언트가 보낸 값을 믿지 않고 디자인 라인에서 다시 더한다 —
      화면에 보여준 개략 견적과 접수된 수량이 어긋나면 안 된다.
@@ -388,32 +300,43 @@ export async function POST(request: Request) {
     createdAt:    new Date().toISOString(),
   };
 
-  const { error } = await supabaseAdmin.from("quotes").insert({
-    id:             submission.id,
-    product:        submission.product,
-    quantity:       submission.quantity,
-    delivery_date:  submission.deliveryDate,
-    purpose:        submission.purpose,
-    custom_design:  submission.customDesign,
-    style_type:     submission.styleType,
-    product_text:   submission.productText,
-    color_request:  submission.colorRequest,
-    notes:          submission.notes,
-    name:           submission.name,
-    email:          submission.email,
-    phone:          submission.phone,
-    file_name:      submission.fileName,
-    logo_file_name: submission.logoFileName,
-    sampling:       submission.sampling,
-    rushed:         submission.rushed,
-    packaging:      submission.packaging,
-    created_at:     submission.createdAt,
-  });
+  /* 저장 — supabaseAdmin 은 첫 사용 시 환경변수를 검증하며 throw 할 수 있다.
+     감싸지 않으면 500 이 HTML 로 나가고, 프런트의 res.json() 이 거기서 또 깨진다. */
+  let insertError: unknown = null;
+  try {
+    const { error } = await supabaseAdmin.from("quotes").insert({
+      id:             submission.id,
+      product:        submission.product,
+      quantity:       submission.quantity,
+      delivery_date:  submission.deliveryDate,
+      purpose:        submission.purpose,
+      custom_design:  submission.customDesign,
+      style_type:     submission.styleType,
+      product_text:   submission.productText,
+      color_request:  submission.colorRequest,
+      notes:          submission.notes,
+      name:           submission.name,
+      email:          submission.email,
+      phone:          submission.phone,
+      file_name:      submission.fileName,
+      logo_file_name: submission.logoFileName,
+      sampling:       submission.sampling,
+      rushed:         submission.rushed,
+      packaging:      submission.packaging,
+      created_at:     submission.createdAt,
+    });
+    insertError = error;
+  } catch (thrown) {
+    insertError = thrown;
+  }
 
-  if (error) {
-    console.error("[api/quote] DB insert error:", error);
+  if (insertError) {
+    console.error("[api/quote] DB insert error:", insertError);
     return NextResponse.json({ error: "견적 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
   }
+
+  /* 여기부터는 접수 성공 — 레이트 리밋은 성공한 건수만 센다 */
+  quoteRate.recordAccepted(ip);
 
   /* 제작 희망 디자인 best-effort 저장 — 'designs' 컬럼(마이그레이션 20260803)이
      없으면 조용히 건너뛴다. 별도 update 라 컬럼 부재 시에도 접수 자체는 성공한다.
@@ -519,19 +442,22 @@ export async function POST(request: Request) {
     }
   }
 
-  /* 알림 메일 발송 — 실패해도 사용자에게는 201 응답 유지 */
-  try {
-    await sendInquiryEmail(submission);
-  } catch (mailErr) {
-    console.error("[api/quote] email notification failed:", mailErr);
-  }
-
-  /* 고객 접수 확인 자동 회신 — 운영자 알림과 독립 best-effort */
-  try {
-    await sendCustomerAckEmail(submission);
-  } catch (ackErr) {
-    console.error("[api/quote] customer ack email failed:", ackErr);
-  }
+  /* 알림 메일은 **응답을 보낸 뒤** 나간다.
+     예전에는 두 통을 응답 전에 순차로 await 했다. Resend 가 느리면 고객은 그만큼
+     빈 화면에서 기다렸고, 함수 타임아웃에 걸리면 DB 에는 저장됐는데 화면에는 오류가
+     떠서 같은 문의가 두 번 접수됐다. 메일 실패가 접수를 흔들면 안 된다. */
+  after(async () => {
+    try {
+      await sendInquiryEmail(submission);
+    } catch (mailErr) {
+      console.error("[api/quote] email notification failed:", mailErr);
+    }
+    try {
+      await sendCustomerAckEmail(submission);
+    } catch (ackErr) {
+      console.error("[api/quote] customer ack email failed:", ackErr);
+    }
+  });
 
   return NextResponse.json(submission, { status: 201 });
 }
