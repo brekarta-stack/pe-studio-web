@@ -11,7 +11,7 @@
  * 곧 화이트리스트라 경로 조작이 원천 차단된다.
  */
 
-import catalog from "../../public/studio/v2.16.10/index.json";
+import catalog from "../../public/studio/v2.16.11/index.json";
 
 export interface StudioItem {
   key: string;        // 엔진 카탈로그 키 (예: "d:taj")

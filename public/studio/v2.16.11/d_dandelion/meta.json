@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "식물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.11",
+ "est_minutes": 94,
+ "files": {
+  "glb_kb": 12,
+  "pdf_kb": 101,
+  "svg_sheets": 6
+ },
+ "finished_mm": 311.6,
+ "key": "d:dandelion",
+ "min_tab_sum_mm": 15.3,
+ "name_ko": "민들레",
+ "pages": 6,
+ "paper": "A4",
+ "pieces": 18,
+ "stars": 4
+}

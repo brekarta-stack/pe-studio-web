@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.11",
+ "est_minutes": 49,
+ "files": {
+  "glb_kb": 6,
+  "pdf_kb": 86,
+  "svg_sheets": 5
+ },
+ "finished_mm": 164.6,
+ "key": "d:racecar",
+ "min_tab_sum_mm": 17.0,
+ "name_ko": "레이싱카",
+ "pages": 5,
+ "paper": "A4",
+ "pieces": 9,
+ "stars": 2
+}

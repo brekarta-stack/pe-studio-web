@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210.00mm" height="297.00mm" viewBox="0 0 210.00 297.00">
+<rect x="0" y="0" width="210.00" height="297.00" fill="#ffffff" stroke="#cccccc" stroke-width="0.2"/>
+<polygon points="111.326,59.801 112.111,68.154 94.53,95.286 86.586,97.983" fill="rgb(216,216,216)"/>
+<polygon points="58.631,5.0 54.121,12.186 57.383,44.946 63.222,51.101" fill="rgb(216,216,216)"/>
+<polygon points="72.66,116.552 70.748,122.316 55.726,125.713 51.52,121.334" fill="rgb(216,216,216)"/>
+<polygon points="32.203,115.912 25.892,111.122 19.896,82.385 23.765,75.471" fill="rgb(216,216,216)"/>
+<polygon points="6.904,51.094 5.067,57.579 17.049,74.902 23.765,75.471" fill="rgb(216,216,216)"/>
+<line x1="88.784" y1="51.101" x2="86.586" y2="97.983" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="88.784" y1="51.101" x2="23.765" y2="75.471" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="86.586" y1="97.983" x2="23.765" y2="75.471" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="63.222" y1="51.101" x2="88.784" y2="51.101" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="86.586" y1="97.983" x2="32.203" y2="115.912" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="32.203" y1="115.912" x2="72.66" y2="116.552" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="23.765" y1="75.471" x2="63.222" y2="51.101" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="86.586" y1="97.983" x2="111.326" y2="59.801" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="63.222" y1="51.101" x2="58.631" y2="5.0" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="51.52" y1="121.334" x2="72.66" y2="116.552" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="23.765" y1="75.471" x2="32.203" y2="115.912" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="23.765" y1="75.471" x2="6.904" y2="51.094" stroke="#8c8c8c" stroke-width="0.3" stroke-dasharray="1.2,0.8"/>
+<line x1="88.784" y1="51.101" x2="111.326" y2="59.801" stroke="#141414" stroke-width="0.4"/>
+<line x1="58.631" y1="5.0" x2="88.784" y2="51.101" stroke="#141414" stroke-width="0.4"/>
+<line x1="86.586" y1="97.983" x2="72.66" y2="116.552" stroke="#141414" stroke-width="0.4"/>
+<line x1="38.574" y1="49.742" x2="63.222" y2="51.101" stroke="#141414" stroke-width="0.4"/>
+<line x1="6.904" y1="51.094" x2="38.574" y2="49.742" stroke="#141414" stroke-width="0.4"/>
+<line x1="51.52" y1="121.334" x2="32.203" y2="115.912" stroke="#141414" stroke-width="0.4"/>
+<line x1="111.326" y1="59.801" x2="112.111" y2="68.154" stroke="#141414" stroke-width="0.4"/>
+<line x1="112.111" y1="68.154" x2="94.53" y2="95.286" stroke="#141414" stroke-width="0.4"/>
+<line x1="94.53" y1="95.286" x2="86.586" y2="97.983" stroke="#141414" stroke-width="0.4"/>
+<line x1="58.631" y1="5.0" x2="54.121" y2="12.186" stroke="#141414" stroke-width="0.4"/>
+<line x1="54.121" y1="12.186" x2="57.383" y2="44.946" stroke="#141414" stroke-width="0.4"/>
+<line x1="57.383" y1="44.946" x2="63.222" y2="51.101" stroke="#141414" stroke-width="0.4"/>
+<line x1="72.66" y1="116.552" x2="70.748" y2="122.316" stroke="#141414" stroke-width="0.4"/>
+<line x1="70.748" y1="122.316" x2="55.726" y2="125.713" stroke="#141414" stroke-width="0.4"/>
+<line x1="55.726" y1="125.713" x2="51.52" y2="121.334" stroke="#141414" stroke-width="0.4"/>
+<line x1="32.203" y1="115.912" x2="25.892" y2="111.122" stroke="#141414" stroke-width="0.4"/>
+<line x1="25.892" y1="111.122" x2="19.896" y2="82.385" stroke="#141414" stroke-width="0.4"/>
+<line x1="19.896" y1="82.385" x2="23.765" y2="75.471" stroke="#141414" stroke-width="0.4"/>
+<line x1="6.904" y1="51.094" x2="5.067" y2="57.579" stroke="#141414" stroke-width="0.4"/>
+<line x1="5.067" y1="57.579" x2="17.049" y2="74.902" stroke="#141414" stroke-width="0.4"/>
+<line x1="17.049" y1="74.902" x2="23.765" y2="75.471" stroke="#141414" stroke-width="0.4"/>
+<circle cx="101.138" cy="80.306" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="101.138" y="81.39" font-size="3.11" text-anchor="middle" fill="#141414">6</text>
+<circle cx="58.339" cy="28.308" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="58.339" y="29.39" font-size="3.11" text-anchor="middle" fill="#141414">18</text>
+<circle cx="62.663" cy="121.479" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="62.663" y="122.57" font-size="3.11" text-anchor="middle" fill="#141414">26</text>
+<circle cx="25.439" cy="96.222" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="25.439" y="97.31" font-size="3.11" text-anchor="middle" fill="#141414">39</text>
+<circle cx="13.196" cy="64.761" r="2.29" fill="#ffe082" stroke="#464646" stroke-width="0.2"/>
+<text x="13.196" y="65.85" font-size="3.11" text-anchor="middle" fill="#141414">43</text>
+<circle cx="41.854" cy="58.771" r="3.76" fill="#eaf1fe" stroke="#2e78e6" stroke-width="0.3"/>
+<text x="41.854" y="60.24" font-size="4.25" text-anchor="middle" fill="#14306e" font-weight="bold">4</text>
+<text x="205.0" y="295.0" font-size="3.2" text-anchor="end" fill="#737373" font-family="sans-serif">4 / 4</text>
+<g pointer-events="none"><text x="105.0" y="83.2" text-anchor="middle" font-family="sans-serif" font-size="12.4" fill="#9aa0a6" fill-opacity="0.3" transform="rotate(-28 105.0 83.2)">papercraft.kr</text><text x="105.0" y="148.5" text-anchor="middle" font-family="sans-serif" font-size="12.4" fill="#9aa0a6" fill-opacity="0.3" transform="rotate(-28 105.0 148.5)">papercraft.kr</text><text x="105.0" y="213.8" text-anchor="middle" font-family="sans-serif" font-size="12.4" fill="#9aa0a6" fill-opacity="0.3" transform="rotate(-28 105.0 213.8)">papercraft.kr</text></g></svg>
