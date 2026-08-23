@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "탈것",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.11",
+ "est_minutes": 24,
+ "files": {
+  "glb_kb": 5,
+  "pdf_kb": 74,
+  "svg_sheets": 3
+ },
+ "finished_mm": 155.6,
+ "key": "d:spaceshuttle",
+ "min_tab_sum_mm": 16.0,
+ "name_ko": "우주왕복선",
+ "pages": 3,
+ "paper": "A4",
+ "pieces": 5,
+ "stars": 1
+}

@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "곤충",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.11",
+ "est_minutes": 75,
+ "files": {
+  "glb_kb": 10,
+  "pdf_kb": 103,
+  "svg_sheets": 10
+ },
+ "finished_mm": 341.0,
+ "key": "d:bee",
+ "min_tab_sum_mm": 15.6,
+ "name_ko": "꿀벌",
+ "pages": 10,
+ "paper": "A4",
+ "pieces": 13,
+ "stars": 3
+}

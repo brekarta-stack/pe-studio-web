@@ -12,7 +12,7 @@ import test from "node:test";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const idx = JSON.parse(
-  readFileSync(path.join(ROOT, "public", "studio", "v2.16.10", "index.json"), "utf-8"),
+  readFileSync(path.join(ROOT, "public", "studio", "v2.16.11", "index.json"), "utf-8"),
 );
 const VER = idx.engine;
 const pub = (skey, f) => path.join(ROOT, "public", "studio", VER, skey, f);

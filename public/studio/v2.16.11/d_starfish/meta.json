@@ -1,0 +1,21 @@
+{
+ "buildable": true,
+ "category": "바다생물",
+ "deferred": 0,
+ "detail": 2,
+ "engine": "2.16.11",
+ "est_minutes": 44,
+ "files": {
+  "glb_kb": 4,
+  "pdf_kb": 92,
+  "svg_sheets": 4
+ },
+ "finished_mm": 171.3,
+ "key": "d:starfish",
+ "min_tab_sum_mm": 15.1,
+ "name_ko": "불가사리",
+ "pages": 4,
+ "paper": "A4",
+ "pieces": 8,
+ "stars": 2
+}
