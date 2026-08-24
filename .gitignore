@@ -63,3 +63,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 _bmad/custom/*.user.toml
+
+# BMAD 스킬은 전역 한 벌(~/.agents/skills)을 쓴다 — 레포에 복제하지 않는다.
+# 레포에 필요한 것은 _bmad/ 뿐이다.
+.claude/skills/bmad-*
+.agents/skills/bmad-*
