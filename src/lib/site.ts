@@ -157,7 +157,10 @@ export const DOWNLOAD = {
   platform: "Windows 10 / 11 (64-bit)",
   fileName: "PapercraftStudio-windows-x64.zip",
   fileSize: "약 126 MB",
-  url: "https://github.com/brekarta-stack/papercraft-studio-releases/releases/download/v1.3/PapercraftStudio-windows-x64.zip",
+  // 2026-08-25: GitHub 계정(brekarta-stack)이 비로그인 사용자에게 404라 릴리스 링크가
+  // 전부 죽어 Vercel Blob(papercraft-downloads 스토어)으로 이관. 새 버전 배포 시
+  // `vercel blob put <zip> --pathname downloads/v<버전>/... --access public` 후 이 url 교체.
+  url: "https://6qw2ro16ujo2hpx1.public.blob.vercel-storage.com/downloads/v1.3/PapercraftStudio-windows-x64-hWd5eEw0OMQXsANs2i29pHHKYMyv3N.zip",
   price: "무료",
 } as const;
 
