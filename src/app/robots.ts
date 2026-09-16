@@ -31,7 +31,12 @@ const SEARCH_BOTS = [
 
 export default function robots(): MetadataRoute.Robots {
   // /studio 는 품질 정비 전까지 비공개 — 크롤 차단(복구 시 이 항목 삭제, 2026-07-11)
-  const disallow = ["/admin/", "/api/", "/studio"];
+  //
+  // /download/app 은 126MB zip 으로 가는 302 다. 봇이 이걸 따라가면 다운로드 한 번당
+  // 전송량이 그대로 나간다 — 2026-09-15 에 Vercel Blob 스토어를 무료 한도 초과로
+  // 정지시킨 바로 그 비용이다. 사람이 버튼을 눌렀을 때만 나가야 한다.
+  // (/download 페이지 자체는 색인 대상이므로 여기 넣지 않는다)
+  const disallow = ["/admin/", "/api/", "/studio", "/download/app"];
   return {
     rules: [
       { userAgent: "*", allow: "/", disallow },
