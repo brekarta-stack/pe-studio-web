@@ -12,6 +12,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "./supabase-admin";
+import { normalizeBaseUrl } from "./estimate-types";
 
 const BUCKET = "estimate-assets";
 const SEAL_PATH = "seal.png";
@@ -21,7 +22,7 @@ export const SEAL_TYPES = ["image/png", "image/jpeg"] as const;
 
 /** 시트가 이미지를 받아 갈 사이트 주소. 프리뷰 배포에서 시험할 때만 바꾼다 */
 export function assetBase(): string {
-  return (process.env.ESTIMATE_ASSET_BASE ?? "https://www.papercraft.kr").replace(/\/+$/, "");
+  return normalizeBaseUrl(process.env.ESTIMATE_ASSET_BASE || "https://www.papercraft.kr");
 }
 
 export function bannerUrl(): string {
