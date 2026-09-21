@@ -42,6 +42,13 @@ export async function isAdminSession(): Promise<boolean> {
   return session?.user?.role === "admin";
 }
 
+/** 관리자면 그 이메일(감사 기록용), 아니면 null */
+export async function getAdminEmail(): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "admin") return null;
+  return session.user.email ?? "admin";
+}
+
 /** 관리자 권한 강제 — 아니면 예외 */
 export async function requireAdmin(): Promise<void> {
   if (!(await isAdminSession())) throw new Error("권한이 없습니다.");

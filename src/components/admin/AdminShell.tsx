@@ -25,6 +25,11 @@ const ICONS: Record<string, React.ReactNode> = {
       <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
     </svg>
   ),
+  estimate: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4zm2 8a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 2a1 1 0 100 2h3a1 1 0 100-2H7zm0-6a1 1 0 000 2h2a1 1 0 100-2H7z" clipRule="evenodd" />
+    </svg>
+  ),
   works: (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
       <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zM4 8v8h12V8H4zm2.7 3.3a1 1 0 011.4 0l.9.9 2.9-2.9a1 1 0 111.4 1.4l-3.6 3.6a1 1 0 01-1.4 0l-1.6-1.6a1 1 0 010-1.4z" clipRule="evenodd" />
@@ -87,6 +92,8 @@ const NAV_GROUPS = [
     items: [
       { href: "/admin/analytics", exact: false, label: "유입·클릭 분석", icon: ICONS.analytics },
       { href: "/admin/quotes", exact: false, label: "제작 문의", icon: ICONS.quotes },
+      // 견적서 생성 → 확인 → 발송 (구글 시트로 만들고 PDF 로 메일 발송)
+      { href: "/admin/estimates", exact: false, label: "견적서", icon: ICONS.estimate },
       { href: "/admin/works", exact: false, label: "작업 관리", icon: ICONS.works },
       // Drop(제외) 처리한 제작 문의 — 목록에서 빠진 건을 따로 모아 본다(복구 가능)
       { href: "/admin/drops", exact: false, label: "Drop", icon: ICONS.drop },
