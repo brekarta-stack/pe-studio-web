@@ -172,6 +172,24 @@ export function groupSpans(items: Pick<EstimateItem, "group">[]): [number, numbe
   return spans;
 }
 
+/**
+ * 파일 단위 속성 — 파일 이름(=드라이브 파일명)·한국 로케일·서울 시간대.
+ *
+ * allowExternalImages: 배너·도장은 IMAGE() 로 우리 사이트에서 받아 온다. 구글 시트는 파일마다
+ * "외부 URL 데이터 액세스 허용"을 받기 전까지 IMAGE() 를 #REF! 로 막는다(2024 보안 정책).
+ * 사람이 파일마다 "액세스 허용"을 누르지 않게 API 로 켠다. 한 번 켜면 되돌릴 수 없는 값이라
+ * 이미 켜진 파일에는 보내지 않는다(읽기 전용 필드를 다시 쓰면 오류가 날 수 있다).
+ */
+export function buildSpreadsheetPropertiesRequest(title: string, allowExternalImages: boolean): object {
+  const properties: Record<string, unknown> = { title, locale: "ko_KR", timeZone: "Asia/Seoul" };
+  const fields = ["title", "locale", "timeZone"];
+  if (allowExternalImages) {
+    properties.importFunctionsExternalUrlAccessAllowed = true;
+    fields.push("importFunctionsExternalUrlAccessAllowed");
+  }
+  return { updateSpreadsheetProperties: { properties, fields: fields.join(",") } };
+}
+
 export function buildSheetRequests(
   input: SheetInput,
   sheetId: number,

@@ -17,7 +17,13 @@ import { randomInt } from "node:crypto";
 import { supabaseAdmin } from "./supabase-admin";
 import { decryptToken, encryptToken } from "./token-crypto";
 import { CATEGORY_FOLDERS, DRIVE_ROOT_FOLDER, normalizeBaseUrl, type EstimateCategory } from "./estimate-types";
-import { buildSheetRequests, NAMED_RANGES, SHEET_TITLE, type SheetInput } from "./estimate-sheet";
+import {
+  buildSheetRequests,
+  buildSpreadsheetPropertiesRequest,
+  NAMED_RANGES,
+  SHEET_TITLE,
+  type SheetInput,
+} from "./estimate-sheet";
 import { bannerUrl, sealUrlForSheet } from "./estimate-assets";
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -364,6 +370,7 @@ export async function createSpreadsheetFile(name: string, folderId: string): Pro
 }
 
 interface SpreadsheetMeta {
+  properties?: { importFunctionsExternalUrlAccessAllowed?: boolean };
   sheets?: { properties: { sheetId: number; title: string } }[];
   namedRanges?: { namedRangeId: string; name: string }[];
 }
@@ -383,7 +390,7 @@ export async function renderEstimateSheet(
 ): Promise<{ gid: number }> {
   const sid = encodeURIComponent(spreadsheetId);
   const meta = await gjson<SpreadsheetMeta>(
-    `${SHEETS}/${sid}?fields=sheets.properties(sheetId,title),namedRanges(namedRangeId,name)`,
+    `${SHEETS}/${sid}?fields=properties(importFunctionsExternalUrlAccessAllowed),sheets.properties(sheetId,title),namedRanges(namedRangeId,name)`,
   );
   const sheets = meta.sheets ?? [];
   const taken = new Set(sheets.map((s) => s.properties.sheetId));
@@ -414,12 +421,8 @@ export async function renderEstimateSheet(
         fields: "title,index",
       },
     },
-    {
-      updateSpreadsheetProperties: {
-        properties: { title: fileName, locale: "ko_KR", timeZone: "Asia/Seoul" },
-        fields: "title,locale,timeZone",
-      },
-    },
+    // 배너·도장 IMAGE() 가 #REF! 로 막히지 않게 외부 이미지 액세스를 켠다 (이미 켜졌으면 생략)
+    buildSpreadsheetPropertiesRequest(fileName, !meta.properties?.importFunctionsExternalUrlAccessAllowed),
   ];
 
   await gjson(`${SHEETS}/${sid}:batchUpdate`, jsonInit("POST", { requests: batch }));

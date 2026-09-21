@@ -45,7 +45,7 @@ import {
   templateItems,
   vatOf,
 } from "../src/lib/estimate-types.ts";
-import { NAMED_RANGES, buildSheetRequests, computeLayout, groupSpans } from "../src/lib/estimate-sheet.ts";
+import { NAMED_RANGES, buildSheetRequests, buildSpreadsheetPropertiesRequest, computeLayout, groupSpans } from "../src/lib/estimate-sheet.ts";
 import { decryptToken, encryptToken } from "../src/lib/token-crypto.ts";
 
 /* ── 기본 품목 ─────────────────────────────────────────────── */
@@ -505,4 +505,18 @@ test("사이트 주소 정리 — 환경변수 끝의 줄바꿈·공백·슬래�
   assert.equal(normalizeBaseUrl(""), "");
   // 리디렉션 주소를 만드는 곳이 정리 함수를 거친다
   assert.match(src("src/lib/google-drive.ts"), /normalizeBaseUrl\(process\.env\.NEXTAUTH_URL/);
+});
+
+test("외부 이미지 액세스 — 새 파일은 켜고, 이미 켜진 파일에는 보내지 않는다 (배너·도장 #REF! 방지)", () => {
+  const on = buildSpreadsheetPropertiesRequest("견적서_A", true).updateSpreadsheetProperties;
+  assert.equal(on.properties.importFunctionsExternalUrlAccessAllowed, true);
+  assert.match(on.fields, /importFunctionsExternalUrlAccessAllowed/);
+  assert.equal(on.properties.locale, "ko_KR");
+  const off = buildSpreadsheetPropertiesRequest("견적서_A", false).updateSpreadsheetProperties;
+  assert.ok(!("importFunctionsExternalUrlAccessAllowed" in off.properties));
+  assert.ok(!/importFunctions/.test(off.fields));
+  // 시트를 그리는 곳이 현재 값을 읽어 넘긴다
+  const drive = src("src/lib/google-drive.ts");
+  assert.match(drive, /properties\(importFunctionsExternalUrlAccessAllowed\)/);
+  assert.match(drive, /buildSpreadsheetPropertiesRequest\(fileName, !meta\.properties\?\.importFunctionsExternalUrlAccessAllowed\)/);
 });
