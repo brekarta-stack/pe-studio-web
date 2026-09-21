@@ -16,7 +16,7 @@
 import { randomInt } from "node:crypto";
 import { supabaseAdmin } from "./supabase-admin";
 import { decryptToken, encryptToken } from "./token-crypto";
-import { CATEGORY_FOLDERS, DRIVE_ROOT_FOLDER, type EstimateCategory } from "./estimate-types";
+import { CATEGORY_FOLDERS, DRIVE_ROOT_FOLDER, normalizeBaseUrl, type EstimateCategory } from "./estimate-types";
 import { buildSheetRequests, NAMED_RANGES, SHEET_TITLE, type SheetInput } from "./estimate-sheet";
 import { bannerUrl, sealUrlForSheet } from "./estimate-assets";
 
@@ -62,9 +62,9 @@ function clientCreds(): { id: string; secret: string } {
 
 /** 사이트 기준 주소 — 구글 콘솔에 등록할 리디렉션 URI 가 여기서 나온다 */
 export function siteBase(): string {
-  const base = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL;
+  const base = normalizeBaseUrl(process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "");
   if (!base) throw new Error("NEXTAUTH_URL 이 설정되지 않았습니다.");
-  return base.replace(/\/+$/, "");
+  return base;
 }
 
 export function oauthRedirectUri(): string {

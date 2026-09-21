@@ -20,6 +20,7 @@ import {
   STATUS_PRIORITY,
   classifySendError,
   formatKstDateTime,
+  normalizeBaseUrl,
   SEND_STUCK_MS,
   sameTotals,
   sheetTotalsConsistent,
@@ -495,4 +496,13 @@ test("시트 그리기는 draft 에서, 같은 내용 판일 때만 generated �
 
 test("감사 기록은 DB 에서 append-only 로 막는다", () => {
   assert.match(SQL, /BEFORE UPDATE OR DELETE ON estimate_events/);
+});
+
+test("사이트 주소 정리 — 환경변수 끝의 줄바꿈·공백·슬래시를 뗀다 (운영 NEXTAUTH_URL 사고)", () => {
+  assert.equal(normalizeBaseUrl("https://www.papercraft.kr\n"), "https://www.papercraft.kr");
+  assert.equal(normalizeBaseUrl("  https://www.papercraft.kr/ \r\n"), "https://www.papercraft.kr");
+  assert.equal(normalizeBaseUrl("https://x.test///"), "https://x.test");
+  assert.equal(normalizeBaseUrl(""), "");
+  // 리디렉션 주소를 만드는 곳이 정리 함수를 거친다
+  assert.match(src("src/lib/google-drive.ts"), /normalizeBaseUrl\(process\.env\.NEXTAUTH_URL/);
 });

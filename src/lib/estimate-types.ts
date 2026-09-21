@@ -330,6 +330,15 @@ export const DEFAULT_TERMS = {
   paymentTerm: "현 금",
 } as const;
 
+/**
+ * 환경변수로 받은 사이트 주소 정리 — 앞뒤 공백·줄바꿈과 끝의 / 를 뗀다.
+ * 실제로 운영 NEXTAUTH_URL 끝에 줄바꿈이 들어 있어 OAuth 리디렉션 주소가
+ * "https://www.papercraft.kr\n/api/…" 로 만들어져 구글이 거절했다.
+ */
+export function normalizeBaseUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, "");
+}
+
 /* ── 날짜 (한국 시간) ───────────────────────────────────────── */
 
 /** 서버(Vercel)는 UTC 로 돈다 — 날짜는 반드시 서울 기준으로 자른다 */
