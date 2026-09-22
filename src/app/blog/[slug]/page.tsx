@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { viaImageOptimizer } from "@/lib/image-url";
 import { getPostBySlug, getPosts } from "@/lib/blog";
 
 // ISR — 블로그 글은 요청별 데이터가 없어 정적 캐시 가능. 새 글/수정 5분 내 반영(TTFB·크롤 효율↑).
@@ -54,7 +55,8 @@ export async function generateMetadata({
   if (!post) return {};
   const canonical = `/blog/${post.slug}`;
   // 글 커버 이미지를 OG/트위터 카드 이미지로 사용 (없으면 사이트 기본 OG)
-  const ogImage = post.coverImage || `${SITE_URL}/opengraph-image`;
+  // Supabase 원본을 크롤러가 직접 받아 가지 않게 Vercel 이미지 최적화를 거친다 (전송량 한도)
+  const ogImage = viaImageOptimizer(post.coverImage || `${SITE_URL}/opengraph-image`, SITE_URL);
   return {
     // template 가 자동으로 ` | CES` 를 붙이므로 여기서 다시 붙이지 않음
     title: post.title,
@@ -136,7 +138,7 @@ export default async function BlogPostPage({
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
-    image: [post.coverImage || `${SITE_URL}/opengraph-image`],
+    image: [viaImageOptimizer(post.coverImage || `${SITE_URL}/opengraph-image`, SITE_URL)],
     datePublished: post.createdAt,
     dateModified: post.updatedAt,
     inLanguage: "ko-KR",
@@ -275,6 +277,20 @@ export default async function BlogPostPage({
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeRaw]}
           components={{
+            // 본문에 넣은 Supabase 이미지도 원본 대신 Vercel 이 줄여 캐시한 것을 내준다 (전송량 한도)
+            // 에디터가 붙인 정렬·크기 class(img-align-*, img-size-*) 등 나머지 속성은 그대로 넘긴다
+            // node 는 DOM 속성이 아니라서 빼기만 한다
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            img: ({ node: _node, src, alt, ...rest }) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                {...rest}
+                src={typeof src === "string" ? viaImageOptimizer(src, "") : undefined}
+                alt={alt ?? ""}
+                loading="lazy"
+                decoding="async"
+              />
+            ),
             h2: ({ children }) => {
               const text = Array.isArray(children) ? children.join("") : String(children ?? "");
               return <h2 id={headingId(text)}>{children}</h2>;

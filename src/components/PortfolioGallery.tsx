@@ -1,7 +1,9 @@
 "use client";
 
-import { Suspense, useMemo, useState, useEffect } from "react";
+import { Suspense, useMemo, useState, useEffect, type CSSProperties } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { canUseNextImage } from "@/lib/image-url";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import type { PortfolioItem, Category } from "@/lib/portfolio-types";
 import { deriveSlug, getImageAlt } from "@/lib/portfolio-meta";
@@ -22,6 +24,30 @@ interface Props {
 }
 
 /* ─── 카드 ─── */
+
+/**
+ * 카드 썸네일 — 우리 Supabase·정적 파일은 next/image 로(Vercel 이 줄여 캐시, 원본 직접 전송 없음),
+ * 그 밖의 호스트는 remotePatterns 밖이라 예전처럼 그대로 그린다.
+ */
+function CardImage({ src, alt, className, style }: { src: string; alt: string; className: string; style: CSSProperties }) {
+  if (canUseNextImage(src)) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes="(min-width: 1280px) 400px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        className={className}
+        style={style}
+      />
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} loading="lazy" width={800} height={600} className={`absolute inset-0 w-full h-full ${className}`} style={style} />
+  );
+}
+
 function PortfolioCard({ item }: { item: PortfolioItem }) {
   const [hovered, setHovered] = useState(false);
   const hasHoverImage = item.images.length > 1;
@@ -40,28 +66,20 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
       <div className="relative h-56 bg-slate-100 overflow-hidden">
         {item.images.length > 0 ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <CardImage
               src={item.images[0]}
               alt={getImageAlt(item, 0)}
-              loading="lazy"
-              width={800}
-              height={600}
-              className="absolute inset-0 w-full h-full object-cover transition-all duration-500"
+              className="object-cover transition-all duration-500"
               style={{
                 opacity: hasHoverImage && hovered ? 0 : 1,
                 transform: hasHoverImage ? "none" : hovered ? "scale(1.05)" : "scale(1)",
               }}
             />
             {hasHoverImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <CardImage
                 src={item.images[1]}
                 alt={getImageAlt(item, 1)}
-                loading="lazy"
-                width={800}
-                height={600}
-                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                className="object-cover transition-opacity duration-500"
                 style={{ opacity: hovered ? 1 : 0 }}
               />
             )}

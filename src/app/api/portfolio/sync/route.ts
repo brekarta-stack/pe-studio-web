@@ -65,7 +65,7 @@ async function uploadImageToStorage(url: string, filename: string): Promise<stri
 
   const { error } = await supabaseAdmin.storage
     .from("uploads")
-    .upload(name, buffer, { contentType: res.headers.get("content-type") ?? "image/jpeg" });
+    .upload(name, buffer, { contentType: res.headers.get("content-type") ?? "image/jpeg", cacheControl: "31536000" });
 
   if (error) throw error;
 

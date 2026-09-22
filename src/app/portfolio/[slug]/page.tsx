@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { viaImageOptimizer } from "@/lib/image-url";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -38,7 +39,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const summary = deriveSummary(item);
   const keywords = getAllKeywords(item);
-  const ogImage = item.images?.[0];
+  // Supabase 원본을 크롤러가 직접 받아 가지 않게 Vercel 이미지 최적화를 거친다 (전송량 한도)
+  const ogImage = item.images?.[0] ? viaImageOptimizer(item.images[0], SITE_URL) : undefined;
   const titleSuffix = item.client ? `${item.client} · ${item.title}` : item.title;
 
   return {
@@ -78,7 +80,7 @@ function PortfolioItemJsonLd({ item, slug }: { item: Awaited<ReturnType<typeof g
     inLanguage: "ko-KR",
     url,
     image: item.images?.length
-      ? item.images.map((u, i) => ({ "@type": "ImageObject", url: u, caption: getImageAlt(item, i) }))
+      ? item.images.map((u, i) => ({ "@type": "ImageObject", url: viaImageOptimizer(u, SITE_URL), caption: getImageAlt(item, i) }))
       : undefined,
     creator: {
       "@type": "Organization",

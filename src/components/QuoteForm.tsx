@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import Image from "next/image";
 import {
   COMPLEXITY_LEVELS,
   COMPLEXITY_SPECS,
@@ -1082,12 +1083,13 @@ export default function QuoteForm() {
                           {/* 상단 이미지 영역 */}
                           <div className="aspect-[2/1] relative overflow-hidden bg-slate-50">
                             {product.image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                              // next/image — 방문자가 Supabase 원본을 직접 받지 않게 (전송량 한도)
+                              <Image
                                 src={product.image}
                                 alt={`${product.name} 대표 이미지`}
-                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                                loading="lazy"
+                                fill
+                                sizes="(min-width: 768px) 384px, 50vw"
+                                className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                               />
                             ) : (
                               <div className="absolute inset-0 flex items-center justify-center text-slate-300" aria-hidden>
@@ -1126,12 +1128,12 @@ export default function QuoteForm() {
                           {/* 상단 정사각형 이미지 영역 — object-contain + 흰 배경 */}
                           <div className="aspect-square relative overflow-hidden bg-white">
                             {usage.image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                              <Image
                                 src={usage.image}
                                 alt={`${usage.name} 대표 이미지`}
-                                className="absolute inset-0 w-full h-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.04]"
-                                loading="lazy"
+                                fill
+                                sizes="(min-width: 640px) 256px, 100vw"
+                                className="object-contain p-3 transition-transform duration-500 group-hover:scale-[1.04]"
                               />
                             ) : (
                               <div className="absolute inset-0 flex items-center justify-center text-slate-300" aria-hidden>
