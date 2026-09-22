@@ -21,7 +21,13 @@ const PRODUCT_LABEL: Record<string, string> = {
   hobby:      "용도 · 취미용",
 };
 
-async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
+/**
+ * 운영자 알림 메일. 보냈으면 true, 설정(RESEND_API_KEY)이 없어 건너뛰었으면 false. 실패는 throw.
+ *
+ * dbError 가 있으면 DB 저장에 실패한 문의다 — 이 메일이 유일한 기록이므로 제목·본문 맨 위에
+ * 크게 표시한다. (2026-09-22 Supabase 사용량 초과로 DB 가 막혀 문의가 통째로 사라진 일이 있었다)
+ */
+async function sendInquiryEmail(s: QuoteSubmission, opts: { dbError?: string } = {}): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const to     = process.env.INQUIRY_TO_EMAIL ?? "ask@papercraft.kr";
   const bcc    = process.env.INQUIRY_BCC_EMAIL;
@@ -30,7 +36,7 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
 
   if (!apiKey) {
     console.warn("[api/quote] RESEND_API_KEY not set — skipping email notification");
-    return;
+    return false;
   }
 
   const productLabel = PRODUCT_LABEL[s.product] ?? s.product;
@@ -107,6 +113,7 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
   <div style="padding:24px 28px 12px;border-bottom:1px solid #e5e7eb;">
     <div style="font-size:13px;letter-spacing:1px;color:#6366f1;font-weight:700;">PAPERCRAFT.KR · 새 제작 문의</div>
     <h1 style="margin:8px 0 0;font-size:22px;color:#111;">${esc(s.name)} · ${esc(productLabel)}</h1>
+    ${opts.dbError ? `<div style="margin-top:12px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:14px;line-height:1.5;"><b>DB 저장 실패 — 어드민 목록에 없습니다.</b> 이 메일이 이 문의의 유일한 기록입니다. 보관해 두고, DB 가 복구되면 제작 문의에 수동 등록하세요.<br/><span style="font-size:12px;color:#7f1d1d;">${esc(opts.dbError)}</span></div>` : ""}
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:14px;">${tableHtml}</table>
   <div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;font-size:13px;color:#555;line-height:1.55;">
@@ -116,10 +123,13 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
 </div></body></html>`;
 
   const textLines = rows.map(([k, v, href]) => `${k}: ${v}${href ? ` (${href})` : ""}`).join("\n");
-  const text = `[papercraft.kr] 새 제작 문의\n\n${textLines}\n\n전체 목록: ${siteUrl}/admin/quotes\n`;
+  const dbWarn = opts.dbError
+    ? `⚠ DB 저장 실패 — 어드민 목록에 없습니다. 이 메일이 이 문의의 유일한 기록입니다. DB 가 복구되면 제작 문의에 수동 등록하세요.\n(${opts.dbError})\n\n`
+    : "";
+  const text = `${dbWarn}[papercraft.kr] 새 제작 문의\n\n${textLines}\n\n전체 목록: ${siteUrl}/admin/quotes\n`;
 
   const resend = new Resend(apiKey);
-  const subject = `[papercraft.kr] 새 제작 문의 — ${s.name} · ${productLabel}`;
+  const subject = `${opts.dbError ? "[⚠ DB 저장 실패 — 이 메일이 유일한 기록] " : ""}[papercraft.kr] 새 제작 문의 — ${s.name} · ${productLabel}`;
   // Resend SDK 는 실패 시 throw 하지 않고 { error } 를 반환 — 반드시 체크해서 로그에 드러냄
   const { error } = await resend.emails.send({
     from,
@@ -131,6 +141,7 @@ async function sendInquiryEmail(s: QuoteSubmission): Promise<void> {
     text,
   });
   if (error) throw new Error(`Resend(운영자 알림): ${error.message ?? JSON.stringify(error)}`);
+  return true;
 }
 
 /**
@@ -412,7 +423,25 @@ export async function POST(request: Request) {
 
   if (error) {
     console.error("[api/quote] DB insert error:", error);
-    return NextResponse.json({ error: "견적 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+    /* DB 가 멈춰도 문의는 잃지 않는다 — 운영자 알림 메일로 전부 받아 둔다.
+       메일이 실제로 나갔을 때만 고객에게 접수 완료로 답한다. 메일까지 실패하면
+       어디에도 남지 않으므로 예전처럼 오류를 보여 다시 시도하게 한다.
+       (DB 가 막힌 상태라 아래의 부가 컬럼 update 들은 건너뛴다) */
+    let captured = false;
+    try {
+      captured = await sendInquiryEmail(submission, { dbError: error.message ?? String(error) });
+    } catch (mailErr) {
+      console.error("[api/quote] DB 실패 후 대체 메일도 실패 — 문의 유실:", mailErr);
+    }
+    if (!captured) {
+      return NextResponse.json({ error: "견적 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+    }
+    try {
+      await sendCustomerAckEmail(submission);
+    } catch (ackErr) {
+      console.error("[api/quote] customer ack email failed:", ackErr);
+    }
+    return NextResponse.json(submission, { status: 201 });
   }
 
   /* 제작 희망 디자인 best-effort 저장 — 'designs' 컬럼(마이그레이션 20260803)이
