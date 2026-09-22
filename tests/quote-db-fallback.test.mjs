@@ -33,3 +33,26 @@ test("알림 메일 함수는 설정이 없어 건너뛰면 false 를 돌려준�
   // DB 실패 문의는 제목에서 바로 보인다
   assert.match(fn, /DB 저장 실패 — 이 메일이 유일한 기록/);
 });
+
+test("오류 메시지가 비어 있어도 DB 실패 표시가 사라지지 않는다", () => {
+  const fn = src.slice(src.indexOf("async function sendInquiryEmail"), src.indexOf("async function sendCustomerAckEmail"));
+  // 경고 표시는 값의 참·거짓이 아니라 '넘겨받았는가'로 판정한다
+  assert.equal((fn.match(/opts\.dbError !== undefined/g) ?? []).length, 3);
+  assert.ok(!/\$\{opts\.dbError \?/.test(fn));
+  // 빈 message 는 오류 전체로 채우고, 길이는 잘라서 넘긴다
+  assert.match(post, /insertErr\.message \|\| JSON\.stringify\(insertErr\) \|\| "unknown"/);
+  assert.match(post, /dbError: \(dbErrorText \|\| "unknown"\)\.slice\(0, 500\)/);
+});
+
+test("insert 가 예외를 던지거나 멈춰도 같은 대체 경로로 간다", () => {
+  assert.match(post, /abortSignal\(AbortSignal\.timeout\(\d+\)\)/);
+  assert.match(post, /\} catch \(e\) \{\s*dbErrorText =/);
+});
+
+test("'유일한 기록' 메일에 주문 형태와 디자인별 이름·수량·참고 파일이 들어간다", () => {
+  const fn = src.slice(src.indexOf("async function sendInquiryEmail"), src.indexOf("async function sendCustomerAckEmail"));
+  assert.match(fn, /\["주문 형태",/);
+  assert.match(fn, /s\.designs\.map\(/);
+  assert.match(fn, /\.\.\.designRows/);
+  assert.match(fn, /d\.file\?\.url/);
+});
