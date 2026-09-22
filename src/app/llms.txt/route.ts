@@ -8,7 +8,7 @@
  * Perplexity·Google AI Overviews 등이 잘못된 추정 없이 인용하도록 한다.
  */
 import { COMPANY, SITE_NAME, SITE_URL, BRAND_TAGLINE_KR } from "@/lib/site";
-import { getPosts } from "@/lib/blog";
+import { getPostSummaries } from "@/lib/blog";
 import { getItems } from "@/lib/portfolio";
 import { deriveSlug } from "@/lib/portfolio-meta";
 import { STUDIO_ITEMS } from "@/lib/studio";
@@ -17,7 +17,7 @@ import { STUDIO_ITEMS } from "@/lib/studio";
 export const revalidate = 3600;
 
 export async function GET() {
-  const posts = (await getPosts().catch(() => []))
+  const posts = (await getPostSummaries().catch(() => []))
     .filter((p) => p.published)
     .slice(0, 10);
   // 사례는 카테고리별로 묶어 폭을 넓힌다 — 12건만 싣던 때는 AI 가 참조할 수 있는

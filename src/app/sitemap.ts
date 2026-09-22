@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getPosts } from "@/lib/blog";
+import { getPostSummaries } from "@/lib/blog";
 import { getItems } from "@/lib/portfolio";
 import { deriveSlug } from "@/lib/portfolio-meta";
 import { SITE_URL } from "@/lib/site";
@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/legal/terms`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
   ];
 
-  const allPosts = await getPosts().catch(() => []);
+  const allPosts = await getPostSummaries().catch(() => []);
   const blogPages: MetadataRoute.Sitemap = allPosts
     .filter((p) => p.published)
     .map((p) => ({

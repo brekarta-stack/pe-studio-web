@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { Post } from "@/lib/blog";
+import type { PostSummary } from "@/lib/blog";
 import { BlogThumbnail, blogVariantFromTag } from "@/components/paper-art";
 import { BlogCoverImage } from "@/components/BlogCoverImage";
 
@@ -27,7 +27,7 @@ const tagGradients: Record<string, string> = {
   "디자인": "from-pink-100 to-pink-50",
 };
 
-function Thumb({ post, big = false }: { post: Post; big?: boolean }) {
+function Thumb({ post, big = false }: { post: PostSummary; big?: boolean }) {
   const emojiSize = big ? "text-8xl" : "text-6xl";
   const fallback = post.emoji ? (
     <div className={`bg-gradient-to-br ${tagGradients[post.tag] ?? "from-slate-100 to-slate-50"} flex items-center justify-center h-full`}>
@@ -50,7 +50,7 @@ function Thumb({ post, big = false }: { post: Post; big?: boolean }) {
   return fallback;
 }
 
-export default function BlogList({ posts }: { posts: Post[] }) {
+export default function BlogList({ posts }: { posts: PostSummary[] }) {
   const tags = useMemo(
     () => ["전체", ...TAG_ORDER.filter((t) => posts.some((p) => p.tag === t))],
     [posts],

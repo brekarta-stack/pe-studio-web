@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortfolioItem } from "@/lib/portfolio-types";
 import { parseYearMonth, autoHyphenYearMonth } from "@/lib/portfolio-meta";
+import { viaImageOptimizer } from "@/lib/image-url";
 
 /**
  * 제작 시기 텍스트 입력 — 숫자 직접 입력.
@@ -254,7 +255,7 @@ export default function AdminPortfolioList({ initialItems }: { initialItems: Por
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
             {item.images[0] ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.images[0]} alt={`${item.title} 썸네일`} className="w-full h-full object-cover" />
+              <img src={viaImageOptimizer(item.images[0], "", 256)} alt={`${item.title} 썸네일`} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-300 text-xl">🖼️</div>
             )}

@@ -1,6 +1,6 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
-import { getPosts } from "@/lib/blog";
+import { getPostSummaries } from "@/lib/blog";
 import { PAGE_META, SITE_SHORT, BRAND_TAGLINE_KR, OG_IMAGE } from "@/lib/site";
 import { PencilIcon, ArrowRightIcon } from "@/components/icons";
 import { PaperNetBg } from "@/components/paper-art";
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogPage() {
-  const allPosts = (await getPosts()).filter((p) => p.published);
+  const allPosts = (await getPostSummaries()).filter((p) => p.published);
 
   return (
     <>

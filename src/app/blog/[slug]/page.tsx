@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { viaImageOptimizer } from "@/lib/image-url";
-import { getPostBySlug, getPosts } from "@/lib/blog";
+import { getPostBySlug, getPostSummaries } from "@/lib/blog";
 
 // ISR — 블로그 글은 요청별 데이터가 없어 정적 캐시 가능. 새 글/수정 5분 내 반영(TTFB·크롤 효율↑).
 export const revalidate = 300;
@@ -38,7 +38,7 @@ function extractHeadings(content: string): string[] {
 
 export async function generateStaticParams() {
   try {
-    const posts = await getPosts();
+    const posts = await getPostSummaries();
     return posts.filter((p) => p.published).map((p) => ({ slug: p.slug }));
   } catch {
     return [];
@@ -93,7 +93,8 @@ export default async function BlogPostPage({
   if (!post) notFound();
 
   // 관련 글(같은 태그 우선, 부족하면 최신글로 보충) — 내부링크로 크롤 깊이·체류 동선 강화
-  const otherPosts = (await getPosts()).filter(
+  // 본문 없는 목록으로 — 글 페이지마다 모든 글의 본문을 받아 오지 않게 (전송량)
+  const otherPosts = (await getPostSummaries()).filter(
     (p) => p.published && p.slug !== post.slug,
   );
   const sameTag = otherPosts.filter((p) => p.tag === post.tag);
