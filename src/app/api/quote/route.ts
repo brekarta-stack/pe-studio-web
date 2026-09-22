@@ -5,8 +5,8 @@ import { z } from "zod";
 import { Resend } from "resend";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { parseAcquisition } from "@/lib/analytics";
-import { parseQuantity } from "@/lib/quote-pricing";
-import { MANUAL_OPTION_LABELS, STYLE_LABELS } from "@/lib/quote-labels";
+import { ORDER_TYPE_SPECS, parseQuantity } from "@/lib/quote-pricing";
+import { COMPLEXITY_LABELS, MANUAL_OPTION_LABELS, STYLE_LABELS } from "@/lib/quote-labels";
 import { requireAdminApi } from "@/lib/session";
 
 /* ── 견적 알림 메일 발송 (실패해도 사용자 응답에는 영향 없음) ── */
@@ -65,9 +65,21 @@ async function sendInquiryEmail(s: QuoteSubmission, opts: { dbError?: string } =
       ? s.files.map((f, i) => [`참고 자료 ${i + 1}`, f.name || "파일", f.url])
       : [["참고 자료 파일", s.fileName || "—", s.fileUrl || undefined]];
 
+  // 제작 희망 디자인 — 신규 폼은 참고 파일도 디자인 줄에 붙인다. DB 가 막혀 이 메일이 유일한
+  // 기록이 될 때 여기가 빠지면 견적의 핵심(무엇을 몇 개)이 사라진다.
+  const designRows: Array<[string, string, string?]> = s.designs.map((d, i) => [
+    `디자인 ${i + 1}`,
+    [d.name || "(이름 없음)", d.quantity ? `${d.quantity}개` : "", d.complexity ? COMPLEXITY_LABELS[d.complexity] ?? d.complexity : ""]
+      .filter(Boolean)
+      .join(" · ") + (d.file?.name ? ` · 참고: ${d.file.name}` : ""),
+    d.file?.url || undefined,
+  ]);
+
   // [라벨, 값, 선택적 href] — href 가 있으면 값이 클릭 가능한 링크로 렌더된다.
   const rows: Array<[string, string, string?]> = [
     ["제품 유형",         productLabel],
+    ["주문 형태",         s.orderType ? ORDER_TYPE_SPECS[s.orderType]?.label ?? s.orderType : "—"],
+    ...designRows,
     ["샘플링 희망",       s.sampling ? "예 (생산 전 수제작 샘플 발송)" : "아니오"],
     ["디자인 개선 희망",  s.samplingImprove ? "예 (샘플링 후 디자인 개선)" : "아니오"],
     ["생산 감리 희망",    s.supervision ? "예 (생산 시 감리 진행)" : "아니오"],
@@ -113,7 +125,7 @@ async function sendInquiryEmail(s: QuoteSubmission, opts: { dbError?: string } =
   <div style="padding:24px 28px 12px;border-bottom:1px solid #e5e7eb;">
     <div style="font-size:13px;letter-spacing:1px;color:#6366f1;font-weight:700;">PAPERCRAFT.KR · 새 제작 문의</div>
     <h1 style="margin:8px 0 0;font-size:22px;color:#111;">${esc(s.name)} · ${esc(productLabel)}</h1>
-    ${opts.dbError ? `<div style="margin-top:12px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:14px;line-height:1.5;"><b>DB 저장 실패 — 어드민 목록에 없습니다.</b> 이 메일이 이 문의의 유일한 기록입니다. 보관해 두고, DB 가 복구되면 제작 문의에 수동 등록하세요.<br/><span style="font-size:12px;color:#7f1d1d;">${esc(opts.dbError)}</span></div>` : ""}
+    ${opts.dbError !== undefined ? `<div style="margin-top:12px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:14px;line-height:1.5;"><b>DB 저장 실패 — 어드민 목록에 없습니다.</b> 이 메일이 이 문의의 유일한 기록입니다. 보관해 두고, DB 가 복구되면 제작 문의에 수동 등록하세요.<br/><span style="font-size:12px;color:#7f1d1d;">${esc(opts.dbError)}</span></div>` : ""}
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:14px;">${tableHtml}</table>
   <div style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;font-size:13px;color:#555;line-height:1.55;">
@@ -123,13 +135,13 @@ async function sendInquiryEmail(s: QuoteSubmission, opts: { dbError?: string } =
 </div></body></html>`;
 
   const textLines = rows.map(([k, v, href]) => `${k}: ${v}${href ? ` (${href})` : ""}`).join("\n");
-  const dbWarn = opts.dbError
+  const dbWarn = opts.dbError !== undefined
     ? `⚠ DB 저장 실패 — 어드민 목록에 없습니다. 이 메일이 이 문의의 유일한 기록입니다. DB 가 복구되면 제작 문의에 수동 등록하세요.\n(${opts.dbError})\n\n`
     : "";
   const text = `${dbWarn}[papercraft.kr] 새 제작 문의\n\n${textLines}\n\n전체 목록: ${siteUrl}/admin/quotes\n`;
 
   const resend = new Resend(apiKey);
-  const subject = `${opts.dbError ? "[⚠ DB 저장 실패 — 이 메일이 유일한 기록] " : ""}[papercraft.kr] 새 제작 문의 — ${s.name} · ${productLabel}`;
+  const subject = `${opts.dbError !== undefined ? "[⚠ DB 저장 실패 — 이 메일이 유일한 기록] " : ""}[papercraft.kr] 새 제작 문의 — ${s.name} · ${productLabel}`;
   // Resend SDK 는 실패 시 throw 하지 않고 { error } 를 반환 — 반드시 체크해서 로그에 드러냄
   const { error } = await resend.emails.send({
     from,
@@ -399,37 +411,47 @@ export async function POST(request: Request) {
     createdAt:    new Date().toISOString(),
   };
 
-  const { error } = await supabaseAdmin.from("quotes").insert({
-    id:             submission.id,
-    product:        submission.product,
-    quantity:       submission.quantity,
-    delivery_date:  submission.deliveryDate,
-    purpose:        submission.purpose,
-    custom_design:  submission.customDesign,
-    style_type:     submission.styleType,
-    product_text:   submission.productText,
-    color_request:  submission.colorRequest,
-    notes:          submission.notes,
-    name:           submission.name,
-    email:          submission.email,
-    phone:          submission.phone,
-    file_name:      submission.fileName,
-    logo_file_name: submission.logoFileName,
-    sampling:       submission.sampling,
-    rushed:         submission.rushed,
-    packaging:      submission.packaging,
-    created_at:     submission.createdAt,
-  });
+  /* DB 저장 — 실패(오류 응답·예외·8초 무응답)는 전부 아래 대체 경로로 보낸다 */
+  let dbErrorText: string | null = null;
+  try {
+    const { error: insertErr } = await supabaseAdmin.from("quotes").insert({
+      id:             submission.id,
+      product:        submission.product,
+      quantity:       submission.quantity,
+      delivery_date:  submission.deliveryDate,
+      purpose:        submission.purpose,
+      custom_design:  submission.customDesign,
+      style_type:     submission.styleType,
+      product_text:   submission.productText,
+      color_request:  submission.colorRequest,
+      notes:          submission.notes,
+      name:           submission.name,
+      email:          submission.email,
+      phone:          submission.phone,
+      file_name:      submission.fileName,
+      logo_file_name: submission.logoFileName,
+      sampling:       submission.sampling,
+      rushed:         submission.rushed,
+      packaging:      submission.packaging,
+      created_at:     submission.createdAt,
+    }).abortSignal(AbortSignal.timeout(8000));
+    if (insertErr) {
+      // 본문이 비어 있는 오류 응답도 있다 — 빈 문자열이면 DB 실패 표시가 통째로 사라지므로 채워 넣는다
+      dbErrorText = insertErr.message || JSON.stringify(insertErr) || "unknown";
+    }
+  } catch (e) {
+    dbErrorText = e instanceof Error ? e.message || e.name : String(e);
+  }
 
-  if (error) {
-    console.error("[api/quote] DB insert error:", error);
+  if (dbErrorText !== null) {
+    console.error("[api/quote] DB insert error:", dbErrorText);
     /* DB 가 멈춰도 문의는 잃지 않는다 — 운영자 알림 메일로 전부 받아 둔다.
        메일이 실제로 나갔을 때만 고객에게 접수 완료로 답한다. 메일까지 실패하면
        어디에도 남지 않으므로 예전처럼 오류를 보여 다시 시도하게 한다.
        (DB 가 막힌 상태라 아래의 부가 컬럼 update 들은 건너뛴다) */
     let captured = false;
     try {
-      captured = await sendInquiryEmail(submission, { dbError: error.message ?? String(error) });
+      captured = await sendInquiryEmail(submission, { dbError: (dbErrorText || "unknown").slice(0, 500) });
     } catch (mailErr) {
       console.error("[api/quote] DB 실패 후 대체 메일도 실패 — 문의 유실:", mailErr);
     }
