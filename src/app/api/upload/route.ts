@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   const buffer = Buffer.from(bytes);
   const { error } = await supabase.storage
     .from("uploads")
-    .upload(filename, buffer, { contentType: file.type, upsert: false });
+    .upload(filename, buffer, { contentType: file.type, upsert: false, cacheControl: "31536000" });
 
   if (error) {
     console.error("[api/upload] storage error:", error);

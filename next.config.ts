@@ -69,6 +69,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  /* remotePatterns 와 같은 Supabase 호스트를 브라우저 코드에도 넘긴다 — src/lib/image-url.ts 가
+     서버·브라우저에서 같은 판정을 하게 (다르면 PortfolioGallery 가 hydration 불일치를 낸다) */
+  env: { NEXT_PUBLIC_SUPABASE_HOST: SUPABASE_HOST },
+
   /**
    * 종이모형 스튜디오(/studio) — 인쇄용 PDF 는 유료 대상이라 public/ 이 아닌
    * content-private/ 에 두고 /api/studio/pdf/[key] 라우트가 서빙한다.
@@ -91,11 +95,24 @@ const nextConfig: NextConfig = {
 
   /**
    * 이미지 최적화 — next/image 가 원본(Supabase Storage·Pollinations)을
-   * AVIF/WebP 로 자동 변환·리사이즈해 LCP/총 전송 바이트를 줄인다.
+   * WebP 로 자동 변환·리사이즈해 LCP/총 전송 바이트를 줄인다.
    * (Wikimedia 파트너 로고는 SVG 라 next/image 미적용 → 여기 미등록)
    */
   images: {
-    formats: ["image/avif", "image/webp"],
+    /* Supabase 전송량 절감 (2026-09-22 무료 한도 초과로 DB 전면 차단 뒤).
+       최적화 결과가 만료되면 Vercel 이 Supabase 에서 원본(1~3MB)을 다시 받아 간다 — 형식·폭마다 따로.
+       · minimumCacheTTL 31일: 기본 4시간 → 원본 재요청이 약 180분의 1. 업로드 파일은 UUID 이름에
+         upsert 금지라 같은 주소의 내용이 바뀌지 않으므로 오래 캐시해도 낡은 그림이 나가지 않는다.
+       · WebP 한 가지: 형식마다 원본을 따로 받아 가므로 AVIF 를 빼면 첫 요청이 절반.
+       · 폭 5단계: 기본 8단계(최대 3840)에서 줄였다. 1200 은 OG 이미지(src/lib/image-url.ts)가 쓴다.
+       주의: 카탈로그 이미지(1780305681024.png 등)는 대시보드에서 손으로 올린 파일이다. 같은 이름으로
+       교체하면 최대 31일 옛 그림이 나간다 — 새 이름으로 올리고 코드의 주소를 바꾸거나, Vercel
+       대시보드에서 이미지 캐시를 지운다. */
+    formats: ["image/webp"],
+    minimumCacheTTL: 2_678_400,
+    deviceSizes: [640, 828, 1080, 1200, 1920],
+    imageSizes: [32, 48, 64, 96, 128, 256, 384],
+    qualities: [75],
     remotePatterns: [
       { protocol: "https", hostname: SUPABASE_HOST },
       { protocol: "https", hostname: "image.pollinations.ai" },

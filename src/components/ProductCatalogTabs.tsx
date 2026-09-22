@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   PaperToyIcon,
@@ -223,12 +224,13 @@ function ProductCard({ p }: { p: Product }) {
       {/* ── 상단 헤더 영역: topImage 있으면 이미지, 없으면 기존 아이콘 ── */}
       <div className={`${p.topImage ? "" : `bg-gradient-to-br ${p.bgGradient}`} aspect-[2/1] flex items-center justify-center relative overflow-hidden`}>
         {p.topImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          // next/image — 원본을 방문자가 Supabase 에서 직접 받지 않게(전송량 한도) Vercel 에서 줄여 캐시해 내준다
+          <Image
             src={p.topImage}
             alt={`${p.subtitle} 대표 이미지`}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            loading="lazy"
+            fill
+            sizes="(min-width: 1280px) 600px, (min-width: 768px) 50vw, 100vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
           <div
@@ -310,12 +312,12 @@ function UsageCard({ u }: { u: UsageCategory }) {
       {/* 상단 헤더 영역: topImage 있으면 이미지, 없으면 기존 아이콘 */}
       <div className={`bg-gradient-to-br ${u.bgGradient} aspect-square flex items-center justify-center relative overflow-hidden`}>
         {u.topImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={u.topImage}
             alt={`${u.name} 대표 이미지`}
-            className="absolute inset-0 w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-[1.04]"
-            loading="lazy"
+            fill
+            sizes="(min-width: 1280px) 400px, (min-width: 768px) 33vw, 100vw"
+            className="object-contain p-4 transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
           <div

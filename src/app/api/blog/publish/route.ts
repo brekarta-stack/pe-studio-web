@@ -30,7 +30,7 @@ async function uploadCover(base64: string, filename: string): Promise<string | n
     const name = `blog_${randomUUID()}${ext}`;
     const { error } = await supabaseAdmin.storage
       .from("uploads")
-      .upload(name, buffer, { contentType: "image/png" });
+      .upload(name, buffer, { contentType: "image/png", cacheControl: "31536000" });
     if (error) return null;
     const { data } = supabaseAdmin.storage.from("uploads").getPublicUrl(name);
     return data.publicUrl;

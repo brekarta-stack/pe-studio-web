@@ -4,6 +4,7 @@ import { deriveSlug, deriveSummary } from "@/lib/portfolio-meta";
 import PortfolioGallery from "@/components/PortfolioGallery";
 import PageHero from "@/components/PageHero";
 import { PAGE_META, SITE_NAME, SITE_URL, OG_IMAGE } from "@/lib/site";
+import { viaImageOptimizer } from "@/lib/image-url";
 import { PaperNetBg } from "@/components/paper-art";
 import { ArrowRightIcon } from "@/components/icons";
 
@@ -77,7 +78,8 @@ export default async function PortfolioPage() {
     title: it.title,
     slug: deriveSlug(it),
     description: deriveSummary(it),
-    image: it.images?.[0],
+    // 구글이 Supabase 원본을 직접 받아 가지 않게 Vercel 최적화 주소로 (전송량 한도)
+    image: it.images?.[0] ? viaImageOptimizer(it.images[0], SITE_URL) : undefined,
     client: it.client,
   }));
 
