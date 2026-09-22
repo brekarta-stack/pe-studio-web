@@ -67,6 +67,39 @@ export async function getPosts(): Promise<Post[]> {
   }
 }
 
+/** 목록용 글 — 본문(content)을 뺀 것. 본문이 전체 전송량의 대부분이다 */
+export type PostSummary = Omit<Post, "content">;
+
+/** 본문을 뺀 칸만 — PostgREST select 문자열 */
+const SUMMARY_COLUMNS =
+  "id, slug, title, excerpt, tag, emoji, cover_image, published, created_at, updated_at";
+
+function toSummary(p: Post): PostSummary {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { content: _content, ...rest } = p;
+  return rest;
+}
+
+/**
+ * 글 목록 — 본문 없이. 블로그 목록·글 하단 "다른 글"·사이트맵·RSS·llms.txt 가 쓴다.
+ *
+ * 예전에는 이 자리마다 getPosts()(본문 포함 전체)를 불렀다. 글 페이지는 5분마다 다시 그려지고
+ * 페이지마다 모든 글의 본문을 받아 갔다 — Supabase 전송량과 /blog 페이지 크기(본문이 클라이언트
+ * 목록 컴포넌트로 통째로 넘어갔다)를 함께 키웠다. (2026-09-22 무료 한도 초과 뒤 정리)
+ */
+export async function getPostSummaries(): Promise<PostSummary[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("posts")
+      .select(SUMMARY_COLUMNS)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return mergePosts((data ?? []).map((r) => toPost({ ...r, content: "" }))).map(toSummary);
+  } catch {
+    return mergePosts([]).map(toSummary);
+  }
+}
+
 export async function getPostById(id: string): Promise<Post | undefined> {
   try {
     const { data } = await supabaseAdmin.from("posts").select("*").eq("id", id).maybeSingle();

@@ -9,7 +9,7 @@
  * 등록: 네이버 서치어드바이저 > 요청 > RSS 제출 에 https://www.papercraft.kr/rss.xml
  */
 import { SITE_NAME, SITE_URL, BRAND_TAGLINE_KR } from "@/lib/site";
-import { getPosts } from "@/lib/blog";
+import { getPostSummaries } from "@/lib/blog";
 
 // 1시간 캐시 — llms.txt·sitemap 과 같은 정책
 export const revalidate = 3600;
@@ -38,7 +38,7 @@ function rfc822(value: string): string {
 }
 
 export async function GET() {
-  const posts = (await getPosts().catch(() => []))
+  const posts = (await getPostSummaries().catch(() => []))
     .filter((p) => p.published)
     .slice(0, FEED_LIMIT);
 

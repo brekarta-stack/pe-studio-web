@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import type { Artist } from "@/lib/artist-types";
+import { viaImageOptimizer } from "@/lib/image-url";
 
 interface Props {
   initialItems: Artist[];
@@ -89,7 +90,7 @@ export default function AdminArtistList({ initialItems, source }: Props) {
               <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
                 {a.photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.photo} alt={`${a.name} 프로필`} className="w-full h-full object-cover" />
+                  <img src={viaImageOptimizer(a.photo, "", 256)} alt={`${a.name} 프로필`} className="w-full h-full object-cover" />
                 ) : (
                   <div
                     className="w-full h-full flex items-center justify-center text-white text-xl font-extrabold"

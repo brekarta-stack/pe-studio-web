@@ -68,10 +68,13 @@ export async function getItemBySlug(slug: string): Promise<PortfolioItem | undef
   const m = slug.match(/^case-([a-f0-9]{8})$/i);
   if (m) {
     const idPrefix = m[1];
-    const { data: all } = await supabaseAdmin.from("portfolio_items").select("*");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const found = (all ?? []).find((r: any) => r.id?.startsWith(idPrefix));
-    if (found) return toItem(found);
+    // id 만 받아 찾은 뒤 그 한 줄만 읽는다 — 예전에는 전체 행(*)을 받아 JS 에서 찾았다 (전송량)
+    const { data: ids } = await supabaseAdmin.from("portfolio_items").select("id");
+    const hit = (ids ?? []).find((r: { id?: string }) => r.id?.startsWith(idPrefix));
+    if (hit?.id) {
+      const { data: row } = await supabaseAdmin.from("portfolio_items").select("*").eq("id", hit.id).maybeSingle();
+      if (row) return toItem(row);
+    }
   }
   return undefined;
 }

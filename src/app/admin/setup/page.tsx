@@ -8,6 +8,7 @@ import Link from "next/link";
 import { readFileSync } from "fs";
 import path from "path";
 import MigrateButton from "@/components/admin/MigrateButton";
+import ImageShrinkPanel from "@/components/admin/ImageShrinkPanel";
 
 const TABLES = [
   "portfolio_items",
@@ -305,6 +306,9 @@ export default async function SetupPage() {
           </p>
         </>
       )}
+
+      {/* Supabase 전송량 절감 — 이미 올라간 원본 줄이기 (2026-09-22 무료 한도 초과 뒤) */}
+      <ImageShrinkPanel />
     </div>
   );
 }
