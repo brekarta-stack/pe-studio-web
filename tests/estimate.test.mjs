@@ -45,7 +45,7 @@ import {
   templateItems,
   vatOf,
 } from "../src/lib/estimate-types.ts";
-import { NAMED_RANGES, buildSheetRequests, buildSpreadsheetPropertiesRequest, computeLayout, groupSpans } from "../src/lib/estimate-sheet.ts";
+import { NAMED_RANGES, SUPPLIER, buildSheetRequests, buildSpreadsheetPropertiesRequest, computeLayout, groupSpans } from "../src/lib/estimate-sheet.ts";
 import { decryptToken, encryptToken } from "../src/lib/token-crypto.ts";
 
 /* ── 기본 품목 ─────────────────────────────────────────────── */
@@ -457,6 +457,20 @@ test("발송 경로 가드 — 멱등 키, 잠금 뒤 판본·합계 재대조, 
   const iExport = send.indexOf("exportSheetPdf(");
   const iAfter = send.indexOf("getFileMeta(sheetId)", iExport);
   assert.ok(iBefore > 0 && iBefore < iTotals && iTotals < iExport && iExport < iAfter);
+});
+
+test("견적서 메일은 대표 주소에서 나가고 회신·보관 사본과 같은 계정이다", () => {
+  const a = src("src/app/admin/estimates/actions.ts");
+  // 보내는 사람: ESTIMATE_FROM_EMAIL 로만 바꿀 수 있고, 기본값은 SUPPLIER.managerEmail
+  assert.match(a, /const from = process\.env\.ESTIMATE_FROM_EMAIL \?\? `PE Studio <\$\{SUPPLIER\.managerEmail\}>`/);
+  // 문의 폼 발신 주소(no-reply@…)를 물려받지 않는다
+  assert.ok(!/process\.env\.INQUIRY_FROM_EMAIL/.test(a), "견적서 발신이 문의 폼 발신 주소로 떨어지면 안 된다");
+  // 회신·보관 사본도 같은 주소가 최종 기본값
+  assert.match(a, /replyTo: process\.env\.ESTIMATE_REPLY_TO \?\? SUPPLIER\.managerEmail/);
+  assert.match(a, /ESTIMATE_BCC_EMAIL \?\? process\.env\.INQUIRY_TO_EMAIL \?\? SUPPLIER\.managerEmail/);
+  assert.equal(SUPPLIER.managerEmail, "ask@papercraft.kr");
+  // 키가 없으면 보내지 않는다 (주소는 기본값이 있으므로 더 이상 발송을 막지 않는다)
+  assert.match(a, /if \(!apiKey\) return \{ ok: false, error: "메일 발송 설정\(RESEND_API_KEY\)이 없습니다\." \}/);
 });
 
 test("멈춤 판정(3분)이 견적서 화면들의 maxDuration 보다 길고, maxDuration 은 Hobby 상한(60초) 이하", () => {
