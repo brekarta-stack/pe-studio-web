@@ -27,7 +27,7 @@ npm run dev                  # http://localhost:3000
 
 | 변수 | 용도 |
 |---|---|
-| `ADMIN_EMAIL` | 어드민 로그인을 허용할 Google 계정 (없으면 앱이 뜨지 않음) |
+| `ADMIN_EMAIL` | 어드민 로그인을 허용할 Google 계정. 여러 개면 쉼표로 구분 (`a@x.com,b@y.com`). 없으면 앱이 뜨지 않음 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | NextAuth Google 로그인 |
 | `NEXTAUTH_SECRET` / `NEXTAUTH_URL` | 세션 서명·콜백 |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 서버에서 DB 접근 (RLS 우회) |
