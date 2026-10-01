@@ -2,11 +2,12 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { getAccountByEmail, touchLastLogin } from "./artist-accounts";
 import { canSignIn, normalizeEmail } from "./artist-account-types";
+import { isAdminEmail, parseAdminEmails } from "./admin-emails";
 
 /**
  * 인증 — 구글 로그인 하나로 두 종류의 사용자를 통과시킨다.
  *
- *   admin  : ADMIN_EMAIL 한 명. /admin/** 전체 권한.
+ *   admin  : ADMIN_EMAIL 에 적힌 계정(쉼표로 여러 개). /admin/** 전체 권한.
  *   artist : artist_accounts 에 승인(approved)되고 아티스트에 매칭된 계정.
  *            /artist/** 포털에서 자기 업무·정산만 본다.
  *
@@ -17,10 +18,8 @@ import { canSignIn, normalizeEmail } from "./artist-account-types";
  * 권한을 봐야 하는데, 거기서 매번 DB 를 조회하면 그 왕복이 그대로 지연이 된다.
  */
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-if (!ADMIN_EMAIL) throw new Error("ADMIN_EMAIL environment variable is required");
-
-const ADMIN_EMAIL_NORMALIZED = normalizeEmail(ADMIN_EMAIL);
+const ADMIN_EMAILS = parseAdminEmails(process.env.ADMIN_EMAIL);
+if (ADMIN_EMAILS.length === 0) throw new Error("ADMIN_EMAIL environment variable is required");
 
 export type UserRole = "admin" | "artist";
 
@@ -50,7 +49,7 @@ async function resolveRole(
 > {
   const normalized = normalizeEmail(email);
   if (!normalized) return { ok: false, reason: "not_registered" };
-  if (normalized === ADMIN_EMAIL_NORMALIZED) {
+  if (isAdminEmail(normalized, ADMIN_EMAILS)) {
     return { ok: true, role: "admin", artistId: null, accountId: null };
   }
 
