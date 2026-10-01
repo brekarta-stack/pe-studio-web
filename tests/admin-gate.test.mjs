@@ -129,3 +129,32 @@ test("어드민 API·서버 액션이 세션 유무가 아니라 역할을 본�
     );
   }
 });
+
+/* ── 관리자 계정 목록 ── */
+
+import { isAdminEmail, parseAdminEmails } from "../src/lib/admin-emails.ts";
+
+test("ADMIN_EMAIL 은 쉼표로 여러 관리자를 받는다", () => {
+  const admins = parseAdminEmails(" brekarta@gmail.com , Ask@Papercraft.kr ,,");
+  assert.deepEqual(admins, ["brekarta@gmail.com", "ask@papercraft.kr"]);
+  assert.equal(isAdminEmail("brekarta@gmail.com", admins), true);
+  assert.equal(isAdminEmail("ASK@papercraft.kr ", admins), true);
+  assert.equal(isAdminEmail("someone@papercraft.kr", admins), false);
+  assert.equal(isAdminEmail("", admins), false);
+  assert.equal(isAdminEmail(null, admins), false);
+});
+
+test("한 개만 적힌 옛 ADMIN_EMAIL 도 그대로 동작한다", () => {
+  assert.deepEqual(parseAdminEmails("brekarta@gmail.com"), ["brekarta@gmail.com"]);
+  assert.deepEqual(parseAdminEmails(undefined), []);
+});
+
+test("로그인 판정과 프록시 폴백이 같은 목록 규칙을 쓴다", () => {
+  // 한쪽만 목록을 알면 로그인은 되는데 /admin 에서 튕긴다
+  const auth = readFileSync(new URL("../src/lib/auth.ts", import.meta.url), "utf-8");
+  const proxy = readFileSync(new URL("../src/proxy.ts", import.meta.url), "utf-8");
+  for (const [name, text] of [["auth.ts", auth], ["proxy.ts", proxy]]) {
+    assert.match(text, /parseAdminEmails\(process\.env\.ADMIN_EMAIL\)/, `${name} 가 목록을 파싱하지 않습니다`);
+    assert.match(text, /isAdminEmail\(/, `${name} 가 목록으로 판정하지 않습니다`);
+  }
+});

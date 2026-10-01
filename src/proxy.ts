@@ -15,7 +15,7 @@
  * 권한 판정은 JWT 의 role 로 한다 — 프록시는 모든 네비게이션마다 도므로 여기서
  * DB 를 보면 왕복이 그대로 체감 지연이 된다. role 은 src/lib/auth.ts 의 jwt
  * 콜백이 채우고 5분마다 다시 확인한다.
- * (role 이 없는 옛 토큰은 email 을 ADMIN_EMAIL 과 대조해 폴백 판정 — 배포 직후
+ * (role 이 없는 옛 토큰은 email 을 ADMIN_EMAIL 목록과 대조해 폴백 판정 — 배포 직후
  *  이미 로그인해 있던 관리자가 튕기지 않게)
  *
  * matcher 는 페이지 경로만 → /api/** 는 미영향(각 라우트가 직접 세션을 본다).
@@ -29,6 +29,7 @@
 import { withAuth } from "next-auth/middleware";
 import type { NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { isAdminEmail, parseAdminEmails } from "@/lib/admin-emails";
 
 function isStudioPath(pathname: string): boolean {
   return pathname === "/studio" || pathname.startsWith("/studio/");
@@ -54,11 +55,11 @@ export default withAuth(
   function proxy(req: NextRequestWithAuth) {
     const { pathname } = req.nextUrl;
     const token = req.nextauth?.token;
-    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminEmails = parseAdminEmails(process.env.ADMIN_EMAIL);
 
     /* role 이 있으면 그걸 믿고, 없으면(구 토큰) 이메일로 폴백 판정한다 */
     const isAdmin = token
-      ? token.role === "admin" || (!token.role && !!adminEmail && token.email === adminEmail)
+      ? token.role === "admin" || (!token.role && isAdminEmail(token.email, adminEmails))
       : false;
     const isArtist = token?.role === "artist";
 
