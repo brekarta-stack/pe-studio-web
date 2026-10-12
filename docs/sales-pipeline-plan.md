@@ -102,7 +102,7 @@ stageGroup(stage) → "outreach" | "active" | "done"
 | `/admin/drops` Drop (수정) | 목록 | 사유 표시·편집 | 기존 복구·영구삭제 유지 |
 | `/admin` 대시보드 (수정) | 타일 | 제안 영업 진행 N(팔로업 지연 N) · 완료 N · 이번 달 매출 → 월 정산 링크 | — |
 | `/admin/setup` (수정) | 설정 | 새 마이그레이션 등록 (`ALLOWED_FILES` + 화면 목록) | — |
-| `POST /api/admin/outreach/intake` (신설) | API | 발굴 에이전트가 리드를 넣는 입구. `OUTREACH_INTAKE_TOKEN` 헤더, org_key 중복이면 409 + 기존 id | — |
+| `POST /api/admin/outreach/intake` (신설) | API | 발굴 에이전트가 리드를 넣는 입구. `x-intake-token` 헤더(`OUTREACH_INTAKE_TOKEN`) 또는 관리자 세션. org_key 가 같은 기관이 이미 있으면 **거부하지 않고 병합**한다 — 새 초안은 활동 기록으로 남기고 제안서 링크만 최신으로 갱신(`docs/outreach-intake.md`) | — |
 
 공용 조각: `src/components/admin/ActivityTimeline.tsx`(목록 + 추가 폼), `src/components/admin/StageBadge.tsx`(색·라벨은 레지스트리에서).
 
@@ -130,5 +130,6 @@ stageGroup(stage) → "outreach" | "active" | "done"
 - **발굴 자동화(bd-daily) 재가동은 이번 범위 밖.** 2026-08-10 에 의도적으로 멈춘 이유가 기록에 없다. 인테이크 API 를 열어 두고, 재가동은 사용자가 결정한다.
 - 이관 데이터는 전부 `drafted`(제안서 준비) 로 넣는다 — 발송 증거가 없기 때문. 실제로 보낸 건이 있으면 보드에서 "발송 기록"으로 고친다.
 - `client_amount` 가 배정 단위인 기존 설계를 유지한다(한 리드에 아티스트 여럿). 수금일도 배정 단위.
-- 마이그레이션 실행에는 `SUPABASE_ACCESS_TOKEN` 이 필요하다. Vercel 환경변수에 없으면 SQL 을 사용자에게 넘긴다(Supabase SQL Editor).
+- 마이그레이션 실행에는 `SUPABASE_ACCESS_TOKEN` 이 필요한데 Vercel 환경변수에 **없다**(2026-10-13 확인). 그래서 SQL 은 사용자가 Supabase SQL Editor 에서 실행한다. 이후 이 토큰을 Vercel 에 추가하면 `/admin/setup` 버튼으로도 된다.
+- Vercel 환경변수가 전부 Sensitive 라 `vercel env pull` 로 값을 받을 수 없다 → 로컬에서 DB 에 직접 닿을 수 없고, 이관은 배포된 앱의 인테이크 API 로만 한다(`scripts/import-outreach.mjs`).
 - Supabase 는 2026-09-22 사용량 초과로 전면 차단된 이력이 있다. 적용 전에 REST 응답을 확인한다.
