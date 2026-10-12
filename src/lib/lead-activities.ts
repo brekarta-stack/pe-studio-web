@@ -19,7 +19,7 @@ import type { LeadActivity, LeadActivityInput } from "./lead-activity-types";
 export type { LeadActivity, LeadActivityInput } from "./lead-activity-types";
 
 /** PostgREST 가 "테이블 없음"을 알리는 신호인지 — 이 경우만 조용히 폴백한다 (assignments.ts 와 같은 판정) */
-function isMissingTable(error: { message?: string; code?: string } | null): boolean {
+export function isMissingTable(error: { message?: string; code?: string } | null): boolean {
   if (!error) return false;
   return (
     error.code === "42P01" ||

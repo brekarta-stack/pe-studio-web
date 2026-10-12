@@ -52,7 +52,11 @@
 ```
 
 - `org` 만 필수. 나머지는 생략 가능하고, 문자열은 앞뒤 공백을 자른다.
-- `score` 는 0..10 정수로 반올림. 범위 밖(예: 100점 척도의 85)이나 숫자가 아니면 `null`.
+- snake_case 별칭도 받는다(발굴 에이전트 JSON 모양): `body_text` · `matched_cases` · `image_prompt` · `contact_form_url` · `contact_name` · `contact_email` · `proposal_url`(없으면 `view_url`) · `created_at` · `source_file`. 둘 다 있으면 camelCase 가 이긴다.
+- `score` 는 보드와 같은 **1..5 정수**만. 그 밖(0, 6, 4.6, 100점 척도의 85)이나 숫자가 아니면 `null` — 잘라 넣지 않는다.
+- `proposalUrl` · `contactFormUrl` 은 http(s) 주소만. 아니면 리드는 받고 그 필드만 버린다.
+- 길이 상한(넘으면 자름): `subject` 300 · `slug` 120 · `bodyText` 20000 · `org`·`segment`·연락처 200.
+- `outreach` JSONB 에는 snake_case 키(`subject`, `body_text`, `matched_cases`, `image_prompt`, `contact_form_url`, `slug`, `source_file`)로 저장한다.
 - `stage` 는 제안 영업 단계(`sourced` · `drafted` · `sent` · `followup`)만.
 - `createdAt` 은 날짜로 읽혀야 한다(`2026-06-16`, ISO 시각).
 - 한 번에 **200건까지**. 넘으면 `413`. `leads` 가 배열이 아니면 `400`.

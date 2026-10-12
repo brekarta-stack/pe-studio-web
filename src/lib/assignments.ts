@@ -11,6 +11,7 @@
 
 import { supabaseAdmin } from "./supabase-admin";
 import { getAllArtists } from "./artists";
+import { isMissingColumnError } from "./outreach";
 import type { Assignment, AssignmentInput, AssignmentView } from "./assignment-types";
 import {
   isAssignmentStatus,
@@ -215,6 +216,17 @@ export async function createAssignment(input: AssignmentInput): Promise<Assignme
   return toAssignment(data);
 }
 
+/**
+ * 일부만 저장됐다는 신호 — 수금일 컬럼(client_paid_at, 마이그레이션 20261013)이 아직 없어
+ * 그 값만 빼고 나머지를 저장한 경우. 호출부는 화면을 다시 그리되 메시지는 그대로 보여 준다.
+ */
+export class PartialSaveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PartialSaveError";
+  }
+}
+
 export async function updateAssignment(
   id: string,
   patch: Partial<AssignmentInput>
@@ -245,7 +257,19 @@ export async function updateAssignment(
   if (Object.keys(row).length === 0) return;
 
   const { error } = await supabaseAdmin.from("assignments").update(row).eq("id", id);
-  if (error) throw error;
+  if (!error) return;
+
+  /* 마이그레이션 전에 수금일을 건드리면 PostgREST 가 행 전체 저장을 거부한다(PGRST204).
+     작업비·납기 같은 나머지 값까지 잃지 않게 수금일만 빼고 한 번 더 쓴다 */
+  if (!("client_paid_at" in row) || !isMissingColumnError(error)) throw error;
+  delete row.client_paid_at;
+  if (Object.keys(row).length > 0) {
+    const { error: retryErr } = await supabaseAdmin.from("assignments").update(row).eq("id", id);
+    if (retryErr) throw retryErr;
+  }
+  throw new PartialSaveError(
+    "수금일은 영업 파이프라인 마이그레이션 적용 후 저장됩니다. 나머지 값은 저장했습니다."
+  );
 }
 
 export async function deleteAssignment(id: string): Promise<void> {

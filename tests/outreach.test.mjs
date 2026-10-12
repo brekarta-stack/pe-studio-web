@@ -17,6 +17,13 @@ import {
   OUTREACH_FILTER_LABELS,
   SALES_PATHS,
   localDate,
+  kstDateKey,
+  kstMonthKey,
+  clip,
+  LIMITS,
+  safeHttpUrl,
+  nextClosedAt,
+  fmtDateKo,
 } from "../src/lib/outreach.ts";
 
 // 로컬 시각 2026-10-13 23:30 — 자정 직전에도 "오늘"이 오늘이어야 한다
@@ -107,4 +114,64 @@ test("isMissingColumnError — 마이그레이션 전 신호만 참", () => {
   assert.equal(isMissingColumnError(new Error("fetch failed")), false);
   assert.equal(isMissingColumnError(null), false);
   assert.equal(isMissingColumnError("does not exist"), false);
+});
+
+/* ── KST 달력 ─────────────────────────────────────────────────
+ * 운영 서버(Vercel)는 UTC 다. 머신 타임존과 무관하게 한국 날짜가 나와야 한다. */
+
+test("kstDateKey/kstMonthKey — UTC 16:00 은 한국 다음 날·다음 달", () => {
+  const instant = new Date("2026-10-31T16:00:00Z"); // KST 2026-11-01 01:00
+  assert.equal(kstDateKey(instant), "2026-11-01");
+  assert.equal(kstMonthKey(instant), "2026-11");
+  assert.equal(localDate(instant), "2026-11-01");
+  assert.equal(kstDateKey(new Date("2026-10-31T14:59:59Z")), "2026-10-31");
+});
+
+test("dueState·defaultFollowupDate — UTC 새벽(한국 오전)에도 한국 날짜 기준", () => {
+  const instant = new Date("2026-10-12T15:30:00Z"); // KST 10-13 00:30
+  assert.equal(dueState("2026-10-13", instant), "today");
+  assert.equal(dueState("2026-10-12", instant), "overdue");
+  assert.equal(defaultFollowupDate(instant), "2026-10-20");
+});
+
+test("defaultFollowupDate — 날짜만 있는 값은 그 날짜 그대로(밀리지 않음)", () => {
+  assert.equal(defaultFollowupDate("2026-10-05", 0), "2026-10-05");
+  assert.equal(defaultFollowupDate("2026-10-05"), "2026-10-12");
+});
+
+test("fmtDateKo — 한국 날짜로 찍고, 빈 값·엉뚱한 값은 대시", () => {
+  assert.equal(fmtDateKo("2026-10-31T16:00:00Z"), "26. 11. 01.");
+  assert.equal(fmtDateKo(null), "—");
+  assert.equal(fmtDateKo("nope"), "—");
+});
+
+/* ── 입력 정리 ─────────────────────────────────────────────── */
+
+test("clip — trim 후 상한까지, 한글·이모지도 글자 단위", () => {
+  assert.equal(clip("  abc  ", 10), "abc");
+  assert.equal(clip("가나다라", 2), "가나");
+  assert.equal(clip("😀😀😀", 2), "😀😀");
+  assert.equal(clip(null, 5), "");
+  assert.equal(clip("x".repeat(600), LIMITS.reason).length, 500);
+});
+
+test("safeHttpUrl — http(s) 만 통과, 나머지는 빈 문자열", () => {
+  assert.equal(safeHttpUrl(" https://docs.google.com/x "), "https://docs.google.com/x");
+  assert.equal(safeHttpUrl("http://a.kr"), "http://a.kr");
+  assert.equal(safeHttpUrl("javascript:alert(1)"), "");
+  assert.equal(safeHttpUrl("ftp://a.kr"), "");
+  assert.equal(safeHttpUrl("docs.google.com/x"), "");
+  assert.equal(safeHttpUrl(""), "");
+  assert.equal(safeHttpUrl(42), "");
+});
+
+/* ── 완료 시각 ─────────────────────────────────────────────── */
+
+test("nextClosedAt — 완료 진입은 지금, 완료끼리는 유지, 완료 밖으로 나가면 지움", () => {
+  const now = new Date("2026-10-13T03:00:00Z");
+  assert.equal(nextClosedAt(null, "delivered", now), now.toISOString());
+  assert.equal(nextClosedAt(undefined, "settled", now), now.toISOString());
+  assert.equal(nextClosedAt("2026-09-01T00:00:00Z", "settled", now), "2026-09-01T00:00:00Z");
+  assert.equal(nextClosedAt("2026-09-01T00:00:00Z", "producing", now), null);
+  assert.equal(nextClosedAt(null, "followup", now), null);
 });

@@ -18,6 +18,7 @@
 
 import { normalizeOrgKey } from "./lead-activity-types.ts";
 import { isOutreachStage } from "./assignment-types.ts";
+import { clip, LIMITS, safeHttpUrl } from "./outreach.ts";
 
 export interface IntakeLead {
   org: string;
@@ -38,28 +39,59 @@ export interface IntakeLead {
   sourceFile?: string;
 }
 
-/** 문자열 필드 — 빈 값이면 아예 키를 두지 않는다 (DB 에 "" 와 null 이 섞이지 않게) */
-const STRING_FIELDS = [
-  "slug",
-  "segment",
-  "contactName",
-  "contactEmail",
-  "phone",
-  "contactFormUrl",
-  "subject",
-  "proposalUrl",
-  "bodyText",
-  "imagePrompt",
-  "sourceFile",
-] as const;
+type StringField =
+  | "slug"
+  | "segment"
+  | "contactName"
+  | "contactEmail"
+  | "phone"
+  | "contactFormUrl"
+  | "subject"
+  | "proposalUrl"
+  | "bodyText"
+  | "imagePrompt"
+  | "sourceFile";
 
-/** 점수 → 0..10 정수. 범위 밖·숫자 아님은 null — 100점 척도 값을 10으로 잘라 넣으면 틀린 값이 진짜처럼 보인다 */
+/**
+ * 문자열 필드 — [정식 키, 받아 주는 별칭들, 최대 길이].
+ * 발굴 에이전트 JSON 은 snake_case(body_text, matched_cases…)이고 이관 스크립트는 camelCase 라
+ * 둘 다 받는다. 앞쪽 키가 우선. view_url 은 옛 에이전트가 덱 링크를 담던 이름이다.
+ * 빈 값이면 아예 키를 두지 않는다 (DB 에 "" 와 null 이 섞이지 않게).
+ */
+const STRING_FIELDS: readonly [StringField, readonly string[], number][] = [
+  ["slug", ["slug"], LIMITS.slug],
+  ["segment", ["segment"], LIMITS.segment],
+  ["contactName", ["contactName", "contact_name"], LIMITS.contact],
+  ["contactEmail", ["contactEmail", "contact_email"], LIMITS.contact],
+  ["phone", ["phone"], LIMITS.contact],
+  ["contactFormUrl", ["contactFormUrl", "contact_form_url"], LIMITS.body],
+  ["subject", ["subject"], LIMITS.subject],
+  ["proposalUrl", ["proposalUrl", "proposal_url", "view_url"], LIMITS.body],
+  ["bodyText", ["bodyText", "body_text"], LIMITS.bodyText],
+  ["imagePrompt", ["imagePrompt", "image_prompt"], LIMITS.bodyText],
+  ["sourceFile", ["sourceFile", "source_file"], LIMITS.contact],
+];
+
+/** 링크 필드 — http(s) 가 아니면 리드는 받고 그 필드만 버린다 (보드가 그대로 <a href> 로 연다) */
+const URL_FIELDS: readonly StringField[] = ["proposalUrl", "contactFormUrl"];
+
+/** 별칭 중 처음으로 값이 있는(undefined·null 아님) 키와 값 */
+function pick(r: Record<string, unknown>, keys: readonly string[]): { key: string; value: unknown } | null {
+  for (const k of keys) {
+    if (r[k] !== undefined && r[k] !== null) return { key: k, value: r[k] };
+  }
+  return null;
+}
+
+/**
+ * 점수 → 1..5 정수. 보드·수정 폼이 1~5 척도라 그 밖의 값은 null —
+ * 10점·100점 척도 값을 잘라 넣으면 틀린 값이 진짜처럼 보이고, 수정 폼이 그 값을 되돌려 보내다 실패한다.
+ */
 function toScore(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v).trim());
-  if (!Number.isFinite(n)) return null;
-  const i = Math.round(n);
-  return i >= 0 && i <= 10 ? i : null;
+  if (!Number.isInteger(n)) return null;
+  return n >= 1 && n <= 5 ? n : null;
 }
 
 export function validateLead(
@@ -70,26 +102,35 @@ export function validateLead(
   }
   const r = raw as Record<string, unknown>;
 
-  const org = typeof r.org === "string" ? r.org.trim() : "";
+  const org = typeof r.org === "string" ? clip(r.org, LIMITS.org) : "";
   if (!org) return { ok: false, error: "org(기관명)가 비어 있습니다." };
 
   const lead: IntakeLead = { org };
 
-  for (const key of STRING_FIELDS) {
-    const v = r[key];
-    if (v === undefined || v === null) continue;
-    if (typeof v !== "string") return { ok: false, error: `${key} 는 문자열이어야 합니다.` };
-    const t = v.trim();
-    if (t) lead[key] = t;
+  for (const [field, keys, max] of STRING_FIELDS) {
+    const hit = pick(r, keys);
+    if (!hit) continue;
+    if (typeof hit.value !== "string") return { ok: false, error: `${hit.key} 는 문자열이어야 합니다.` };
+    let t: string;
+    if (URL_FIELDS.includes(field)) {
+      // 링크는 잘라 넣으면 깨진 주소가 진짜처럼 남는다 — 너무 길면 버린다
+      const raw = hit.value.trim();
+      t = raw.length > max ? "" : safeHttpUrl(raw);
+    } else {
+      t = clip(hit.value, max);
+    }
+    if (t) lead[field] = t;
   }
 
   if ("score" in r) lead.score = toScore(r.score);
 
-  if (r.matchedCases !== undefined && r.matchedCases !== null) {
-    if (!Array.isArray(r.matchedCases) || !r.matchedCases.every((c) => typeof c === "string")) {
-      return { ok: false, error: "matchedCases 는 문자열 배열이어야 합니다." };
+  const cases = pick(r, ["matchedCases", "matched_cases"]);
+  if (cases) {
+    const v = cases.value;
+    if (!Array.isArray(v) || !v.every((c) => typeof c === "string")) {
+      return { ok: false, error: `${cases.key} 는 문자열 배열이어야 합니다.` };
     }
-    lead.matchedCases = (r.matchedCases as string[]).map((c) => c.trim()).filter(Boolean);
+    lead.matchedCases = (v as string[]).map((c) => clip(c, LIMITS.subject)).filter(Boolean);
   }
 
   if (r.stage !== undefined && r.stage !== null && r.stage !== "") {
@@ -99,10 +140,11 @@ export function validateLead(
     lead.stage = s;
   }
 
-  if (r.createdAt !== undefined && r.createdAt !== null && r.createdAt !== "") {
-    const c = typeof r.createdAt === "string" ? r.createdAt.trim() : "";
+  const created = pick(r, ["createdAt", "created_at"]);
+  if (created && created.value !== "") {
+    const c = typeof created.value === "string" ? created.value.trim() : "";
     if (!c || Number.isNaN(Date.parse(c))) {
-      return { ok: false, error: `createdAt 을 날짜로 읽을 수 없습니다: ${String(r.createdAt)}` };
+      return { ok: false, error: `${created.key} 을 날짜로 읽을 수 없습니다: ${String(created.value)}` };
     }
     lead.createdAt = c;
   }

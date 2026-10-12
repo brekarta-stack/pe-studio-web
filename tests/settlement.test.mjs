@@ -62,6 +62,16 @@ test("monthKeyOf — 납기가 있으면 납기, 없으면 생성일(로컬)", (
   assert.equal(monthKeyOf(row({ dueDate: null, createdAt: "2026-07-03" })), "2026-07", "날짜만 있으면 그대로");
 });
 
+test("월 귀속은 한국 달력 — 서버가 UTC 여도 UTC 10/31 16:00 은 11월", () => {
+  const instant = "2026-10-31T16:00:00Z"; // KST 2026-11-01 01:00
+  assert.equal(monthKeyOf(row({ dueDate: null, createdAt: instant })), "2026-11");
+  assert.equal(receivedMonthOf(row({ clientPaidAt: instant })), "2026-11");
+  assert.deepEqual(payoutMonthsOf(row({ depositPaidAt: instant, balancePaidAt: null })), ["2026-11"]);
+  assert.deepEqual(availableMonths([], new Date(instant)), ["2026-11"]);
+  // 날짜만 있는 값은 밀리지 않는다
+  assert.equal(receivedMonthOf(row({ clientPaidAt: "2026-10-31" })), "2026-10");
+});
+
 test("receivedMonthOf / payoutMonthsOf", () => {
   assert.equal(receivedMonthOf(row()), null, "미수");
   assert.equal(receivedMonthOf(row({ clientPaidAt: "2026-11-02" })), "2026-11");

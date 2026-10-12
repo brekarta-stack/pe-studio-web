@@ -12,6 +12,7 @@ import {
   receivedMonthOf,
 } from "@/lib/settlement";
 import SettlementBoard from "@/components/admin/SettlementBoard";
+import { isMissingColumnError, kstMonthKey } from "@/lib/outreach";
 
 export const dynamic = "force-dynamic";
 
@@ -20,26 +21,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /** YYYY-MM, 월은 01~12 만 — 그 밖의 값은 이번 달로 돌린다 */
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** 컬럼 없음 신호 — 마이그레이션 20261013 전에는 assignments.client_paid_at 이 없다 */
-function isMissingColumn(error: { message?: string; code?: string } | null): boolean {
-  if (!error) return false;
-  const msg = error.message ?? "";
-  return (
-    error.code === "42703" ||
-    error.code === "PGRST204" ||
-    msg.includes("does not exist") ||
-    msg.includes("schema cache")
-  );
-}
-
 export default async function AdminSettlementsPage({ searchParams }: { searchParams: SearchParams }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/admin/login");
 
   const sp = await searchParams;
   const raw = Array.isArray(sp.month) ? sp.month[0] : sp.month;
-  // 로컬 기준 이번 달 — 대시보드 "이번 달 매출"과 같은 방식
-  const thisMonth = new Date().toLocaleDateString("en-CA").slice(0, 7);
+  // 한국 달력 기준 이번 달 — 대시보드 "이번 달 매출"과 같은 헬퍼 (서버는 UTC)
+  const thisMonth = kstMonthKey(new Date());
   const month = raw && MONTH_RE.test(raw) ? raw : thisMonth;
 
   // 배정 전체 + 수금일 컬럼 존재 확인을 병렬로 (테이블이 없으면 listAssignmentViews 는 빈 배열)
@@ -47,7 +36,8 @@ export default async function AdminSettlementsPage({ searchParams }: { searchPar
     listAssignmentViews(),
     supabaseAdmin.from("assignments").select("client_paid_at").limit(1),
   ]);
-  const needsMigration = isMissingColumn(probe.error);
+  // 마이그레이션 20261013 전에는 assignments.client_paid_at 이 없다
+  const needsMigration = isMissingColumnError(probe.error);
 
   const live = all.filter((a) => a.status !== "cancelled");
   // 이 달에 귀속된 배정 (납기 → 생성일 기준)

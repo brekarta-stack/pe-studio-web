@@ -35,10 +35,14 @@ test("문자열 필드에 숫자가 오면 거절", () => {
   assert.equal(validateLead({ org: "소방청", phone: 101 }).ok, false);
 });
 
-test("score 는 0..10 정수로, 범위 밖·숫자 아님은 null", () => {
-  assert.equal(validateLead({ org: "a기관", score: 4.6 }).lead.score, 5);
+test("score 는 보드와 같은 1..5 정수만, 그 밖은 잘라 넣지 않고 null", () => {
+  assert.equal(validateLead({ org: "a기관", score: 1 }).lead.score, 1);
+  assert.equal(validateLead({ org: "a기관", score: 5 }).lead.score, 5);
   assert.equal(validateLead({ org: "a기관", score: "3" }).lead.score, 3);
-  assert.equal(validateLead({ org: "a기관", score: 0 }).lead.score, 0);
+  assert.equal(validateLead({ org: "a기관", score: 0 }).lead.score, null);
+  assert.equal(validateLead({ org: "a기관", score: 6 }).lead.score, null);
+  assert.equal(validateLead({ org: "a기관", score: 10 }).lead.score, null);
+  assert.equal(validateLead({ org: "a기관", score: 4.6 }).lead.score, null);
   assert.equal(validateLead({ org: "a기관", score: 85 }).lead.score, null);
   assert.equal(validateLead({ org: "a기관", score: -1 }).lead.score, null);
   assert.equal(validateLead({ org: "a기관", score: "높음" }).lead.score, null);
@@ -62,6 +66,57 @@ test("matchedCases 는 문자열 배열", () => {
   assert.deepEqual(validateLead({ org: "a기관", matchedCases: [" 경찰청 ", ""] }).lead.matchedCases, ["경찰청"]);
   assert.equal(validateLead({ org: "a기관", matchedCases: "경찰청" }).ok, false);
   assert.equal(validateLead({ org: "a기관", matchedCases: [1] }).ok, false);
+});
+
+test("snake_case 별칭도 받는다 — 발굴 에이전트 JSON 모양", () => {
+  const r = validateLead({
+    org: "국립생태원",
+    body_text: "본문",
+    matched_cases: ["경찰청 포돌이"],
+    image_prompt: "paper owl",
+    contact_form_url: "https://nie.re.kr/contact",
+    contact_name: "홍길동",
+    contact_email: "a@nie.re.kr",
+    proposal_url: "https://docs.google.com/p",
+    created_at: "2026-06-16",
+    source_file: "nie.md",
+  });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.lead, {
+    org: "국립생태원",
+    bodyText: "본문",
+    matchedCases: ["경찰청 포돌이"],
+    imagePrompt: "paper owl",
+    contactFormUrl: "https://nie.re.kr/contact",
+    contactName: "홍길동",
+    contactEmail: "a@nie.re.kr",
+    proposalUrl: "https://docs.google.com/p",
+    createdAt: "2026-06-16",
+    sourceFile: "nie.md",
+  });
+});
+
+test("별칭 우선순위 — camelCase 가 이기고, proposal_url 이 없으면 view_url", () => {
+  assert.equal(validateLead({ org: "a기관", bodyText: "camel", body_text: "snake" }).lead.bodyText, "camel");
+  assert.equal(validateLead({ org: "a기관", view_url: "https://v" }).lead.proposalUrl, "https://v");
+  assert.equal(validateLead({ org: "a기관", proposal_url: "https://p", view_url: "https://v" }).lead.proposalUrl, "https://p");
+  assert.equal(validateLead({ org: "a기관", matched_cases: "x" }).ok, false);
+  assert.equal(validateLead({ org: "a기관", created_at: "어제" }).ok, false);
+});
+
+test("링크는 http(s) 만 — 아니면 리드는 받고 그 필드만 버린다", () => {
+  const r = validateLead({ org: "a기관", proposalUrl: "javascript:alert(1)", contact_form_url: "ftp://x" });
+  assert.equal(r.ok, true);
+  assert.equal("proposalUrl" in r.lead, false);
+  assert.equal("contactFormUrl" in r.lead, false);
+  assert.equal(validateLead({ org: "a기관", proposalUrl: " https://ok " }).lead.proposalUrl, "https://ok");
+});
+
+test("길이 상한 — 제목 300·slug 120·본문 20000 으로 자른다", () => {
+  const r = validateLead({ org: "a기관", subject: "가".repeat(400), slug: "s".repeat(200), body_text: "b".repeat(30000) });
+  assert.equal(r.lead.subject.length, 300);
+  assert.equal(r.lead.slug.length, 120);
+  assert.equal(r.lead.bodyText.length, 20000);
 });
 
 /* ── planIntake ───────────────────────────────────────────── */

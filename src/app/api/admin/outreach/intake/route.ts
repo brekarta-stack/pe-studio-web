@@ -11,6 +11,7 @@ import {
   type IntakeAction,
   type IntakeLead,
 } from "@/lib/outreach-intake";
+import { isMissingColumnError } from "@/lib/outreach";
 
 /**
  * 발굴 리드 인테이크 API — POST /api/admin/outreach/intake
@@ -48,34 +49,25 @@ function tokenMatches(req: Request): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** 영업 파이프라인 마이그레이션(20261013_sales_pipeline.sql) 미적용 신호 */
-function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  const msg = error.message ?? "";
-  return (
-    error.code === "42703" ||
-    error.code === "PGRST204" ||
-    msg.includes("does not exist") ||
-    msg.includes("schema cache")
-  );
-}
-
 function errMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
   return String(e);
 }
 
-/** 발굴 에이전트 산출물 원문 — 보드에서 본문·이미지 프롬프트를 다시 볼 수 있게 통째로 둔다 */
+/**
+ * 발굴 에이전트 산출물 원문 — 보드에서 본문·이미지 프롬프트를 다시 볼 수 있게 통째로 둔다.
+ * 키는 snake_case — 계획서 §3.1 과 발굴 에이전트 JSON 이 쓰는 이름 그대로라 보드가 한 모양만 읽으면 된다.
+ */
 function outreachJson(lead: IntakeLead) {
   return {
     slug: lead.slug ?? null,
     subject: lead.subject ?? null,
-    matchedCases: lead.matchedCases ?? [],
-    bodyText: lead.bodyText ?? null,
-    imagePrompt: lead.imagePrompt ?? null,
-    contactFormUrl: lead.contactFormUrl ?? null,
-    sourceFile: lead.sourceFile ?? null,
+    matched_cases: lead.matchedCases ?? [],
+    body_text: lead.bodyText ?? null,
+    image_prompt: lead.imagePrompt ?? null,
+    contact_form_url: lead.contactFormUrl ?? null,
+    source_file: lead.sourceFile ?? null,
   };
 }
 
@@ -132,7 +124,7 @@ export async function POST(req: Request) {
     .select("id, org_key, created_at, proposal_url, stage, dropped_at")
     .not("org_key", "is", null);
   if (error) {
-    if (isMissingColumn(error)) {
+    if (isMissingColumnError(error)) {
       return NextResponse.json(
         { error: "영업 파이프라인 마이그레이션이 아직 적용되지 않았습니다." },
         { status: 503 }

@@ -12,7 +12,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getAdminEmail, requireAdmin } from "@/lib/session";
-import { addActivity } from "@/lib/lead-activities";
+import { addActivity, isMissingTable } from "@/lib/lead-activities";
 import {
   isActivityKind,
   isRecentlyProposed,
@@ -20,7 +20,14 @@ import {
   type ActivityKind,
 } from "@/lib/lead-activity-types";
 import { isOutreachStage, STAGE_LABELS } from "@/lib/assignment-types";
-import { defaultFollowupDate, SALES_PATHS } from "@/lib/outreach";
+import {
+  clip,
+  defaultFollowupDate,
+  isMissingColumnError,
+  LIMITS,
+  safeHttpUrl,
+  SALES_PATHS,
+} from "@/lib/outreach";
 import type { ActionResult } from "@/app/admin/quotes/actions";
 
 /** 같은 기관에 최근 제안한 기록 — 등록 전에 사람에게 한 번 더 묻기 위한 정보 */
@@ -75,13 +82,10 @@ function parseScore(v: number | null | undefined): number | null {
 function parseUrl(v: string | null | undefined): string {
   const s = (v ?? "").trim();
   if (!s) return "";
-  try {
-    const u = new URL(s);
-    if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error();
-  } catch {
-    throw new Error("제안서 링크는 http(s) 주소여야 합니다.");
-  }
-  return s;
+  // 사람이 직접 친 값이라 조용히 버리지 않고 알려 준다 (인테이크는 버리고 리드는 받는다)
+  const ok = safeHttpUrl(s);
+  if (!ok) throw new Error("제안서 링크는 http(s) 주소여야 합니다.");
+  return ok;
 }
 
 async function readQuote(id: string): Promise<Record<string, unknown>> {
@@ -108,7 +112,7 @@ export async function createOutreachLead(input: {
   try {
     await requireAdmin();
 
-    const org = (input.org ?? "").trim();
+    const org = clip(input.org, LIMITS.org);
     if (!org) throw new Error("기관명을 입력하세요.");
     const orgKey = normalizeOrgKey(org);
     const proposalUrl = parseUrl(input.proposalUrl);
@@ -154,14 +158,14 @@ export async function createOutreachLead(input: {
         stage: proposalUrl ? "drafted" : "sourced",
         org,
         org_key: orgKey,
-        segment: (input.segment ?? "").trim() || null,
+        segment: clip(input.segment, LIMITS.segment) || null,
         score,
-        name: (input.contactName ?? "").trim(),
-        email: (input.contactEmail ?? "").trim(),
-        phone: (input.phone ?? "").trim(),
+        name: clip(input.contactName, LIMITS.contact),
+        email: clip(input.contactEmail, LIMITS.contact),
+        phone: clip(input.phone, LIMITS.contact),
         proposal_url: proposalUrl || null,
         next_action_at: nextActionAt,
-        notes: (input.memo ?? "").trim(),
+        notes: clip(input.memo, LIMITS.memo),
         // 폼 전용 항목 — 인바운드 수동 등록과 같이 빈 값으로 둔다
         custom_design: "",
         color_request: "",
@@ -197,17 +201,17 @@ export async function updateOutreachLead(
     await requireAdmin();
     const update: Record<string, unknown> = {};
     if (patch.org !== undefined) {
-      const org = patch.org.trim();
+      const org = clip(patch.org, LIMITS.org);
       if (!org) throw new Error("기관명은 비울 수 없습니다.");
       update.org = org;
       // 기관명이 바뀌면 중복 판정 키도 같이 바뀌어야 한다
       update.org_key = normalizeOrgKey(org);
     }
-    if (patch.segment !== undefined) update.segment = patch.segment.trim() || null;
+    if (patch.segment !== undefined) update.segment = clip(patch.segment, LIMITS.segment) || null;
     if (patch.score !== undefined) update.score = parseScore(patch.score);
-    if (patch.contactName !== undefined) update.name = patch.contactName.trim();
-    if (patch.contactEmail !== undefined) update.email = patch.contactEmail.trim();
-    if (patch.phone !== undefined) update.phone = patch.phone.trim();
+    if (patch.contactName !== undefined) update.name = clip(patch.contactName, LIMITS.contact);
+    if (patch.contactEmail !== undefined) update.email = clip(patch.contactEmail, LIMITS.contact);
+    if (patch.phone !== undefined) update.phone = clip(patch.phone, LIMITS.contact);
     if (patch.proposalUrl !== undefined) update.proposal_url = parseUrl(patch.proposalUrl) || null;
     if (Object.keys(update).length === 0) return { ok: true };
 
@@ -232,11 +236,15 @@ export async function markProposalSent(
 ): Promise<ActionResult> {
   try {
     await requireAdmin();
-    const sentTo = (input.sentTo ?? "").trim();
+    const sentTo = clip(input.sentTo, LIMITS.sentTo);
     if (!sentTo) throw new Error("수신처를 입력하세요.");
-    const note = (input.note ?? "").trim();
+    const note = clip(input.note, LIMITS.note);
 
     const current = await readQuote(id);
+    // 상담 이후·완료 건에 발송을 찍으면 stage 가 sent 로 되돌아가 활성 큐에서 사라진다
+    if (!isOutreachStage(current.stage)) {
+      throw new Error("제안 영업 단계의 리드만 발송·팔로업을 기록할 수 있습니다.");
+    }
     const now = new Date();
     const { error } = await supabaseAdmin
       .from("quotes")
@@ -264,6 +272,10 @@ export async function setNextAction(id: string, date: string | null): Promise<Ac
   try {
     await requireAdmin();
     const next = parseDate(date);
+    const current = await readQuote(id);
+    if (!isOutreachStage(current.stage)) {
+      throw new Error("제안 영업 단계의 리드만 발송·팔로업을 기록할 수 있습니다.");
+    }
     const { error } = await supabaseAdmin.from("quotes").update({ next_action_at: next }).eq("id", id);
     if (error) throw error;
     revalidateSales();
@@ -342,12 +354,23 @@ export async function addLeadActivity(
     if (!isActivityKind(kind) || !MANUAL_KINDS.includes(kind)) {
       throw new Error(`직접 기록할 수 없는 활동 종류입니다: ${kind}`);
     }
-    const text = (body ?? "").trim();
+    const text = clip(body, LIMITS.body);
     if (!text) throw new Error("내용을 입력하세요.");
     const next = nextActionAt === undefined ? undefined : parseDate(nextActionAt);
 
-    // 활동 기록이 이 액션의 본체이므로 여기서는 best-effort 가 아니라 실패를 그대로 돌려준다
-    await addActivity({ quoteId, kind, body: text, actor: (await getAdminEmail()) ?? "" });
+    // 활동 기록이 이 액션의 본체이므로 여기서는 best-effort 가 아니라 실패를 그대로 돌려준다.
+    // 다만 표가 아직 없으면 PostgREST 원문 대신 할 일을 알려 준다
+    try {
+      await addActivity({ quoteId, kind, body: text, actor: (await getAdminEmail()) ?? "" });
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      if (isMissingTable(err) || isMissingColumnError(e)) {
+        throw new Error(
+          "활동 기록 표가 아직 없습니다. DB 셋업에서 영업 파이프라인 마이그레이션을 적용하세요."
+        );
+      }
+      throw e;
+    }
 
     if (next !== undefined) {
       const { error } = await supabaseAdmin.from("quotes").update({ next_action_at: next }).eq("id", quoteId);

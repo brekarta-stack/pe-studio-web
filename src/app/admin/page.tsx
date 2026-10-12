@@ -7,7 +7,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import Link from "next/link";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { getReviewMap, mergeItems, computeStats, pickTodayTarget } from "@/lib/studio-review";
-import { DONE_STAGES, OUTREACH_STAGES } from "@/lib/assignment-types";
+import { ACTIVE_STAGES, DONE_STAGES, OUTREACH_STAGES } from "@/lib/assignment-types";
+import { kstDateKey, kstMonthKey } from "@/lib/outreach";
 import { listAssignmentViews } from "@/lib/assignments";
 import { summarizeMonth } from "@/lib/settlement";
 
@@ -26,9 +27,10 @@ export default async function AdminDashboard() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/admin/login");
 
-  // 로컬(KST) 기준 오늘·이번 달 — 월 정산 화면과 같은 방식
-  const todayKey = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
-  const thisMonth = todayKey.slice(0, 7);
+  // 한국 달력 기준 오늘·이번 달 — 서버(Vercel)는 UTC 라 타임존을 명시한다. 월 정산 화면과 같은 헬퍼
+  const now = new Date();
+  const todayKey = kstDateKey(now); // YYYY-MM-DD
+  const thisMonth = kstMonthKey(now);
 
   /* ── 데이터 병렬 로드 ── */
   const [
@@ -45,9 +47,12 @@ export default async function AdminDashboard() {
     await Promise.all([
       getPosts(),
       getItems(),
+      /* 최근 제작 문의 — 활성 큐(제작 문의 화면)와 같은 기준. 아웃바운드 발굴 리드·완료·Drop 은 뺀다 */
       supabaseAdmin
         .from("quotes")
         .select("*")
+        .in("stage", [...ACTIVE_STAGES])
+        .is("dropped_at", null)
         .order("created_at", { ascending: false })
         .limit(6),
       getReviewMap(),

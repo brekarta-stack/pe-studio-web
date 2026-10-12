@@ -9,12 +9,12 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { setQuoteArtist } from "@/lib/assignments";
-import { isDoneStage, isQuoteStage, STAGE_LABELS } from "@/lib/assignment-types";
+import { isQuoteStage, STAGE_LABELS } from "@/lib/assignment-types";
 import { getAdminEmail, requireAdmin } from "@/lib/session";
 import { isManualChannel, manualAcquisition } from "@/lib/quote-types";
 import { addActivity } from "@/lib/lead-activities";
 import type { ActivityKind } from "@/lib/lead-activity-types";
-import { isMissingColumnError, SALES_PATHS } from "@/lib/outreach";
+import { clip, isMissingColumnError, LIMITS, nextClosedAt, SALES_PATHS } from "@/lib/outreach";
 
 
 /** 편집 결과 — 클라이언트가 실패를 사용자에게 보여줄 수 있게 예외 대신 값으로 돌려준다 */
@@ -103,13 +103,13 @@ export async function setQuoteStage(id: string, stage: string): Promise<ActionRe
     if (readErr) throw readErr;
     if (!current) throw new Error("문의를 찾을 수 없습니다.");
 
-    const now = new Date().toISOString();
+    const nowDate = new Date();
     await updateQuoteWithFallback(
       id,
       {
         stage,
-        stage_changed_at: now,
-        closed_at: isDoneStage(stage) ? (current.closed_at ?? now) : null,
+        stage_changed_at: nowDate.toISOString(),
+        closed_at: nextClosedAt(current.closed_at as string | null | undefined, stage, nowDate),
       },
       { stage }
     );
@@ -148,7 +148,7 @@ export async function assignArtist(quoteId: string, artistId: string): Promise<A
 export async function dropQuote(id: string, reason = ""): Promise<ActionResult> {
   try {
     await requireAdmin();
-    const why = (reason ?? "").trim();
+    const why = clip(reason, LIMITS.reason);
     const droppedAt = new Date().toISOString();
     await updateQuoteWithFallback(
       id,

@@ -7,8 +7,11 @@
  * 다음 액션 예정일(next_action_at)을 중심으로 돈다.
  */
 
-import { daysUntil, OUTREACH_STAGES, STAGE_LABELS } from "./assignment-types.ts";
+import { DONE_STAGES, OUTREACH_STAGES, STAGE_LABELS, type QuoteStage } from "./assignment-types.ts";
 import type { QuoteSubmission } from "./quote-types.ts";
+import { addDaysKey, diffDaysKey, kstDateKey, kstDateOf } from "./kst.ts";
+
+export { kstDateKey, kstMonthKey } from "./kst.ts";
 
 /* ── 조치 후 다시 그릴 화면 ───────────────────────────────────
  * 단계 하나가 바뀌면 리드가 보드 사이를 옮겨 다닌다(제안 영업 → 제작 문의 → 완료).
@@ -34,9 +37,11 @@ function dateOnly(v: string | null): string | null {
   return v.slice(0, 10);
 }
 
-/** 다음 액션 예정일까지 남은 일수 (로컬 자정 기준). 없거나 해석 불가면 null */
+/** 다음 액션 예정일까지 남은 일수 (한국 달력 기준 — 서버가 UTC 여도 같은 답). 없거나 해석 불가면 null */
 export function daysToNextAction(nextActionAt: string | null, today = new Date()): number | null {
-  return daysUntil(dateOnly(nextActionAt), today);
+  const d = dateOnly(nextActionAt);
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  return diffDaysKey(kstDateKey(today), d);
 }
 
 /**
@@ -51,21 +56,86 @@ export function dueState(nextActionAt: string | null, today = new Date()): DueSt
   return "upcoming";
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-/** Date → 로컬 YYYY-MM-DD (toISOString 은 UTC 라 한국 오전 9시 전이면 하루 전날이 된다) */
+/**
+ * Date → 한국 달력 YYYY-MM-DD. 이름은 옛 그대로 두지만 기준은 KST 다
+ * (toISOString 은 UTC, getDate() 는 서버 타임존이라 둘 다 Vercel 에서 하루 밀린다).
+ */
 export function localDate(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return kstDateKey(d);
 }
 
 /** 발송일로부터 기본 팔로업일 — 제안서를 보내고 일주일 뒤 다시 연락하는 것이 기본값 */
 export function defaultFollowupDate(sentAt: string | Date, days = 7): string {
-  const base = sentAt instanceof Date ? new Date(sentAt.getTime()) : new Date(sentAt);
-  if (Number.isNaN(base.getTime())) return localDate(new Date());
-  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + days);
-  return localDate(d);
+  const base = sentAt instanceof Date ? kstDateKey(sentAt) : kstDateOf(sentAt);
+  return addDaysKey(base ?? kstDateKey(new Date()), days);
+}
+
+/** 화면용 짧은 날짜 "26. 10. 13." — 한국 달력 기준 */
+export function fmtDateKo(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+/* ── 입력 길이 제한 ────────────────────────────────────────────
+ * 서버 액션·인테이크는 브라우저 maxLength 를 거치지 않고 직접 불릴 수 있다.
+ * 거절하지 않고 잘라 넣는다 — 메모가 길다고 조치 자체가 실패하면 그게 더 손해다. */
+export const LIMITS = {
+  reason: 500,
+  note: 500,
+  memo: 500,
+  body: 2000,
+  sentTo: 200,
+  org: 200,
+  segment: 200,
+  contact: 200,
+  subject: 300,
+  bodyText: 20000,
+  slug: 120,
+} as const;
+
+/** trim 후 max 글자(코드포인트)까지 */
+export function clip(s: string | null | undefined, max: number): string {
+  const t = (s ?? "").trim();
+  if (t.length <= max) return t;
+  return Array.from(t).slice(0, max).join("");
+}
+
+/* ── 링크 ────────────────────────────────────────────────────
+ * 보드에서 그대로 <a href> 로 여는 값이라 javascript: 같은 스킴은 막는다. */
+
+/** http(s) 절대 주소면 trim 한 원문, 아니면 "" */
+export function safeHttpUrl(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:" ? s : "";
+  } catch {
+    return "";
+  }
+}
+
+/* ── 단계 변경 시 완료 시각 ───────────────────────────────────
+ * 완료(delivered·settled) 안에서 오갈 때는 처음 완료된 시각을 지킨다 — 납품 → 정산으로
+ * 넘어가면서 완료일이 바뀌면 완료 목록 정렬과 월 집계가 흔들린다.
+ * 완료 밖으로 나가면(되돌리기) 지운다. */
+const DONE: readonly string[] = DONE_STAGES;
+
+export function nextClosedAt(
+  prevClosedAt: string | null | undefined,
+  nextStage: QuoteStage | string,
+  now: Date = new Date()
+): string | null {
+  if (!DONE.includes(nextStage)) return null;
+  return prevClosedAt || now.toISOString();
 }
 
 /* ── 정렬 ─────────────────────────────────────────────────────

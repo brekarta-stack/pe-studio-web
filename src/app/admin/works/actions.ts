@@ -13,6 +13,7 @@ import {
   updateAssignment,
   deleteAssignment,
   getAssignment,
+  PartialSaveError,
 } from "@/lib/assignments";
 import {
   derivePayoutStatus,
@@ -184,7 +185,13 @@ export async function updateWork(
           : null;
     }
 
-    await updateAssignment(id, next);
+    try {
+      await updateAssignment(id, next);
+    } catch (e) {
+      // 수금일만 빠지고 나머지는 저장됐다 — 화면을 새 값으로 다시 그리고 안내는 그대로 띄운다
+      if (e instanceof PartialSaveError) revalidate();
+      throw e;
+    }
     revalidate();
     return { ok: true };
   } catch (e) {

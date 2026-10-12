@@ -6,21 +6,10 @@ import { quoteFromRow } from "@/lib/quote-types";
 import { DONE_STAGES, type AssignmentView } from "@/lib/assignment-types";
 import { listAssignmentViews } from "@/lib/assignments";
 import { completedAtOf, summarizeQuoteBilling } from "@/lib/completed";
+import { isMissingColumnError } from "@/lib/outreach";
 import CompletedList, { type CompletedRow } from "@/components/admin/CompletedList";
 
 export const dynamic = "force-dynamic";
-
-/** 아직 없는 컬럼을 정렬·조회에 썼다는 신호 — 마이그레이션 20261013 전에는 closed_at 이 없다 */
-function isMissingColumn(error: { message?: string; code?: string } | null): boolean {
-  if (!error) return false;
-  const msg = error.message ?? "";
-  return (
-    error.code === "42703" ||
-    error.code === "PGRST204" ||
-    msg.includes("does not exist") ||
-    msg.includes("schema cache")
-  );
-}
 
 /** 완료 단계(납품·정산) 리드 — 완료일 최신순. 마이그레이션 전에는 접수일 순으로 폴백 */
 async function loadDoneQuotes() {
@@ -34,7 +23,8 @@ async function loadDoneQuotes() {
   const first = await base()
     .order("closed_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
-  if (!isMissingColumn(first.error)) return first;
+  // 마이그레이션 20261013 전에는 closed_at 이 없다 → 접수일 순으로 폴백
+  if (!isMissingColumnError(first.error)) return first;
   return base().order("created_at", { ascending: false });
 }
 

@@ -19,18 +19,16 @@ import {
   vatOf,
 } from "./assignment-types.ts";
 import type { AssignmentView } from "./assignment-types.ts";
+import { kstDateOf, kstMonthKey } from "./kst.ts";
 
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** 날짜/시각 문자열 → 로컬 YYYY-MM. 해석 불가면 null */
+/**
+ * 날짜/시각 문자열 → 한국 달력 YYYY-MM. 해석 불가면 null.
+ * 날짜만 있는 값(DATE 컬럼)은 그대로 자르고(kstDateOf), 시각은 Asia/Seoul 로 환산한다 —
+ * 서버(Vercel)가 UTC 라 로컬 계산이면 매월 1일 00~09시(KST) 건이 전달로 밀린다.
+ */
 function monthOfDate(v: string | null | undefined): string | null {
-  if (!v) return null;
-  /* 날짜만 있는 값(DATE 컬럼)은 그대로 자른다 — new Date("2026-10-01") 은 UTC 자정이라
-     서쪽 타임존에서 전달로 밀린다 */
-  if (DATE_ONLY.test(v)) return v.slice(0, 7);
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const d = kstDateOf(v);
+  return d ? d.slice(0, 7) : null;
 }
 
 function isLive(a: Pick<AssignmentView, "status">): boolean {
@@ -39,9 +37,8 @@ function isLive(a: Pick<AssignmentView, "status">): boolean {
 
 /**
  * 매출·작업비가 귀속되는 달 — 납기, 없으면 배정 생성일.
- * 생성일(TIMESTAMPTZ)은 로컬(KST) 기준으로 달을 정한다. 대시보드는 created_at 문자열을
- * 그대로 잘라(UTC) 쓰므로, 납기 없는 배정이 매월 1일 00~09시(KST)에 만들어진 경우에만
- * 두 화면이 한 달 어긋날 수 있다 — 대시보드 쪽을 로컬로 맞추는 게 옳다.
+ * 생성일(TIMESTAMPTZ)은 한국 달력(KST) 기준으로 달을 정한다. 대시보드 "이번 달 매출"도
+ * 같은 summarizeMonth 를 kstMonthKey 로 부르므로 두 화면이 어긋나지 않는다.
  */
 export function monthKeyOf(a: Pick<AssignmentView, "dueDate" | "createdAt">): string {
   return monthOfDate(a.dueDate) ?? monthOfDate(a.createdAt) ?? "";
@@ -142,9 +139,9 @@ export function summarizeMonth(all: AssignmentView[], month: string): MonthSumma
   };
 }
 
-/** 오늘의 로컬 YYYY-MM */
+/** 오늘의 한국 달력 YYYY-MM */
 function currentMonth(today: Date): string {
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  return kstMonthKey(today);
 }
 
 /** 월 선택지 — 데이터가 있는 달 + 이번 달, 최신순. 이번 달은 배정이 없어도 고를 수 있어야 한다 */

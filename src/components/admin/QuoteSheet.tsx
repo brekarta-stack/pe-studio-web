@@ -14,7 +14,7 @@
  * 여기 단계 셀렉트에는 넣지 않는다 (docs/sales-pipeline-plan.md §3.4).
  */
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   MANUAL_CHANNELS,
   MANUAL_CHANNEL_LABELS,
@@ -48,6 +48,10 @@ import {
   dropQuote,
   createManualQuote,
 } from "@/app/admin/quotes/actions";
+import { unconvertLead } from "@/app/admin/outreach/actions";
+
+/** 전환 취소 버튼이 실행 대기 상태로 머무는 시간 — 보드의 전환 버튼과 같은 값 */
+const ARM_MS = 4000;
 
 /** 담당 아티스트 셀렉트의 특수 선택지 값 — 아티스트가 아니라 Drop(제외) 동작 */
 const DROP_VALUE = "__drop__";
@@ -144,7 +148,8 @@ function BoolCell({ on, label: text }: { on: boolean; label: string }) {
 export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady, activities }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  /** 성공 안내 — 어느 화면으로 옮겨 갔는지에 따라 따라갈 링크가 다르다 */
+  const [notice, setNotice] = useState<{ text: string; href: string; link: string } | null>(null);
   const [showManual, setShowManual] = useState(false);
 
   /* 낙관적 갱신용 로컬 오버레이 — 서버 재검증 전까지 화면을 즉시 바꾼다 */
@@ -224,7 +229,11 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
         }
         setError(res.error);
       } else if (toDone) {
-        setNotice(`'${q.name || q.org || "문의"}'을(를) 완료 프로젝트로 이동했습니다.`);
+        setNotice({
+          text: `'${q.name || q.org || "문의"}'을(를) 완료 프로젝트로 이동했습니다.`,
+          href: "/admin/completed",
+          link: "완료 프로젝트 보기",
+        });
       }
     });
   };
@@ -265,6 +274,43 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
   };
 
+  /* 전환 취소 — 제안 영업 보드에서 실수로 전환한 건을 팔로업으로 되돌린다.
+     서버 규칙(상담중 + 전환 기록 있음)과 같은 조건에서만 버튼을 보이고, 2단계로 누르게 한다 */
+  const [unconvertedIds, setUnconvertedIds] = useState<Set<string>>(new Set());
+  const [armedUnconvert, setArmedUnconvert] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (armTimer.current) clearTimeout(armTimer.current);
+  }, []);
+
+  const onUnconvert = (q: QuoteSubmission) => {
+    if (armedUnconvert !== q.id) {
+      setArmedUnconvert(q.id);
+      if (armTimer.current) clearTimeout(armTimer.current);
+      armTimer.current = setTimeout(() => setArmedUnconvert(null), ARM_MS);
+      return;
+    }
+    if (armTimer.current) clearTimeout(armTimer.current);
+    setArmedUnconvert(null);
+    setUnconvertedIds((s) => new Set(s).add(q.id));
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const res = await unconvertLead(q.id);
+      if (!res.ok) {
+        setUnconvertedIds((s) => {
+          const n = new Set(s);
+          n.delete(q.id);
+          return n;
+        });
+        setError(res.error);
+      } else {
+        setNotice({ text: "제안 영업으로 되돌렸습니다", href: "/admin/outreach", link: "제안 영업 보기" });
+      }
+    });
+  };
+
   /** 담당 아티스트 셀렉트 변경 — 특수값이면 Drop, 아니면 배정 */
   const onArtistSelect = (q: QuoteSubmission, value: string) => {
     if (value === DROP_VALUE) {
@@ -280,6 +326,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     return quotes.filter((row) => {
       if (droppedIds.has(row.id)) return false; // Drop 낙관적 제거
       if (closedIds.has(row.id)) return false; // 완료로 이동 — 낙관적 제거
+      if (unconvertedIds.has(row.id)) return false; // 전환 취소 — 제안 영업 보드로 이동
       if (stageFilter !== "all" && curStage(row) !== stageFilter) return false;
       if (progressFilter === "on" && !curProgress(row)) return false;
       if (progressFilter === "off" && curProgress(row)) return false;
@@ -293,7 +340,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
     // curStage/curProgress 는 오버레이 state 에 의존하므로 함께 재계산되어야 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quotes, search, stageFilter, progressFilter, stageOv, progressOv, droppedIds, closedIds]);
+  }, [quotes, search, stageFilter, progressFilter, stageOv, progressOv, droppedIds, closedIds, unconvertedIds]);
 
   const visible = COLUMNS.filter((c) => !hidden.has(c.key));
 
@@ -429,7 +476,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
       )}
       {notice && (
         <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          {notice} <a href="/admin/completed" className="font-semibold underline">완료 프로젝트 보기</a>
+          {notice.text} <a href={notice.href} className="font-semibold underline">{notice.link}</a>
         </div>
       )}
 
@@ -661,6 +708,23 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                 </span>
                                 {q.source === "outbound" && q.convertedAt && (
                                   <span className="mt-0.5 block text-[10px] text-slate-400">전환</span>
+                                )}
+                                {q.source === "outbound" && q.convertedAt && curStage(q) === "consulting" && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation(); // 행 클릭(상세 펼치기)으로 번지지 않게
+                                      onUnconvert(q);
+                                    }}
+                                    disabled={isPending}
+                                    className={`mt-1 block whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-semibold disabled:opacity-50 ${
+                                      armedUnconvert === q.id
+                                        ? "border-amber-300 bg-amber-50 text-amber-800"
+                                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {armedUnconvert === q.id ? "한 번 더 누르면 취소" : "전환 취소"}
+                                  </button>
                                 )}
                               </td>
                             );

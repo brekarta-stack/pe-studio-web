@@ -10,7 +10,7 @@
  * 서버가 실패하면 되돌린다. 확인창(window.confirm)은 쓰지 않고 행 아래 패널에서 한 번 더 누르게 한다.
  */
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { QuoteSubmission } from "@/lib/quote-types";
 import {
@@ -27,6 +27,7 @@ import {
   daysToNextAction,
   defaultFollowupDate,
   dueState,
+  fmtDateKo as fmtDate,
   sortOutreach,
   type OutreachFilter,
 } from "@/lib/outreach";
@@ -52,12 +53,8 @@ type Panel = { id: string; kind: "send" | "next" | "drop" } | null;
 
 const BRAND = "#1E22B2";
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit" });
-}
+/** 전환 버튼이 실행 대기 상태로 머무는 시간 — 완료 목록의 되돌리기와 같은 값 */
+const ARM_MS = 4000;
 
 /** DATE(YYYY-MM-DD) 는 new Date 가 UTC 자정으로 읽어 하루 밀릴 수 있으므로 문자열 그대로 짧게 쓴다 */
 function fmtDay(ymd: string | null): string {
@@ -106,6 +103,13 @@ export default function OutreachBoard({ rows, activities }: Props) {
   const [sentOv, setSentOv] = useState<Record<string, { at: string; to: string }>>({});
   /** 전환·Drop 으로 이 보드를 떠난 행 */
   const [goneIds, setGoneIds] = useState<Set<string>>(new Set());
+  /** 전환은 보드에서 행이 사라지는 조치라 2단계 — 첫 클릭은 대기, ARM_MS 안에 한 번 더 눌러야 실행 */
+  const [armedConvert, setArmedConvert] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (armTimer.current) clearTimeout(armTimer.current);
+  }, []);
 
   const curStage = (q: QuoteSubmission): QuoteStage => stageOv[q.id] ?? q.stage;
   const curNext = (q: QuoteSubmission): string | null =>
@@ -220,11 +224,23 @@ export default function OutreachBoard({ rows, activities }: Props) {
     });
 
   const onConvert = (q: QuoteSubmission) => {
+    if (armedConvert !== q.id) {
+      // 첫 클릭 — 실행하지 않고 대기 상태로만 바꾼다
+      setArmedConvert(q.id);
+      if (armTimer.current) clearTimeout(armTimer.current);
+      armTimer.current = setTimeout(() => setArmedConvert(null), ARM_MS);
+      return;
+    }
+    if (armTimer.current) clearTimeout(armTimer.current);
+    setArmedConvert(null);
     hide(q.id);
     run(
       () => convertLead(q.id),
       () => unhide(q.id),
-      () => setNotice(`'${q.org || q.name}'을(를) 상담중으로 전환했습니다. 제작 문의에서 이어서 진행하세요.`)
+      () =>
+        setNotice(
+          `'${q.org || q.name}'을(를) 상담중으로 전환했습니다. 제작 문의에서 이어서 진행하세요. 실수였다면 제작 문의 행의 '전환 취소'로 되돌릴 수 있습니다.`
+        )
     );
   };
 
@@ -450,12 +466,16 @@ export default function OutreachBoard({ rows, activities }: Props) {
                             팔로업일
                           </button>
                           <button
-                            className={`${actBtn} border-emerald-200 text-emerald-700 hover:bg-emerald-50`}
+                            className={
+                              armedConvert === q.id
+                                ? `${actBtn} border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50`
+                                : `${actBtn} border-emerald-200 text-emerald-700 hover:bg-emerald-50`
+                            }
                             onClick={() => onConvert(q)}
                             disabled={isPending}
                             title="답장이 왔으면 상담중으로 넘깁니다"
                           >
-                            전환
+                            {armedConvert === q.id ? "한 번 더 누르면 전환" : "전환"}
                           </button>
                           <button
                             className={`${actBtn} border-red-200 text-red-600 hover:bg-red-50`}
@@ -797,8 +817,13 @@ function ScoreSelect({ value, onChange }: { value: string; onChange: (v: string)
 /* ─── 발굴 에이전트 산출물 ─── 형태가 자주 바뀌는 JSONB 라 아는 키만 문자열일 때 보여 준다 */
 function AgentOutput({ outreach }: { outreach: Record<string, unknown> | null }) {
   if (!outreach) return null;
-  const subject = typeof outreach.subject === "string" ? outreach.subject : "";
-  const body = typeof outreach.body_text === "string" ? outreach.body_text : "";
+  // 저장 키는 snake_case(인테이크) — 이전 배포가 camelCase 로 넣은 행도 있을 수 있어 둘 다 본다
+  const str = (...keys: string[]): string => {
+    for (const k of keys) if (typeof outreach[k] === "string") return outreach[k] as string;
+    return "";
+  };
+  const subject = str("subject");
+  const body = str("body_text", "bodyText");
   if (!subject && !body) return null;
   return (
     <details className="rounded-xl border border-slate-200 bg-white p-3">

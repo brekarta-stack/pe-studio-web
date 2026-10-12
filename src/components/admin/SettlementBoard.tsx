@@ -266,7 +266,7 @@ export default function SettlementBoard({ month, months, rows, otherRows, canEdi
         {/* 부가세는 공급가가 아니므로 단위 줄을 따로 둔다 */}
         <Tile title="부가세" value={won(summary.revenueVat)} sub="부가세 청구분만" unit={`${monthLabel} · 매출 부가세 10%`} />
         <Tile
-          title="작업비 + 세금"
+          title="작업비"
           value={won(summary.cost)}
           sub={summary.costTax === 0 ? "세금 가감 없음" : `세금 ${summary.costTax > 0 ? "+" : "−"}${formatWon(Math.abs(summary.costTax))}원`}
           unit={unit}

@@ -21,6 +21,7 @@ import {
   type QuoteStage,
 } from "@/lib/assignment-types";
 import type { QuoteBilling } from "@/lib/completed";
+import { fmtDateKo as fmtDate } from "@/lib/outreach";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
 import { setQuoteStage } from "@/app/admin/quotes/actions";
 
@@ -35,11 +36,6 @@ export interface CompletedRow {
   billing: QuoteBilling;
 }
 
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit" });
-}
 
 /** 되돌리기 버튼이 실행 대기 상태로 머무는 시간 */
 const ARM_MS = 4000;
@@ -148,6 +144,7 @@ export default function CompletedList({ rows: initial }: { rows: CompletedRow[] 
               <th className={th}>완료일</th>
               <th className={`${th} text-right`}>매출 합</th>
               <th className={th}>수금</th>
+              <th className={th}>정산</th>
               <th className={th}>아티스트</th>
               <th className={th}>조치</th>
             </tr>
@@ -155,7 +152,7 @@ export default function CompletedList({ rows: initial }: { rows: CompletedRow[] 
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-16 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-16 text-center text-slate-400">
                   {initial.length === 0
                     ? "아직 완료된 프로젝트가 없습니다. 제작 문의에서 납품완료로 옮기면 여기에 모입니다."
                     : "조건에 맞는 프로젝트가 없습니다."}
@@ -213,6 +210,20 @@ export default function CompletedList({ rows: initial }: { rows: CompletedRow[] 
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
+                    <td className={`${td} whitespace-nowrap`}>
+                      {/* 작업비 지급 — 배정이 없으면 줄 돈도 없으니 미완으로 보이지 않게 비운다 */}
+                      {b.payoutDone ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                          지급 완료
+                        </span>
+                      ) : b.artistNames.length > 0 ? (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                          지급 미완
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
                     <td className={td}>
                       {b.artistNames.length > 0 ? b.artistNames.join(", ") : <span className="text-slate-300">미배정</span>}
                     </td>
@@ -245,6 +256,7 @@ export default function CompletedList({ rows: initial }: { rows: CompletedRow[] 
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-xs text-slate-400">수금일은 월 정산 화면에서 기록합니다.</p>
     </div>
   );
 }
