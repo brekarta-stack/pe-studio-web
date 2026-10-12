@@ -76,6 +76,7 @@ export async function createWork(input: {
       depositAmount: input.depositAmount,
       depositPaidAt: null,
       balancePaidAt: null,
+      clientPaidAt: null,
       payoutStatus: "unpaid",
       paidAt: null,
       dueDate: input.dueDate,

@@ -63,6 +63,8 @@ function toAssignment(row: any): Assignment {
     depositAmount: row.deposit_amount == null ? null : Number(row.deposit_amount),
     depositPaidAt: row.deposit_paid_at ?? null,
     balancePaidAt: row.balance_paid_at ?? null,
+    /* 마이그레이션 20261013 이전에는 컬럼이 없다 → 미수(null)로 읽는다 */
+    clientPaidAt: row.client_paid_at ?? null,
     payoutStatus: isPayoutStatus(row.payout_status) ? row.payout_status : "unpaid",
     paidAt: row.paid_at ?? null,
     dueDate: row.due_date ?? null,
@@ -83,6 +85,9 @@ function toAssignment(row: any): Assignment {
 
 function toRow(input: AssignmentInput) {
   return {
+    /* 수금일은 값이 있을 때만 보낸다 — 마이그레이션 20261013 전에 컬럼을 보내면
+       PostgREST 가 PGRST204 로 거절해 배정 생성 자체가 막힌다. 새 배정은 거의 늘 미수(null)다. */
+    ...(input.clientPaidAt ? { client_paid_at: input.clientPaidAt } : {}),
     quote_id: input.quoteId,
     artist_id: input.artistId,
     status: input.status,
@@ -225,6 +230,7 @@ export async function updateAssignment(
   if (patch.depositAmount !== undefined) row.deposit_amount = patch.depositAmount;
   if (patch.depositPaidAt !== undefined) row.deposit_paid_at = patch.depositPaidAt;
   if (patch.balancePaidAt !== undefined) row.balance_paid_at = patch.balancePaidAt;
+  if (patch.clientPaidAt !== undefined) row.client_paid_at = patch.clientPaidAt;
   if (patch.payoutStatus !== undefined) row.payout_status = patch.payoutStatus;
   if (patch.paidAt !== undefined) row.paid_at = patch.paidAt;
   if (patch.dueDate !== undefined) row.due_date = patch.dueDate;
@@ -284,6 +290,7 @@ export async function setQuoteArtist(quoteId: string, artistId: string | null): 
     depositAmount: null,
     depositPaidAt: null,
     balancePaidAt: null,
+    clientPaidAt: null,
     payoutStatus: "unpaid",
     paidAt: null,
     dueDate: null,
