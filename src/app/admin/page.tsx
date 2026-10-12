@@ -7,6 +7,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import Link from "next/link";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { getReviewMap, mergeItems, computeStats, pickTodayTarget } from "@/lib/studio-review";
+import { DONE_STAGES, OUTREACH_STAGES } from "@/lib/assignment-types";
+import { listAssignmentViews } from "@/lib/assignments";
+import { summarizeMonth } from "@/lib/settlement";
 
 const PRODUCT_LABELS: Record<string, string> = {
   papercraft: "페이퍼 크래프트",
@@ -23,8 +26,22 @@ export default async function AdminDashboard() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/admin/login");
 
+  // 로컬(KST) 기준 오늘·이번 달 — 월 정산 화면과 같은 방식
+  const todayKey = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+  const thisMonth = todayKey.slice(0, 7);
+
   /* ── 데이터 병렬 로드 ── */
-  const [posts, portfolioItems, quotesResult, reviewData, newQuotesResult, billingResult] =
+  const [
+    posts,
+    portfolioItems,
+    quotesResult,
+    reviewData,
+    newQuotesResult,
+    assignmentViews,
+    outreachResult,
+    outreachLateResult,
+    doneResult,
+  ] =
     await Promise.all([
       getPosts(),
       getItems(),
@@ -41,9 +58,33 @@ export default async function AdminDashboard() {
         .select("id", { count: "exact", head: true })
         .eq("stage", "new")
         .is("dropped_at", null),
-      /* 이번 달 매출 — 배정 단위의 청구금액을 합산한다.
-         건수가 적어 그대로 가져와 JS 에서 집계한다. */
-      supabaseAdmin.from("assignments").select("client_amount, due_date, created_at, status"),
+      /* 이번 달 매출 — 월 정산(/admin/settlements)과 같은 함수(summarizeMonth)로 계산해야
+         두 화면 숫자가 한 원도 어긋나지 않는다. 배정은 건수가 적어 목록을 받아 집계한다
+         (테이블이 없으면 빈 배열로 폴백). 그 밖의 DB 오류도 대시보드 전체를 죽이지 않게 0 으로. */
+      listAssignmentViews().catch((e) => {
+        console.error("[admin] 이번 달 매출 집계 실패:", e);
+        return [];
+      }),
+      /* 제안 영업 진행 — 아웃바운드 단계에 있는 리드 수(head, 로우 안 받음) */
+      supabaseAdmin
+        .from("quotes")
+        .select("id", { count: "exact", head: true })
+        .in("stage", [...OUTREACH_STAGES])
+        .is("dropped_at", null),
+      /* 팔로업 지연 — 다음 액션일이 오늘보다 이전인 아웃바운드 리드.
+         next_action_at 은 마이그레이션 20261013 컬럼이라 전에는 에러 → 아래에서 0 처리 */
+      supabaseAdmin
+        .from("quotes")
+        .select("id", { count: "exact", head: true })
+        .in("stage", [...OUTREACH_STAGES])
+        .is("dropped_at", null)
+        .lt("next_action_at", todayKey),
+      /* 완료 프로젝트 — 납품·정산 단계 */
+      supabaseAdmin
+        .from("quotes")
+        .select("id", { count: "exact", head: true })
+        .in("stage", [...DONE_STAGES])
+        .is("dropped_at", null),
     ]);
 
   /* ── 도면 검수 진행 상황 ── */
@@ -59,16 +100,15 @@ export default async function AdminDashboard() {
      마이그레이션 전이면 stage 컬럼이 없어 에러가 나므로 0 으로 떨어뜨린다. */
   const newQuoteCount = newQuotesResult.error ? 0 : newQuotesResult.count ?? 0;
 
+  /* 각 count 쿼리는 독립적으로 실패할 수 있다(마이그레이션 전 컬럼 없음 등) — 실패는 0 으로 */
+  const outreachCount = outreachResult.error ? 0 : outreachResult.count ?? 0;
+  const outreachLateCount = outreachLateResult.error ? 0 : outreachLateResult.count ?? 0;
+  const doneCount = doneResult.error ? 0 : doneResult.count ?? 0;
+
   /* ── 이번 달 매출 ──
-     이번 달 1일~말일에 해당하는 배정의 청구금액 합계.
-     "이번 달"의 기준은 납기(due_date), 납기가 없으면 배정 생성일 —
-     /admin/works 의 "이번 달 납기" 지표와 같은 정의라 두 화면 숫자가 어긋나지 않는다.
+     귀속 기준은 납기(due_date), 없으면 배정 생성일 — 월 정산과 같은 summarizeMonth 를 쓴다.
      취소된 배정과 부가세는 제외한다(부가세는 매출이 아니라 나중에 납부할 돈). */
-  const thisMonth = new Date().toLocaleDateString("en-CA").slice(0, 7); // 로컬(KST) YYYY-MM
-  const monthlyRevenue = (billingResult.data ?? [])
-    .filter((a) => a.status !== "cancelled")
-    .filter((a) => String(a.due_date ?? a.created_at ?? "").slice(0, 7) === thisMonth)
-    .reduce((sum, a) => sum + Number(a.client_amount ?? 0), 0);
+  const monthlyRevenue = summarizeMonth(assignmentViews, thisMonth).revenue;
 
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "short",
@@ -85,7 +125,33 @@ export default async function AdminDashboard() {
       </div>
 
       {/* ── 통계 카드 ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {/* 제안 영업 진행 — 아웃바운드 단계 리드 수. 팔로업 예정일이 지난 건이 있으면 경고색 */}
+        <Link
+          href="/admin/outreach"
+          className={`group rounded-2xl border p-5 hover:shadow-md transition-all ${
+            outreachLateCount > 0
+              ? "bg-amber-50 border-amber-300 hover:border-amber-400"
+              : "bg-white border-slate-200 hover:border-blue-300"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FFF1E8" }}>
+              <svg viewBox="0 0 20 20" fill="#C2410C" className="w-5 h-5">
+                <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+              </svg>
+            </div>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 mb-0.5 tabular-nums">{outreachCount}</p>
+          <p className="text-sm text-slate-500">제안 영업 진행</p>
+          <p className={`text-xs mt-1 ${outreachLateCount > 0 ? "font-semibold text-amber-700" : "text-slate-400"}`}>
+            팔로업 지연 {outreachLateCount}건
+          </p>
+        </Link>
+
         <Link href="/admin/quotes" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#EEF0FF" }}>
@@ -106,8 +172,25 @@ export default async function AdminDashboard() {
           </p>
         </Link>
 
-        {/* 이번 달 매출 — 1일~말일. 납기(없으면 배정일)가 이번 달인 배정의 청구금액 합계 */}
-        <Link href="/admin/works" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">
+        {/* 완료 프로젝트 — 납품·정산 단계 리드 수 */}
+        <Link href="/admin/completed" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E6F6F4" }}>
+              <svg viewBox="0 0 20 20" fill="#0F766E" className="w-5 h-5">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 mb-0.5 tabular-nums">{doneCount}</p>
+          <p className="text-sm text-slate-500">완료 프로젝트</p>
+          <p className="text-xs text-slate-400 mt-1">납품완료 · 정산완료</p>
+        </Link>
+
+        {/* 이번 달 매출 — 월 정산과 같은 계산(summarizeMonth). 눌러서 이번 달 정산으로 */}
+        <Link href={`/admin/settlements?month=${thisMonth}`} className="group bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E8F7F0" }}>
               <svg viewBox="0 0 20 20" fill="#0E7A5F" className="w-5 h-5">
@@ -124,7 +207,7 @@ export default async function AdminDashboard() {
           </p>
           <p className="text-sm text-slate-500">이번 달 매출</p>
           <p className="text-xs text-slate-400 mt-1">
-            {monthLabel} 1일~말일 · 부가세 제외
+            {monthLabel} · 공급가액 · 부가세 별도 · 월 정산 보기
           </p>
         </Link>
 

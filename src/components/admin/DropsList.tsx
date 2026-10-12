@@ -4,7 +4,8 @@
  * Drop(제외) 처리된 제작 문의 목록 — 운영 > Drop.
  *
  * 제작 문의 시트에서 담당 아티스트 드롭다운의 "⛔ Drop" 을 고르면 여기로 온다.
- * 여기서 할 수 있는 일은 둘:
+ * 여기서 할 수 있는 일은 셋:
+ *   · 사유 기록 — 왜 놓쳤는지를 남겨 두어야 나중에 실주 원인을 셀 수 있다 (칸을 눌러 바로 편집)
  *   · 복구 — 제작 문의 목록으로 되돌린다 (낙관적으로 즉시 감춤)
  *   · 영구 삭제 — 되돌릴 수 없다. 테스트 제출·스팸 정리용.
  *
@@ -13,11 +14,12 @@
  * 무엇을 지우는지 목록으로 한 번 보여주고 한 번만 확인받는 편이 더 안전하다.
  */
 
-import { useMemo, useState, useTransition } from "react";
-import type { QuoteSubmission } from "@/lib/quote-types";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { SOURCE_LABELS, type QuoteSubmission } from "@/lib/quote-types";
 import { STAGE_LABELS, STAGE_COLORS } from "@/lib/assignment-types";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
 import { restoreQuote, deleteQuoteForever } from "@/app/admin/quotes/actions";
+import { setLostReason } from "@/app/admin/drops/actions";
 import type { AssignedMap } from "@/components/admin/QuoteSheet";
 
 interface Props {
@@ -43,6 +45,43 @@ export default function DropsList({ quotes, assigned }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [search, setSearch] = useState("");
+  /* 사유 인라인 편집 — 저장 전까지 draft 에 두고, 저장하면 낙관적으로 reasons 에 반영한다 */
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [reasonDraft, setReasonDraft] = useState("");
+  // Esc 로 닫을 때 뒤따르는 blur 가 저장하지 않게 막는 표시
+  const cancelBlur = useRef(false);
+
+  const reasonOf = (q: QuoteSubmission) => reasons[q.id] ?? q.lostReason;
+
+  const startEdit = (q: QuoteSubmission) => {
+    cancelBlur.current = false;
+    setEditingId(q.id);
+    setReasonDraft(reasonOf(q));
+  };
+
+  const saveReason = (q: QuoteSubmission) => {
+    setEditingId(null);
+    const next = reasonDraft.trim();
+    const prev = reasonOf(q);
+    if (next === prev) return;
+    const hadOverride = q.id in reasons;
+    const prevOverride = reasons[q.id];
+    setReasons((r) => ({ ...r, [q.id]: next }));
+    setError(null);
+    startTransition(async () => {
+      const res = await setLostReason(q.id, next);
+      if (!res.ok) {
+        setReasons((r) => {
+          const n = { ...r };
+          if (hadOverride) n[q.id] = prevOverride;
+          else delete n[q.id];
+          return n;
+        });
+        setError(res.error);
+      }
+    });
+  };
 
   const onRestore = (q: QuoteSubmission) => {
     setRestoredIds((s) => new Set(s).add(q.id));
@@ -65,11 +104,11 @@ export default function DropsList({ quotes, assigned }: Props) {
     return quotes.filter((q) => {
       if (restoredIds.has(q.id) || deletedIds.has(q.id)) return false;
       if (!term) return true;
-      return [q.name, q.email, q.phone, q.notes, q.colorRequest]
+      return [q.name, q.org, q.email, q.phone, q.notes, q.colorRequest, reasons[q.id] ?? q.lostReason]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(term));
     });
-  }, [quotes, search, restoredIds, deletedIds]);
+  }, [quotes, search, restoredIds, deletedIds, reasons]);
 
   /* 선택은 현재 보이는 행 기준으로만 유지한다 — 검색을 바꿨을 때
      화면에 없는 항목이 조용히 선택된 채 남아 함께 지워지면 안 된다. */
@@ -127,7 +166,7 @@ export default function DropsList({ quotes, assigned }: Props) {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="이름·이메일·연락처·메모 검색"
+          placeholder="이름·기관·연락처·메모·사유 검색"
           className="h-9 w-60 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
         />
 
@@ -175,6 +214,7 @@ export default function DropsList({ quotes, assigned }: Props) {
               <th className={`${th} w-36`}>제품</th>
               <th className={`${th} w-28`}>단계</th>
               <th className={`${th} w-28`}>담당</th>
+              <th className={`${th} w-56`}>사유</th>
               <th className={`${th} w-56`}>메모</th>
               <th className={`${th} w-24`}>복구</th>
             </tr>
@@ -182,7 +222,7 @@ export default function DropsList({ quotes, assigned }: Props) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-16 text-center text-slate-400">
+                <td colSpan={12} className="px-4 py-16 text-center text-slate-400">
                   {quotes.length === 0
                     ? "Drop 처리된 문의가 없습니다."
                     : "조건에 맞는 문의가 없습니다."}
@@ -205,7 +245,19 @@ export default function DropsList({ quotes, assigned }: Props) {
                     </td>
                     <td className={`${td} whitespace-nowrap text-xs text-slate-500`}>{fmtDate(q.droppedAt)}</td>
                     <td className={`${td} whitespace-nowrap text-xs text-slate-500`}>{fmtDate(q.createdAt)}</td>
-                    <td className={`${td} font-semibold text-slate-900`}>{q.name || "—"}</td>
+                    <td className={td}>
+                      <p className="font-semibold text-slate-900">{q.name || "—"}</p>
+                      {q.org && <p className="mt-0.5 text-xs text-slate-400">{q.org}</p>}
+                      <span
+                        className={`mt-1 inline-block rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
+                          q.source === "outbound"
+                            ? "border-orange-200 bg-orange-50 text-orange-700"
+                            : "border-slate-200 bg-slate-50 text-slate-500"
+                        }`}
+                      >
+                        {SOURCE_LABELS[q.source]}
+                      </span>
+                    </td>
                     <td className={td}>
                       {q.phone ? <a href={`tel:${q.phone}`} className="hover:text-blue-700 hover:underline">{q.phone}</a> : "—"}
                     </td>
@@ -223,6 +275,48 @@ export default function DropsList({ quotes, assigned }: Props) {
                       </span>
                     </td>
                     <td className={td}>{artistNames || <span className="text-slate-300">미배정</span>}</td>
+                    <td className={`${td} max-w-[14rem]`}>
+                      {editingId === q.id ? (
+                        <input
+                          autoFocus
+                          value={reasonDraft}
+                          onChange={(e) => setReasonDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            } else if (e.key === "Escape") {
+                              cancelBlur.current = true;
+                              setEditingId(null);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (cancelBlur.current) {
+                              cancelBlur.current = false;
+                              return;
+                            }
+                            saveReason(q);
+                          }}
+                          maxLength={500}
+                          placeholder="예: 예산 부족, 일정 안 맞음"
+                          aria-label={`${q.name || "문의"} Drop 사유`}
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm outline-none focus:border-slate-500"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(q)}
+                          title="눌러서 사유 편집 (Enter 저장 · Esc 취소)"
+                          className="w-full rounded-lg px-1 py-0.5 text-left hover:bg-slate-100"
+                        >
+                          {reasonOf(q) ? (
+                            <span className="line-clamp-2">{reasonOf(q)}</span>
+                          ) : (
+                            <span className="text-slate-300">+ 사유 입력</span>
+                          )}
+                        </button>
+                      )}
+                    </td>
                     <td className={`${td} max-w-[14rem]`}><span className="line-clamp-2">{q.notes || "—"}</span></td>
                     <td className={td}>
                       <button

@@ -22,6 +22,7 @@ const TABLES = [
   "estimates",
   "estimate_events",
   "google_drive_connection",
+  "lead_activities",
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -51,6 +52,7 @@ const TABLE_SQL: Record<TableName, string> = {
   estimates:               "migrations/20260921_estimates.sql",
   estimate_events:         "migrations/20260921_estimates.sql",
   google_drive_connection: "migrations/20260921_estimates.sql",
+  lead_activities:         "migrations/20261013_sales_pipeline.sql",
 };
 
 /** 테이블은 있는데 나중에 추가된 컬럼만 없는 경우 — 컬럼 단위로도 확인한다 */
@@ -126,6 +128,20 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     column: "queued",
     sql: "migrations/20260808_blog_scheduling.sql",
     note: "posts.queued / auto_published_at (블로그 주간 자동 발행 대기열)",
+  },
+  /* 영업 파이프라인 — 아웃바운드·활동 기록·수금일. 한 파일이 quotes 컬럼 묶음, lead_activities 표,
+     assignments.client_paid_at 을 함께 만든다. 표는 TABLES 에서, 컬럼은 여기서 확인한다 */
+  {
+    table: "quotes",
+    column: "source",
+    sql: "migrations/20261013_sales_pipeline.sql",
+    note: "영업 파이프라인 — 아웃바운드·활동 기록·수금일 (quotes.source / org / next_action_at / closed_at / lost_reason …)",
+  },
+  {
+    table: "assignments",
+    column: "client_paid_at",
+    sql: "migrations/20261013_sales_pipeline.sql",
+    note: "영업 파이프라인 — assignments.client_paid_at (고객 수금일)",
   },
 ];
 

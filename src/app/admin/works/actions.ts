@@ -33,6 +33,10 @@ function fail(e: unknown): ActionResult {
 function revalidate() {
   revalidatePath("/admin/works");
   revalidatePath("/admin/quotes");
+  // 수금·지급일은 월 정산·완료 프로젝트·대시보드 매출에도 그대로 잡힌다
+  revalidatePath("/admin/settlements");
+  revalidatePath("/admin/completed");
+  revalidatePath("/admin");
   // 아티스트 포털도 같은 데이터를 본다 — 조건이 바뀌면 바로 반영되게
   revalidatePath("/artist");
   revalidatePath("/artist/settlements");
@@ -118,6 +122,8 @@ export async function updateWork(
     depositAmount?: number | null;
     depositPaidAt?: string | null;
     balancePaidAt?: string | null;
+    /** 고객 입금일(수금일). 지급 상태와는 무관하다 — 들어온 돈과 나간 돈은 따로 본다 */
+    clientPaidAt?: string | null;
     dueDate?: string | null;
     startedAt?: string | null;
     memo?: string;
@@ -146,6 +152,7 @@ export async function updateWork(
     if (patch.depositAmount !== undefined) next.depositAmount = patch.depositAmount;
     if (patch.depositPaidAt !== undefined) next.depositPaidAt = patch.depositPaidAt || null;
     if (patch.balancePaidAt !== undefined) next.balancePaidAt = patch.balancePaidAt || null;
+    if (patch.clientPaidAt !== undefined) next.clientPaidAt = patch.clientPaidAt || null;
     if (patch.dueDate !== undefined) next.dueDate = patch.dueDate || null;
     if (patch.startedAt !== undefined) next.startedAt = patch.startedAt || null;
     if (patch.memo !== undefined) next.memo = patch.memo;
