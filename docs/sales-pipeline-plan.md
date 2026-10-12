@@ -104,7 +104,7 @@ stageGroup(stage) → "outreach" | "active" | "done"
 | `/admin/setup` (수정) | 설정 | 새 마이그레이션 등록 (`ALLOWED_FILES` + 화면 목록) | — |
 | `POST /api/admin/outreach/intake` (신설) | API | 발굴 에이전트가 리드를 넣는 입구. `x-intake-token` 헤더(`OUTREACH_INTAKE_TOKEN`) 또는 관리자 세션. org_key 가 같은 기관이 이미 있으면 **거부하지 않고 병합**한다 — 새 초안은 활동 기록으로 남기고 제안서 링크만 최신으로 갱신(`docs/outreach-intake.md`) | — |
 
-공용 조각: `src/components/admin/ActivityTimeline.tsx`(목록 + 추가 폼), `src/components/admin/StageBadge.tsx`(색·라벨은 레지스트리에서).
+공용 조각: `src/components/admin/ActivityTimeline.tsx`(목록 + 추가 폼). 단계 배지는 별도 컴포넌트 없이 `STAGE_COLORS`/`STAGE_LABELS` 레지스트리를 각 보드가 직접 쓴다(`StageBadge.tsx` 는 만들지 않았다). 날짜·컬럼 누락 판정 같은 공용 헬퍼는 `src/lib/outreach.ts` 한 곳에 둔다.
 
 ## 5. 구현 순서 (각 단계 = doer 1명, 끝나면 테스트 → 다음)
 
@@ -113,7 +113,7 @@ stageGroup(stage) → "outreach" | "active" | "done"
 | A | 스키마·타입·라이브러리 | 마이그레이션 SQL, `assignment-types.ts` 단계 그룹, `quote-types.ts` 필드·`quoteFromRow`, `lead-activity-types.ts`(`normalizeOrgKey`, `isRecentlyProposed`), `lead-activities.ts`, `settlement.ts`(순수 집계), 테스트 3종 | `npm test` 통과, 기존 241건 유지 |
 | B | 제안 영업 보드 + 활동 기록 | `/admin/outreach` page·actions, `OutreachBoard.tsx`, `ActivityTimeline.tsx`, `setQuoteStage` 가 `stage_changed_at`/`closed_at`/활동을 함께 쓰도록 | 보드에서 등록→발송→팔로업→전환→Drop 전 과정 동작 |
 | C | 활성 큐 분리 · 완료 · 월 정산 · Drop 사유 · 대시보드 · 날개 · setup | `/admin/quotes` 필터·정렬, `/admin/completed`, `/admin/settlements`, `drops` 사유, `AdminShell` NAV, `page.tsx` 타일, `setup`·`migrate` 등록 | 세 화면이 같은 표를 겹치지 않게 나눠 보임 |
-| D | 기존 자산 이관 · 인테이크 API | `scripts/import-outreach.mjs`(agents-bd md 110건 + 드라이브 덱 URL → org_key 로 묶어 기관당 1행 `drafted`, 이전 초안은 활동으로), `/api/admin/outreach/intake` | dry-run 결과 표 확인 후 실제 삽입 |
+| D | 기존 자산 이관 · 인테이크 API | `/api/admin/outreach/intake`(기관 단위 병합), `scripts/import-outreach.mjs`(payload.json 을 청크로 POST). payload 는 일회성 빌더(세션 스크래치, agents-bd md 110건 + review/published JSON + 드라이브 덱 목록 → `{leads}`)로 만든다 — 109건이 기관 52곳으로 묶이고 57건은 이전 초안 활동으로 남는 것을 로컬 dry-run 으로 확인 | 운영 dry-run 결과 표 확인 후 실제 삽입 |
 | E | 검수·배포·적용 | judge(read-only, `backoffice-console/references/review-gate.md`) → 지적 수정 → lint·build → commit/push → `vercel deploy --prod` → 마이그레이션 실행 → 이관 스크립트 → 화면 확인 | 운영 URL 에서 네 화면이 뜨고 이관 데이터가 보임 |
 
 ## 6. 지키는 규칙 (backoffice-console 게이트에서 발췌)
@@ -128,6 +128,7 @@ stageGroup(stage) → "outreach" | "active" | "done"
 ## 7. 결정·가정·남은 위험
 
 - **발굴 자동화(bd-daily) 재가동은 이번 범위 밖.** 2026-08-10 에 의도적으로 멈춘 이유가 기록에 없다. 인테이크 API 를 열어 두고, 재가동은 사용자가 결정한다.
+- 이관 스크립트는 멱등이 아니다 — 같은 payload 를 두 번 넣으면 기관 행은 늘지 않지만 활동 기록이 중복된다. 한 번만 돌린다.
 - 이관 데이터는 전부 `drafted`(제안서 준비) 로 넣는다 — 발송 증거가 없기 때문. 실제로 보낸 건이 있으면 보드에서 "발송 기록"으로 고친다.
 - `client_amount` 가 배정 단위인 기존 설계를 유지한다(한 리드에 아티스트 여럿). 수금일도 배정 단위.
 - 마이그레이션 실행에는 `SUPABASE_ACCESS_TOKEN` 이 필요한데 Vercel 환경변수에 **없다**(2026-10-13 확인). 그래서 SQL 은 사용자가 Supabase SQL Editor 에서 실행한다. 이후 이 토큰을 Vercel 에 추가하면 `/admin/setup` 버튼으로도 된다.
