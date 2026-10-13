@@ -4,8 +4,9 @@ export type { Category, ClientType, PortfolioItem } from "./portfolio-types";
 export { CATEGORIES, CLIENT_TYPES, SUGGESTED_TAGS } from "./portfolio-types";
 import type { PortfolioItem } from "./portfolio-types";
 
+/** DB 행 → PortfolioItem. 인테이크(portfolio-intake-run)도 같은 변환을 쓴다 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toItem(row: any): PortfolioItem {
+export function toItem(row: any): PortfolioItem {
   return {
     id: row.id,
     airtableId: row.airtable_id ?? undefined,
@@ -109,7 +110,8 @@ export async function ensureUniqueSlug(base: string, selfId?: string): Promise<s
   return `${root}-${randomUUID().slice(0, 6)}`;
 }
 
-export async function saveItem(item: PortfolioItem): Promise<void> {
+/** PortfolioItem → DB 행. saveItem 과 인테이크의 자리 잡기(insert)가 같이 쓴다 */
+export function toRow(item: PortfolioItem): Record<string, unknown> {
   const row: Record<string, unknown> = {
     id: item.id,
     airtable_id: item.airtableId ?? null,
@@ -132,7 +134,11 @@ export async function saveItem(item: PortfolioItem): Promise<void> {
   // produced_at 마이그레이션 전 DB 에서도 일반 저장이 깨지지 않도록,
   // 값이 지정된 경우에만 컬럼을 포함한다 (null = 비우기).
   if (item.producedAt !== undefined) row.produced_at = item.producedAt;
-  const { error } = await supabaseAdmin.from("portfolio_items").upsert(row);
+  return row;
+}
+
+export async function saveItem(item: PortfolioItem): Promise<void> {
+  const { error } = await supabaseAdmin.from("portfolio_items").upsert(toRow(item));
   if (error) throw error;
 }
 
