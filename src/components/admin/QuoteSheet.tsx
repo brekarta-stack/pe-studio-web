@@ -53,7 +53,8 @@ import { unconvertLead } from "@/app/admin/outreach/actions";
 /** 전환 취소 버튼이 실행 대기 상태로 머무는 시간 — 보드의 전환 버튼과 같은 값 */
 const ARM_MS = 4000;
 
-/** 담당 아티스트 셀렉트의 특수 선택지 값 — 아티스트가 아니라 Drop(제외) 동작 */
+/** 단계 셀렉트의 특수 선택지 값 — 단계가 아니라 Drop(제외) 동작.
+    "이 건을 어떻게 할지"는 단계 칸에서 정하는 게 자연스러워서 담당 아티스트 칸에서 옮겼다 */
 const DROP_VALUE = "__drop__";
 
 /** 이 시트에서 고를 수 있는 단계 — 진행 중 + 완료(완료로 옮기면 목록에서 빠진다) */
@@ -311,13 +312,13 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
   };
 
-  /** 담당 아티스트 셀렉트 변경 — 특수값이면 Drop, 아니면 배정 */
-  const onArtistSelect = (q: QuoteSubmission, value: string) => {
+  /** 단계 셀렉트 변경 — 특수값이면 Drop 사유 입력칸을 펼치고(단계는 그대로), 아니면 단계 변경 */
+  const onStageSelect = (q: QuoteSubmission, value: string) => {
     if (value === DROP_VALUE) {
       setDropPromptId(q.id);
       return;
     }
-    onChangeArtist(q, value);
+    onChangeStage(q, value as QuoteStage);
   };
 
   /* ── 필터링 ── */
@@ -535,14 +536,23 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               <td key={c.key} className={td} onClick={(e) => e.stopPropagation()}>
                                 <select
                                   value={stage}
-                                  onChange={(e) => onChangeStage(q, e.target.value as QuoteStage)}
+                                  onChange={(e) => onStageSelect(q, e.target.value)}
                                   aria-label={`${q.name} 진행 단계`}
                                   className={`w-full min-w-[6.5rem] cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold outline-none ${STAGE_COLORS[stage]}`}
                                 >
                                   {SHEET_STAGES.map((s) => (
                                     <option key={s} value={s}>{STAGE_LABELS[s]}</option>
                                   ))}
+                                  <option disabled>──────────</option>
+                                  <option value={DROP_VALUE}>⛔ Drop (목록에서 제외)</option>
                                 </select>
+                                {dropPromptId === q.id && (
+                                  <DropPrompt
+                                    pending={isPending}
+                                    onCancel={() => setDropPromptId(null)}
+                                    onConfirm={(reason) => onDrop(q, reason)}
+                                  />
+                                )}
                               </td>
                             );
                           case "artist":
@@ -550,7 +560,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               <td key={c.key} className={td} onClick={(e) => e.stopPropagation()}>
                                 <select
                                   value={curArtistId(q)}
-                                  onChange={(e) => onArtistSelect(q, e.target.value)}
+                                  onChange={(e) => onChangeArtist(q, e.target.value)}
                                   disabled={!assignmentsReady}
                                   aria-label={`${q.name} 담당 아티스트`}
                                   className="w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
@@ -559,18 +569,9 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                   {artists.map((a) => (
                                     <option key={a.id} value={a.id}>{a.name}</option>
                                   ))}
-                                  <option disabled>──────────</option>
-                                  <option value={DROP_VALUE}>⛔ Drop (목록에서 제외)</option>
                                 </select>
                                 {extra > 0 && (
                                   <span className="mt-1 block text-[11px] text-slate-400">외 {extra}명</span>
-                                )}
-                                {dropPromptId === q.id && (
-                                  <DropPrompt
-                                    pending={isPending}
-                                    onCancel={() => setDropPromptId(null)}
-                                    onConfirm={(reason) => onDrop(q, reason)}
-                                  />
                                 )}
                               </td>
                             );
