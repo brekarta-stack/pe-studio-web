@@ -28,6 +28,7 @@ import {
 import { CATEGORIES, CLIENT_TYPES } from "../src/lib/portfolio-types.ts";
 import {
   ALREADY_PUBLISHED_ERROR,
+  TOO_MANY_GROUPS_ERROR,
   hasContent,
   placeholderDraft,
   runIntakeFlow,
@@ -228,6 +229,8 @@ function fakeDeps(over = {}) {
     },
     findDraft: async (ext) => {
       assert.equal(ext, intakeExternalId(CAT_KEY));
+      // 자리 잡기 뒤에는 저장소에 있는 최신 행을 돌려준다 (삭제 전 재확인이 이것을 본다)
+      for (const row of rows.values()) if (row.airtableId === ext) return row;
       return over.existing ?? null;
     },
     claimDraft: async (d) => {
@@ -342,6 +345,37 @@ test("흐름: 업로드가 실패해도 빈 자리를 지운다. 기존 초안�
   const r = await runIntakeFlow(CAT_FILES, {}, b.deps);
   assert.equal(r.groups[0].action, "failed");
   assert.equal(b.calls.discard.length, 0, "남의 초안은 지우지 않는다");
+});
+
+test("흐름: 내가 잡은 자리라도 그 사이 다른 요청이 채웠으면 실패해도 지우지 않는다", async () => {
+  const { deps, calls, rows } = fakeDeps({ generateFails: true });
+  const origGenerate = deps.generate;
+  deps.generate = async (input) => {
+    // 내 생성이 도는 동안 이웃 요청이 같은 행을 완성했다
+    const mine = rows.get("id-new");
+    rows.set("id-new", { ...mine, images: ["https://cdn/theirs.jpg"], imageAlts: ["theirs"], description: "그쪽 본문" });
+    return origGenerate(input);
+  };
+  const r = await runIntakeFlow(CAT_FILES, {}, deps);
+  assert.equal(r.groups[0].action, "failed");
+  assert.equal(calls.discard.length, 0, "남이 채운 행은 지우지 않는다");
+  assert.ok(rows.has("id-new"));
+});
+
+test("흐름: 한 요청에 묶음이 상한(3)을 넘으면 넘는 묶음은 처리하지 않고 이유를 적는다", async () => {
+  const files = [
+    ...CAT_FILES,
+    { name: "A-260101-B (1).jpg", bytes: Buffer.from("A") },
+    { name: "C-260102-D (1).jpg", bytes: Buffer.from("C") },
+    { name: "E-260103-F (1).jpg", bytes: Buffer.from("E") },
+  ];
+  const { deps, calls } = fakeDeps();
+  deps.findDraft = async () => null;
+  const r = await runIntakeFlow(files, {}, deps);
+  assert.deepEqual(r.groups.map((g) => g.action), ["created", "created", "created", "failed"]);
+  assert.equal(r.groups[3].error, TOO_MANY_GROUPS_ERROR);
+  assert.equal(r.groups[3].client, "E");
+  assert.equal(calls.generate.length, 3);
 });
 
 test("흐름: 동시에 다른 요청이 먼저 자리를 잡았으면(유니크 충돌) 그 빈 행에 글과 사진을 채운다", async () => {

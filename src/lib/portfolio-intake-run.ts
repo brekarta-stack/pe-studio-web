@@ -144,42 +144,54 @@ async function claimDraft(draft: PortfolioItem): Promise<PortfolioItem> {
   return withSlug;
 }
 
-/** 행을 다시 읽어 사진·alt 만 뒤에 붙인다 — 생성하는 1~2분 사이 어드민이 고친 내용을 덮어쓰지 않게 */
+/**
+ * 행을 다시 읽어 사진·alt 만 뒤에 붙인다 — 생성하는 1~2분 사이 어드민이 고친 내용을 덮어쓰지 않게.
+ *
+ * 읽고-쓰기 사이에 다른 요청(연속 업로드의 이웃 사진)이 먼저 썼을 수 있다. 그래서 읽었을 때의 updated_at 이
+ * 그대로일 때만 갱신하고(낙관적 잠금), 한 행도 안 바뀌었으면 다시 읽어 되풀이한다. 아니면 먼저 쓴 쪽 사진이 사라진다.
+ */
+const FINALIZE_ATTEMPTS = 4;
+
 async function finalize(id: string, patch: IntakeFinalizePatch): Promise<PortfolioItem> {
-  const { data, error } = await supabaseAdmin.from("portfolio_items").select("*").eq("id", id).maybeSingle();
-  if (error || !data) throw new Error(`초안을 다시 읽을 수 없음: ${error?.message ?? "행 없음"}`);
-  const current = toItem(data);
-  const prevAlts = current.images.map((_, i) => current.imageAlts?.[i] ?? null);
+  for (let attempt = 1; attempt <= FINALIZE_ATTEMPTS; attempt++) {
+    const { data, error } = await supabaseAdmin.from("portfolio_items").select("*").eq("id", id).maybeSingle();
+    if (error || !data) throw new Error(`초안을 다시 읽을 수 없음: ${error?.message ?? "행 없음"}`);
+    const current = toItem(data);
+    const prevAlts = current.images.map((_, i) => current.imageAlts?.[i] ?? null);
 
-  const update: Record<string, unknown> = {
-    images: [...current.images, ...patch.images],
-    image_alts: [...prevAlts, ...patch.imageAlts],
-    published: current.published || patch.publish,
-    updated_at: new Date().toISOString(),
-  };
-  if (patch.content) {
-    const c = patch.content;
-    Object.assign(update, {
-      title: c.title,
-      summary: c.summary || null,
-      description: c.description,
-      category: c.category,
-      client_type: c.clientType ?? null,
-      tags: c.tags,
-      keywords: c.keywords,
-      // 제목이 정해졌으니 슬러그도 다시 — 한글 제목은 어차피 case-… 라 바뀌지 않는다
-      slug: await ensureUniqueSlug(deriveSlug({ id, slug: "", client: current.client, title: c.title }), id),
-    });
+    const update: Record<string, unknown> = {
+      images: [...current.images, ...patch.images],
+      image_alts: [...prevAlts, ...patch.imageAlts],
+      published: current.published || patch.publish,
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.content) {
+      const c = patch.content;
+      Object.assign(update, {
+        title: c.title,
+        summary: c.summary || null,
+        description: c.description,
+        category: c.category,
+        client_type: c.clientType ?? null,
+        tags: c.tags,
+        keywords: c.keywords,
+        // 제목이 정해졌으니 슬러그도 다시 — 한글 제목은 어차피 case-… 라 바뀌지 않는다
+        slug: await ensureUniqueSlug(deriveSlug({ id, slug: "", client: current.client, title: c.title }), id),
+      });
+    }
+
+    const { data: saved, error: upErr } = await supabaseAdmin
+      .from("portfolio_items")
+      .update(update)
+      .eq("id", id)
+      .eq("updated_at", current.updatedAt)
+      .select("*")
+      .maybeSingle();
+    if (upErr) throw new Error(`초안 저장 실패: ${upErr.message}`);
+    if (saved) return toItem(saved);
+    // 그 사이 누가 썼다 — 다시 읽어서 그 위에 붙인다
   }
-
-  const { data: saved, error: upErr } = await supabaseAdmin
-    .from("portfolio_items")
-    .update(update)
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-  if (upErr || !saved) throw new Error(`초안 저장 실패: ${upErr?.message ?? "행 없음"}`);
-  return toItem(saved);
+  throw new Error(`초안 저장 실패: ${FINALIZE_ATTEMPTS}번 겹쳐서 포기`);
 }
 
 const deps: IntakeDeps<PreparedIntakeImage> = {

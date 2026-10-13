@@ -16,6 +16,7 @@
 import { randomUUID } from "node:crypto";
 import type { PortfolioItem } from "./portfolio-types.ts";
 import {
+  INTAKE_MAX_GROUPS,
   groupIntakeFiles,
   inferCategory,
   intakeExternalId,
@@ -83,6 +84,7 @@ export interface IntakeDeps<P = unknown> {
 
 export const ALREADY_PUBLISHED_ERROR =
   "이미 공개된 사례입니다 — 사진을 더하려면 어드민에서 직접 올리거나 publish 를 명시하세요";
+export const TOO_MANY_GROUPS_ERROR = `한 번에 묶음 ${INTAKE_MAX_GROUPS}개까지 처리합니다 — 나눠서 올려 주세요`;
 
 /** 자리만 잡는 빈 초안 — 제목은 파일명 힌트, 사진 없음, 비공개 */
 export function placeholderDraft(
@@ -215,7 +217,8 @@ async function processGroup<P>(
         generated,
       };
     } catch (e) {
-      if (claimed) await deps.discardDraft(id).catch(() => undefined);
+      // 내가 잡은 자리라도 그 사이 다른 요청이 글·사진을 채웠으면 지우지 않는다 — 그쪽 답글의 링크가 죽는다
+      if (claimed) await discardIfStillEmpty(deps, intakeExternalId(g.key), id).catch(() => undefined);
       throw e;
     }
   } catch (e) {
@@ -223,7 +226,12 @@ async function processGroup<P>(
   }
 }
 
-/** 묶음 단위로 처리한다. 한 묶음이 실패해도 다른 묶음은 계속 간다. */
+async function discardIfStillEmpty<P>(deps: IntakeDeps<P>, externalId: string, id: string): Promise<void> {
+  const latest = await deps.findDraft(externalId);
+  if (latest && latest.id === id && !hasContent(latest)) await deps.discardDraft(id);
+}
+
+/** 묶음 단위로 처리한다. 한 묶음이 실패해도 다른 묶음은 계속 간다. 상한을 넘는 묶음은 처리하지 않고 이유를 적는다. */
 export async function runIntakeFlow<P>(
   files: IntakeInputFile[],
   opts: IntakeRunOptions,
@@ -231,6 +239,21 @@ export async function runIntakeFlow<P>(
 ): Promise<IntakeRunResult> {
   const { groups, skipped } = groupIntakeFiles(files);
   const results: IntakeGroupResult[] = [];
-  for (const g of groups) results.push(await processGroup(g, opts, deps));
+  for (const [i, g] of groups.entries()) {
+    if (i >= INTAKE_MAX_GROUPS) {
+      results.push({
+        key: g.key,
+        client: g.client,
+        producedAt: g.producedAt,
+        titleHint: g.title,
+        imageCount: 0,
+        action: "failed",
+        error: TOO_MANY_GROUPS_ERROR,
+        skippedImages: [],
+      });
+      continue;
+    }
+    results.push(await processGroup(g, opts, deps));
+  }
   return { groups: results, skipped };
 }

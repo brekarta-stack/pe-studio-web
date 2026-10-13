@@ -25,6 +25,8 @@ export const INTAKE_IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([".jpg", ".j
 /** 한 번에 받는 사진 수·크기 상한 — Slack 한 메시지, CLI 한 묶음 기준 */
 export const INTAKE_MAX_FILES = 20;
 export const INTAKE_MAX_FILE_BYTES = 15 * 1024 * 1024;
+/** 한 요청에서 처리하는 묶음(사례) 수 상한 — 묶음마다 생성 최대 100초라 300초 함수 상한 안에 들게 */
+export const INTAKE_MAX_GROUPS = 3;
 
 export interface ParsedIntakeName {
   client: string;
