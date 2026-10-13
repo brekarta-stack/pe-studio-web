@@ -1,0 +1,36 @@
+{
+  "display_information": {
+    "name": "포트폴리오 봇",
+    "description": "레퍼런스 사진을 올리면 papercraft.kr 포트폴리오 초안을 만듭니다",
+    "background_color": "#2b2b2b"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "포트폴리오 봇",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "channels:history",
+        "groups:history",
+        "files:read",
+        "chat:write",
+        "reactions:write"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://www.papercraft.kr/api/slack/events",
+      "bot_events": [
+        "message.channels",
+        "message.groups"
+      ]
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
