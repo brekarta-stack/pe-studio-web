@@ -191,5 +191,17 @@ export function isMissingColumnError(e: unknown): boolean {
   const { code, message } = e as { code?: unknown; message?: unknown };
   if (code === "42703" || code === "PGRST204") return true;
   const msg = typeof message === "string" ? message : "";
-  return msg.includes("does not exist") || msg.includes("schema cache");
+  // PGRST204 는 "Could not find the 'x' column of 'y' in the schema cache" 다.
+  // "schema cache" 만 보면 PGRST002("Could not query the database for the schema cache",
+  // DB 연결 실패)까지 컬럼 없음으로 오판하므로 "Could not find" 를 함께 본다.
+  return msg.includes("does not exist") || (msg.includes("schema cache") && msg.includes("Could not find"));
+}
+
+/** PostgREST 가 DB 에 닿지 못한 상태(PGRST002 등) — 마이그레이션 문제가 아니라 Supabase 쪽 장애·중지다 */
+export function isDbUnavailableError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const { code, message } = e as { code?: unknown; message?: unknown };
+  if (code === "PGRST002" || code === "PGRST001") return true;
+  const msg = typeof message === "string" ? message : "";
+  return msg.includes("Could not query the database") || msg.includes("fetch failed");
 }

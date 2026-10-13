@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  isDbUnavailableError,
   dueState,
   defaultFollowupDate,
   sortOutreach,
@@ -174,4 +175,13 @@ test("nextClosedAt — 완료 진입은 지금, 완료끼리는 유지, 완료 �
   assert.equal(nextClosedAt("2026-09-01T00:00:00Z", "settled", now), "2026-09-01T00:00:00Z");
   assert.equal(nextClosedAt("2026-09-01T00:00:00Z", "producing", now), null);
   assert.equal(nextClosedAt(null, "followup", now), null);
+});
+
+test("isMissingColumnError — PGRST002(DB 연결 실패)는 컬럼 없음이 아니다", () => {
+  const down = { code: "PGRST002", message: "Could not query the database for the schema cache. Retrying." };
+  assert.equal(isMissingColumnError(down), false);
+  assert.equal(isDbUnavailableError(down), true);
+  const missing = { code: "PGRST204", message: "Could not find the 'org_key' column of 'quotes' in the schema cache" };
+  assert.equal(isMissingColumnError(missing), true);
+  assert.equal(isDbUnavailableError(missing), false);
 });

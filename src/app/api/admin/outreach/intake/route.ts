@@ -11,7 +11,7 @@ import {
   type IntakeAction,
   type IntakeLead,
 } from "@/lib/outreach-intake";
-import { isMissingColumnError } from "@/lib/outreach";
+import { isMissingColumnError, isDbUnavailableError } from "@/lib/outreach";
 
 /**
  * 발굴 리드 인테이크 API — POST /api/admin/outreach/intake
@@ -124,13 +124,24 @@ export async function POST(req: Request) {
     .select("id, org_key, created_at, proposal_url, stage, dropped_at")
     .not("org_key", "is", null);
   if (error) {
-    if (isMissingColumnError(error)) {
+    // 원인을 응답에 싣는다 — 로컬에는 DB 자격증명이 없어 이 응답이 유일한 진단 창구다
+    const detail = {
+      code: (error as { code?: unknown }).code ?? null,
+      message: errMessage(error).slice(0, 300),
+    };
+    if (isDbUnavailableError(error)) {
       return NextResponse.json(
-        { error: "영업 파이프라인 마이그레이션이 아직 적용되지 않았습니다." },
+        { error: "Supabase 에 연결하지 못했습니다. 프로젝트 상태(중지·사용량 초과)를 확인하세요.", detail },
         { status: 503 }
       );
     }
-    return NextResponse.json({ error: errMessage(error) }, { status: 500 });
+    if (isMissingColumnError(error)) {
+      return NextResponse.json(
+        { error: "영업 파이프라인 마이그레이션이 아직 적용되지 않았습니다.", detail },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: errMessage(error), detail }, { status: 500 });
   }
 
   const existing: ExistingLead[] = (rows ?? []).map((r) => ({
