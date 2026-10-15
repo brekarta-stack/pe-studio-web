@@ -91,3 +91,29 @@ RLS on, 정책 없음(서비스 롤 전용). 마이그레이션은 기존처럼 
 - AI Gateway 크레딧이 없으면 생성이 실패한다 → fallback 으로 열리고 안내가 뜬다.
 - 인쇄 PDF 의 품질은 사용자의 브라우저(크롬 권장)에 달렸다. 인쇄 화면에서 서체 로딩을 기다린 뒤 인쇄한다.
 - 마이그레이션은 사용자가 Supabase SQL Editor 에서 실행한다(`SUPABASE_ACCESS_TOKEN` 없음).
+
+## 8. AI 작성을 맥 스튜디오로 옮김 (2026-10-16)
+
+Vercel AI Gateway 는 크레딧이 없어 운영에서 실패했다. 사용자 결정: **맥 스튜디오(24시간)의 Claude Code(Max 구독)가 웹 조사까지 해서 원고를 쓴다.** Vercel 쪽 AI 호출은 기본으로 끈다(`PROPOSAL_AI_ENGINE=vercel` 일 때만 켬).
+
+```
+편집기 열기(문서 없음) → 기존 자료 초안으로 즉시 생성 + 작업 요청(gen_status=requested)
+편집기 "AI로 다시 쓰기"  → 작업 요청
+맥 launchd(1분) → GET /api/admin/proposals/jobs/next (작업 하나를 running 으로 잡음)
+              → claude --print (웹 조사 + 원고 JSON)
+              → POST /api/admin/proposals/{id}/worker-result
+백오피스: 결과를 후처리(분량·견적 빈칸·출처 http(s)·수신 메일=리드 메일) 후 gen_result 에 보관
+        · 문서가 요청 이후 안 바뀌었으면 자동 적용(이미지 유지), 바뀌었으면 편집기에 "적용하기/버리기"
+편집기: 10초마다 상태 확인 → "맥에서 조사·작성 중" / "AI 원고 도착" / "실패: 이유 [다시 요청]"
+```
+
+### 계약
+
+- 인증: 헤더 `x-intake-token` = Vercel env `OUTREACH_INTAKE_TOKEN` (맥은 `~/agents-bd/.intake.env`). 상수 시간 비교.
+- `POST /api/admin/proposals/{quoteId}/request` (토큰 또는 관리자) body `{mode:"create"|"regenerate"}` → 문서가 없으면 기존 자료로 만들고 요청 상태로. 이미 requested/running 이면 그대로 둔다. 응답 `{ok, doc}`.
+- `GET /api/admin/proposals/jobs/next` (토큰) → 없으면 204. 있으면 200 `{job:{quoteId, mode, requestedAt, lead:{org,segment,score,name,email,phone,notes,outreach}, current: BookContent}}`. 원자적으로 requested→running. running 이 20분 넘으면 재요청(시도 2회까지), 넘으면 failed.
+- `POST /api/admin/proposals/{quoteId}/worker-result` (토큰) body `{ok:true, content}` 또는 `{ok:false, error}` → `{ok, applied}`.
+
+### 표 변경 — `supabase/migrations/20261016_proposal_jobs.sql`
+
+`proposal_docs` 에 추가: `gen_status text not null default 'idle'`(idle|requested|running|done|failed), `gen_mode text`, `gen_requested_at`, `gen_started_at`, `gen_finished_at timestamptz`, `gen_requested_rev integer`, `gen_attempts integer not null default 0`, `gen_error text`, `gen_result jsonb`, `gen_result_at timestamptz`. 인덱스 `(gen_status, gen_requested_at)`.
