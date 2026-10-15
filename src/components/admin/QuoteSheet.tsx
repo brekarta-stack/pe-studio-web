@@ -14,6 +14,7 @@
  * 여기 단계 셀렉트에는 넣지 않는다 (docs/sales-pipeline-plan.md §3.4).
  */
 
+import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   MANUAL_CHANNELS,
@@ -772,6 +773,17 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               )}
                             </div>
                           </div>
+                          {/* 아웃바운드에서 전환된 건은 보낸 제안서를 상담 중에도 다시 본다 */}
+                          {q.source === "outbound" && (
+                            <p className="mt-4 text-sm">
+                              <Link
+                                href={`/admin/outreach/${q.id}/proposal`}
+                                className="font-semibold text-[#1E22B2] hover:underline"
+                              >
+                                제안서 열기
+                              </Link>
+                            </p>
+                          )}
                           <div className="mt-5 border-t border-slate-200 pt-4">
                             <ActivityTimeline quoteId={q.id} activities={activities[q.id] ?? []} compact />
                           </div>

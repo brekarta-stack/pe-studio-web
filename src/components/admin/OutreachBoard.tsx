@@ -11,6 +11,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { QuoteSubmission } from "@/lib/quote-types";
 import {
@@ -391,18 +392,26 @@ export default function OutreachBoard({ rows, activities }: Props) {
                         </select>
                       </td>
                       <td className={td}>
-                        {q.proposalUrl ? (
-                          <a
-                            href={q.proposalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {/* 제안서는 이제 편집기에서 연다 — 저장된 원고가 없으면 거기서 초안을 만든다.
+                            예전 외부 슬라이드는 지우지 않고 작은 보조 링크로 남긴다(이미 보낸 덱을 다시 볼 일이 있다) */}
+                        <div className="flex flex-col items-start gap-0.5">
+                          <Link
+                            href={`/admin/outreach/${q.id}/proposal`}
                             className="whitespace-nowrap text-xs font-semibold text-[#1E22B2] hover:underline"
                           >
-                            열기 ↗
-                          </a>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
+                            제안서 열기
+                          </Link>
+                          {q.proposalUrl && (
+                            <a
+                              href={q.proposalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="whitespace-nowrap text-[11px] text-slate-400 hover:text-slate-600 hover:underline"
+                            >
+                              옛 슬라이드 ↗
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td className={td}>
                         {q.proposalSentAt ? (

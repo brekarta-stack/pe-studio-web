@@ -281,9 +281,15 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session, status } = useSession();
+  const pathname = usePathname();
 
   // 로그인 전(로딩 중 or 비로그인) → 사이드바 없이 렌더
   if (status === "loading" || !session) {
+    return <>{children}</>;
+  }
+
+  // 제안서 인쇄 화면은 A4 지면만 — 사이드바가 있으면 인쇄 미리보기에서 지면이 밀리고 잘린다
+  if (pathname?.endsWith("/proposal/print")) {
     return <>{children}</>;
   }
 

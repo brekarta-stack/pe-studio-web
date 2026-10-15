@@ -23,6 +23,7 @@ const TABLES = [
   "estimate_events",
   "google_drive_connection",
   "lead_activities",
+  "proposal_docs",
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -53,6 +54,7 @@ const TABLE_SQL: Record<TableName, string> = {
   estimate_events:         "migrations/20260921_estimates.sql",
   google_drive_connection: "migrations/20260921_estimates.sql",
   lead_activities:         "migrations/20261013_sales_pipeline.sql",
+  proposal_docs:           "migrations/20261015_proposal_docs.sql",
 };
 
 /** 테이블은 있는데 나중에 추가된 컬럼만 없는 경우 — 컬럼 단위로도 확인한다 */
