@@ -78,7 +78,8 @@ export async function saveProposal(
     checkId(quoteId);
     const actor = await getAdminEmail();
     const doc = await saveProposalDoc(quoteId, input, expectedRev, actor);
-    revalidatePath("/admin/outreach");
+    // revalidatePath 를 부르지 않는다 — 서버 액션 안의 revalidatePath 는 지금 화면(편집기)을 다시 그리게 해서
+    // 2초 자동 저장마다 페이지 전체를 서버에서 새로 받았다. 보드에 보이는 것(문서 유무)은 저장으로 바뀌지 않는다
     return { ok: true, doc };
   } catch (e) {
     return fail(e);
@@ -110,8 +111,9 @@ export async function createFromFallback(quoteId: string): Promise<ProposalActio
     const existing = await getProposalDoc(quoteId);
     if (existing.doc) return { ok: true, doc: existing.doc };
     const lead = await readLead(quoteId);
-    const doc = await createProposalDoc(quoteId, buildFallback(lead), "fallback", actor);
-    await logActivity(quoteId, "제안서 초안 만듦 (옛 본문)", actor);
+    const { doc, created } = await createProposalDoc(quoteId, buildFallback(lead), "fallback", actor);
+    // 다른 창이 먼저 만들었으면(created=false) 그 문서를 돌려줄 뿐 — 타임라인에 두 번 남기지 않는다
+    if (created) await logActivity(quoteId, "제안서 초안 만듦 (옛 본문)", actor);
     revalidatePath("/admin/outreach");
     return { ok: true, doc };
   } catch (e) {

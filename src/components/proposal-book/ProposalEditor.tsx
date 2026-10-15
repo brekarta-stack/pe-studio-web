@@ -27,6 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import BookPages, { type FieldKind } from "./BookPages";
 import "./editor.css";
 import {
@@ -147,6 +148,23 @@ async function callGenerate(quoteId: string, mode: "create" | "regenerate", expe
   }
 }
 
+/**
+ * 같은 탭 안에서 리드별로 진행 중인 초안 요청 하나 — DraftScreen 이 다시 마운트돼도(뒤로 갔다 다시 오기,
+ * 개발 모드 이중 실행, 부모 재렌더로 key 가 바뀌는 경우) 같은 요청을 함께 기다린다.
+ * 컴포넌트 안의 ref 는 재마운트하면 새로 생겨서 AI 를 두 번 부르고 두 번 과금됐다.
+ * 끝나면 지운다 — 실패 뒤 "다시 시도"는 새 요청이어야 한다.
+ */
+const draftInFlight = new Map<string, Promise<GenerateResult>>();
+
+function generateDraftOnce(quoteId: string): Promise<GenerateResult> {
+  let p = draftInFlight.get(quoteId);
+  if (!p) {
+    p = callGenerate(quoteId, "create").finally(() => draftInFlight.delete(quoteId));
+    draftInFlight.set(quoteId, p);
+  }
+  return p;
+}
+
 /* ── 맨 바깥: 문서가 없으면 초안부터 ──────────────────────────── */
 
 export default function ProposalEditor({ lead, initialDoc }: { lead: ProposalEditorLead; initialDoc: ProposalDoc | null }) {
@@ -168,7 +186,7 @@ function DraftScreen({ lead, onReady }: { lead: ProposalEditorLead; onReady: (do
   }, [onReady]);
 
   const run = useCallback(async () => {
-    const r = await callGenerate(lead.id, "create");
+    const r = await generateDraftOnce(lead.id);
     if (!mounted.current) return;
     if (r.ok) onReadyRef.current(r.doc, r.notice ?? (r.source === "fallback" ? "AI 초안을 쓰지 못해 옛 본문으로 채웠습니다." : null));
     else {
@@ -272,6 +290,10 @@ interface EdCtxValue {
   selection: Selection;
   editing: { path: string; inst: string } | null;
   uploads: Record<string, UploadState>;
+  /** AI 다시 쓰기·옛 초안 채우기 중 — 올리기 단추를 막는다 */
+  busy: boolean;
+  /** 열려 있는 칸 편집기가 "지금 확정" 함수를 맡긴다 (나가기·다시 쓰기 전에 확정하려고) */
+  registerEdit: (finish: (() => void) | null) => void;
   startEdit: (path: string, inst: string, page: PageId | null) => void;
   commitText: (path: string, value: string) => void;
   cancelEdit: () => void;
@@ -307,6 +329,7 @@ function FieldSlot({ path, kind, node }: { path: string; kind: FieldKind; node: 
         multiline={kind === "multiline"}
         onCommit={(v) => ed.commitText(path, v)}
         onCancel={ed.cancelEdit}
+        register={ed.registerEdit}
       />
     );
   }
@@ -340,11 +363,13 @@ function TextEditor({
   multiline,
   onCommit,
   onCancel,
+  register,
 }: {
   initial: string;
   multiline: boolean;
   onCommit: (v: string) => void;
   onCancel: () => void;
+  register: (finish: (() => void) | null) => void;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const done = useRef(false);
@@ -373,6 +398,17 @@ function TextEditor({
     if (commit) onCommit(multiline ? raw : raw.replace(/\s*\r?\n\s*/g, " "));
     else onCancel();
   };
+
+  // 편집기 본체가 "나가기"·"다시 쓰기" 전에 타이핑 중인 글을 확정할 수 있게 확정 함수를 맡긴다.
+  // 칸이 사라질 때(언마운트) blur 가 오지 않는 브라우저가 있어 그 글이 조용히 버려지던 것을 막는다
+  const finishRef = useRef(finish);
+  useEffect(() => {
+    finishRef.current = finish;
+  });
+  useEffect(() => {
+    register(() => finishRef.current(true));
+    return () => register(null);
+  }, [register]);
 
   const insertPlain = (text: string) => {
     // execCommand 는 낡았지만 contentEditable 에서 되돌리기 기록을 지키며 글자를 넣는 유일한 길이다
@@ -514,7 +550,7 @@ function ImageSlot({ path, value, hint }: { path: string; value: unknown; hint: 
       <div className="pb-ed-img-bar" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
         <label htmlFor={inputId} className="pb-ed-img-btn">
           {show ? "이미지 바꾸기" : "이미지 올리기"}
-          <input id={inputId} type="file" accept="image/*" className="sr-only" onChange={onFile} disabled={up?.busy} />
+          <input id={inputId} type="file" accept="image/*" className="sr-only" onChange={onFile} disabled={up?.busy || ed.busy} />
         </label>
       </div>
       {up?.busy && <div className="pb-ed-img-busy">올리는 중…</div>}
@@ -578,6 +614,7 @@ function fmtTime(d: Date): string {
 
 function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; initial: DocLike; initialNotice: string | null }) {
   const org = lead.org;
+  const router = useRouter();
   const [hist, dispatch] = useReducer(historyReducer, undefined, () => initHistory(snapOf(initial, org)));
   const present = hist.present;
   const { content, style, pages } = present;
@@ -597,6 +634,8 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const conflictRef = useRef(false);
   useEffect(() => {
     presentRef.current = present;
+    const ws = presentWaiters.current.splice(0);
+    for (const w of ws) w();
   }, [present]);
 
   /* 화면 */
@@ -611,7 +650,21 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const [actionError, setActionError] = useState<string | null>(null);
   const [regen, setRegen] = useState<"idle" | "armed" | "running">("idle");
   const [resetArm, setResetArm] = useState<"idle" | "armed" | "running">("idle");
+  const [leaveState, setLeaveState] = useState<"idle" | "checking" | "armed">("idle");
   const tbdCursor = useRef(0);
+  const busy = regen === "running" || resetArm === "running";
+  /**
+   * 원고를 서버가 갈아 끼우는 중(AI 다시 쓰기·옛 초안 채우기). 이동안의 변경(되돌리기·업로드 완료 등)은
+   * 서버의 새 판과 rev 가 어긋나 409 → 영구 충돌이 됐다. 그래서 이 동안은 commit·undo·redo·자동 저장을 막는다.
+   * 상태(busy)가 아니라 ref 인 이유: 막는 판정이 다음 렌더를 기다리면 그 사이의 변경이 새어 들어간다.
+   */
+  const busyRef = useRef(false);
+  /** 원고 세대 — 서버가 원고를 갈아 끼울 때마다 +1. 그 전에 시작한 업로드가 끝나면 넣지 않고 버린다 */
+  const docGenRef = useRef(0);
+  /** 열려 있는 칸 편집기의 "지금 확정" 함수 */
+  const activeEditRef = useRef<(() => void) | null>(null);
+  /** present 가 다음에 바뀌면(렌더가 끝나면) 깨울 대기자 — 칸 확정 뒤 저장이 새 판을 보게 */
+  const presentWaiters = useRef<Array<() => void>>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<HTMLDivElement>(null);
@@ -620,16 +673,35 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
 
   /** 사람이 고친 변경 — 저장이 실패해 멈춰 있었으면 자동 저장을 다시 켠다 */
   const commit = useCallback((fn: (s: Snapshot) => Snapshot | null, key?: string) => {
+    if (busyRef.current) return; // 서버가 원고를 갈아 끼우는 중 — busyRef 설명
     dispatch({ type: "apply", fn, key, at: Date.now() });
     setSaveStatus((st) => (st === "error" ? "idle" : st));
   }, []);
   const undo = useCallback(() => {
+    if (busyRef.current) return;
     dispatch({ type: "undo" });
     setSaveStatus((st) => (st === "error" ? "idle" : st));
   }, []);
   const redo = useCallback(() => {
+    if (busyRef.current) return;
     dispatch({ type: "redo" });
     setSaveStatus((st) => (st === "error" ? "idle" : st));
+  }, []);
+
+  const registerEdit = useCallback((finish: (() => void) | null) => {
+    activeEditRef.current = finish;
+  }, []);
+
+  /** 타이핑 중인 칸이 있으면 확정하고, 그 변경이 present 에 반영될 때까지 기다린다(최대 300ms — 바뀐 게 없을 때) */
+  const commitPendingEdit = useCallback(async () => {
+    const finish = activeEditRef.current;
+    if (!finish) return;
+    const settled = new Promise<void>((res) => {
+      presentWaiters.current.push(res);
+      setTimeout(res, 300);
+    });
+    finish();
+    await settled;
   }, []);
 
   /* ── 저장 ── */
@@ -670,22 +742,23 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
 
   // 자동 저장 — 마지막 변경 2초 뒤. 저장 중에 또 바뀌면 저장이 끝난 뒤(savedSnap 이 바뀐 뒤) 다시 잰다
   useEffect(() => {
-    if (conflict || !dirty || saveStatus === "saving") return;
+    // 원고를 갈아 끼우는 중에는 쉰다 — 그 흐름이 직접 flush 하고, 끝나면 새 판이 저장된 판이 된다
+    if (busy || conflict || !dirty || saveStatus === "saving") return;
     if (saveStatus === "error") return; // 실패하면 다음 변경이나 '다시 저장'까지 멈춘다
     const t = setTimeout(() => void doSave(present), AUTOSAVE_MS);
     return () => clearTimeout(t);
-  }, [present, dirty, conflict, saveStatus, doSave]);
+  }, [present, dirty, conflict, saveStatus, doSave, busy]);
 
-  // 저장 안 된 변경이 있으면 창을 닫기 전에 묻는다
+  // 저장 안 된 변경이 있으면 창을 닫기 전에 묻는다. 칸을 고치는 중(editing)도 — 그 글은 아직 present 에 없다
   useEffect(() => {
-    if (!dirty && saveStatus !== "saving") return;
+    if (!dirty && saveStatus !== "saving" && editing == null) return;
     const h = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", h);
     return () => window.removeEventListener("beforeunload", h);
-  }, [dirty, saveStatus]);
+  }, [dirty, saveStatus, editing]);
 
   /** 저장 대기 중인 변경을 지금 저장한다 (PDF·AI 다시 쓰기 전에) */
   const flush = useCallback(async (): Promise<boolean> => {
@@ -701,6 +774,10 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
     (doc: DocLike) => {
       const snap = snapOf(doc, org);
       revRef.current = doc.rev;
+      docGenRef.current += 1;
+      // 기록 기준점: 서버 판을 새 present 로 한 칸 넣는다. 갈아 끼우는 동안 commit 을 막았으므로 바로 앞 칸은
+      // 정확히 flush 로 저장해 둔 판이다 → 되돌리기 한 번이면 그 판으로 돌아가고(자동 저장이 그 판을 다시 쓴다),
+      // key 없는 commit 이라 직전의 슬라이더·끌기 묶음과 섞이지 않는다
       dispatch({ type: "commit", snap, at: Date.now() });
       presentRef.current = snap;
       savedRef.current = snap;
@@ -802,6 +879,9 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
 
   const uploadImage = useCallback(
     async (path: string, file: File) => {
+      if (busyRef.current) return;
+      // 올리는 동안 원고가 갈아 끼워지면(다시 쓰기·옛 초안) 이 그림은 옛 원고의 칸 것이다 — 끝나도 넣지 않는다
+      const gen = docGenRef.current;
       setUploads((u) => ({ ...u, [path]: { busy: true, error: null } }));
       try {
         if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 올릴 수 있습니다.");
@@ -820,6 +900,9 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
           throw new Error(msg);
         }
         const url = body.url;
+        if (gen !== docGenRef.current || busyRef.current) {
+          throw new Error("올리는 동안 원고가 바뀌어 이 이미지는 넣지 않았습니다. 다시 올려 주세요.");
+        }
         commit((s) => ({ ...s, content: setAt(s.content, path, { url, fit: "cover", zoom: 1, x: 50, y: 50 }) }));
         setUploads((u) => ({ ...u, [path]: { busy: false, error: null } }));
       } catch (e) {
@@ -835,6 +918,8 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
       selection,
       editing,
       uploads,
+      busy,
+      registerEdit,
       startEdit: (path, inst, page) => {
         setSelection({ kind: "field", path, inst });
         setEditing({ path, inst });
@@ -853,7 +938,7 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
       updateImage: (path, img, key) => commit((s) => ({ ...s, content: setAt(s.content, path, img) }), key),
       uploadImage: (path, file) => void uploadImage(path, file),
     }),
-    [content, selection, editing, uploads, commit, uploadImage]
+    [content, selection, editing, uploads, busy, registerEdit, commit, uploadImage]
   );
 
   const renderField = useCallback((path: string, kind: FieldKind, node: ReactNode) => <FieldSlot path={path} kind={kind} node={node} />, []);
@@ -913,17 +998,34 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
 
   /* ── 큰 조치 ── */
 
+  /**
+   * 원고를 서버가 갈아 끼우는 흐름의 공통 틀: 타이핑 중인 칸 확정 → 막기(busyRef) → 저장 대기분 flush → 작업.
+   * 막기는 확정 뒤에 건다 — 먼저 걸면 확정한 글이 commit 에서 버려진다.
+   */
+  const withBusy = async <T,>(work: () => Promise<T>): Promise<T> => {
+    await commitPendingEdit();
+    setEditing(null);
+    busyRef.current = true;
+    docGenRef.current += 1;
+    try {
+      return await work();
+    } finally {
+      busyRef.current = false;
+    }
+  };
+
   const runRegenerate = async () => {
     setRegen("running");
     setActionError(null);
-    setEditing(null);
-    if (!(await flush())) {
-      setRegen("idle");
+    const r = await withBusy(async () => {
+      if (!(await flush())) return null;
+      return callGenerate(lead.id, "regenerate", revRef.current);
+    });
+    setRegen("idle");
+    if (!r) {
       setActionError("저장되지 않은 변경이 있어 다시 쓰기를 멈췄습니다. 저장 상태를 확인해 주세요.");
       return;
     }
-    const r = await callGenerate(lead.id, "regenerate", revRef.current);
-    setRegen("idle");
     if (!r.ok) {
       if (r.conflict) {
         conflictRef.current = true;
@@ -939,14 +1041,15 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const runReset = async () => {
     setResetArm("running");
     setActionError(null);
-    setEditing(null);
-    if (!(await flush())) {
-      setResetArm("idle");
+    const r = await withBusy(async () => {
+      if (!(await flush())) return null;
+      return resetToFallback(lead.id, revRef.current);
+    });
+    setResetArm("idle");
+    if (!r) {
       setActionError("저장되지 않은 변경이 있어 멈췄습니다. 저장 상태를 확인해 주세요.");
       return;
     }
-    const r = await resetToFallback(lead.id, revRef.current);
-    setResetArm("idle");
     if (!r.ok) {
       if (r.conflict) {
         conflictRef.current = true;
@@ -957,6 +1060,21 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
     }
     loadServerDoc(r.doc);
     setNotice("옛 본문으로 만든 초안으로 다시 채웠습니다. 되돌리기로 앞 판을 다시 불러올 수 있습니다.");
+  };
+
+  /**
+   * 보드로 돌아가기 — <Link> 로 바로 넘어가면 앱 안 이동이라 beforeunload 가 안 떠서, 자동 저장 2초 대기분과
+   * 타이핑 중인 칸이 조용히 사라졌다. 확정·저장을 마친 뒤에만 넘어가고, 저장이 안 되면 2단계로 묻는다.
+   */
+  const leave = async () => {
+    setLeaveState("checking");
+    await commitPendingEdit();
+    setEditing(null);
+    if (await flush()) {
+      router.push("/admin/outreach");
+      return;
+    }
+    setLeaveState("armed");
   };
 
   const openPdf = async () => {
@@ -1006,16 +1124,35 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const btn = "rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#1E22B2]";
   const sel = "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E22B2]";
 
-  const busy = regen === "running" || resetArm === "running";
-
   return (
     <EdCtx.Provider value={ctx}>
       <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
         {/* ── 도구막대 ── */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-2">
-          <Link href="/admin/outreach" className="text-sm text-slate-500 hover:text-slate-800">
-            ← 제안 영업
-          </Link>
+          {leaveState === "armed" ? (
+            <span className="flex items-center gap-1.5">
+              <span className="text-xs text-red-600">저장되지 않은 변경이 있습니다</span>
+              <button
+                type="button"
+                className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                onClick={() => router.push("/admin/outreach")}
+              >
+                그래도 나가기
+              </button>
+              <button type="button" className={btn} onClick={() => setLeaveState("idle")}>
+                취소
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="text-sm text-slate-500 hover:text-slate-800 disabled:opacity-50"
+              onClick={() => void leave()}
+              disabled={leaveState === "checking"}
+            >
+              {leaveState === "checking" ? "저장하고 나가는 중…" : "← 제안 영업"}
+            </button>
+          )}
           <p className="max-w-[14rem] truncate text-sm font-bold" title={content.org}>
             {lead.org || content.org} 제안서
           </p>
@@ -1273,6 +1410,7 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
               selection={selection}
               currentPage={currentPage}
               uploads={uploads}
+              busy={busy}
               btn={btn}
               sel={sel}
               onStyle={setStyle}
@@ -1308,6 +1446,7 @@ function Inspector({
   selection,
   currentPage,
   uploads,
+  busy,
   btn,
   sel,
   onStyle,
@@ -1323,6 +1462,7 @@ function Inspector({
   selection: Selection;
   currentPage: PageId;
   uploads: Record<string, UploadState>;
+  busy: boolean;
   btn: string;
   sel: string;
   onStyle: (fn: (st: BookStyle) => BookStyle, key?: string) => void;
@@ -1362,6 +1502,7 @@ function Inspector({
           path={selection.path}
           value={getAt(content, selection.path)}
           upload={uploads[selection.path]}
+          busy={busy}
           btn={btn}
           onImage={onImage}
           onUpload={onUpload}
@@ -1626,6 +1767,7 @@ function ImagePanel({
   path,
   value,
   upload,
+  busy,
   btn,
   onImage,
   onUpload,
@@ -1633,6 +1775,7 @@ function ImagePanel({
   path: string;
   value: unknown;
   upload: UploadState | undefined;
+  busy: boolean;
   btn: string;
   onImage: (path: string, img: ImageObject, key?: string) => void;
   onUpload: (path: string, f: File) => void;
@@ -1662,7 +1805,7 @@ function ImagePanel({
           type="file"
           accept="image/*"
           className="sr-only"
-          disabled={upload?.busy}
+          disabled={upload?.busy || busy}
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";

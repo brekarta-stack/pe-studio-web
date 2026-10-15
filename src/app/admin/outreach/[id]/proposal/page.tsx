@@ -9,6 +9,7 @@ import { getProposalDoc } from "@/lib/proposal-docs";
 import { ALL_FONTS, fontStylesheetUrls } from "@/lib/proposal-book/fonts";
 import { DEFAULT_STYLE } from "@/lib/proposal-book/schema";
 import ProposalEditor from "@/components/proposal-book/ProposalEditor";
+import HideSiteChrome from "@/components/proposal-book/HideSiteChrome";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
   return (
     <>
       {/* 사이트 공용 머리말·꼬리말은 루트 레이아웃이 그린다 — 편집기는 화면 전체를 쓴다 */}
-      <style>{`body > header, body > footer { display: none !important; }`}</style>
+      <HideSiteChrome />
       {allFonts.map((href) => (
         <link key={href} rel="stylesheet" href={href} precedence="proposal-fonts" />
       ))}
@@ -75,6 +76,8 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl p-6 md:p-8">
+      {/* 안내 화면도 정상 화면과 같은 껍데기 — 사이드바가 없는 경로라 머리말만 남으면 엉뚱해 보인다 */}
+      <HideSiteChrome />
       <Link href="/admin/outreach" className="text-sm text-slate-500 hover:text-slate-800">
         ← 제안 영업
       </Link>

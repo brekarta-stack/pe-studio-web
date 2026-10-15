@@ -414,3 +414,29 @@ export function dragFocal(start: ImageObject, dxFrac: number, dyFrac: number): I
   const r = (n: number) => Math.round(n * 10) / 10;
   return patchImage(start, { x: r(start.x - dxFrac * 100), y: r(start.y - dyFrac * 100) });
 }
+
+/**
+ * AI 로 다시 쓴 새 원고에 옛 원고의 이미지를 옮긴다 — 같은 자리(인덱스)끼리, 보여 줄 수 있는 것만.
+ * "있다"의 기준은 편집기 지면과 같은 hasImage 다: data.json 의 상대 파일명(cover.jpg)은 빈 칸이다.
+ * 기준이 다르면 다시 쓰기가 빈 칸(상대 파일명)을 새 원고 위에 덮어 "이미지는 유지" 약속과 어긋난다.
+ * (generate API 의 regenerate·keepImages 가 쓴다)
+ */
+export function carryImages(next: BookContent, prev: BookContent): BookContent {
+  const out: BookContent = {
+    ...next,
+    designs: { ...next.designs, items: next.designs.items.map((x) => ({ ...x })) },
+    scenes: { ...next.scenes },
+    cases: { ...next.cases, items: next.cases.items.map((x) => ({ ...x })) },
+  };
+  if (hasImage(prev.cover)) out.cover = prev.cover;
+  if (hasImage(prev.scenes.image)) out.scenes.image = prev.scenes.image;
+  out.designs.items.forEach((it, i) => {
+    const old = prev.designs.items[i]?.image;
+    if (hasImage(old)) it.image = old;
+  });
+  out.cases.items.forEach((it, i) => {
+    const old = prev.cases.items[i]?.image;
+    if (hasImage(old)) it.image = old;
+  });
+  return out;
+}

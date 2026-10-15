@@ -15,7 +15,8 @@ import {
 } from "@/lib/proposal-docs";
 import { buildFallback } from "@/lib/proposal-book/fallback";
 import { describeGenerateError, generateDraft } from "@/lib/proposal-book/generate";
-import { type BookContent, type ImageValue } from "@/lib/proposal-book/schema";
+import { type BookContent } from "@/lib/proposal-book/schema";
+import { carryImages } from "@/lib/proposal-book/editor-ops";
 
 /**
  * POST /api/admin/proposals/[id]/generate — 제안서 AI 초안 (id = quotes.id)
@@ -50,30 +51,41 @@ async function logActivity(quoteId: string, body: string, actor: string) {
   }
 }
 
-function hasImage(v: ImageValue | undefined): boolean {
-  if (!v) return false;
-  return typeof v === "string" ? v.trim() !== "" : (v.url ?? "").trim() !== "";
-}
+/**
+ * create 요청의 같은 프로세스 안 중복 막기 — 리드별로 진행 중인 생성 하나를 함께 기다린다.
+ * 두 창(또는 편집기의 재마운트)이 동시에 "열기"를 누르면 둘 다 "문서 없음"을 보고 AI 를 두 번 부르던 것
+ * (= 두 번 과금)을 막는다. 서버리스 인스턴스가 다르면 못 막으므로 AI 호출 직전에 DB 를 한 번 더 본다.
+ */
+const createInFlight = new Map<string, Promise<{ doc: ProposalDoc; notice?: string }>>();
 
-/** 새 원고에 옛 원고의 이미지(비어 있지 않은 것만)를 옮긴다 — 같은 자리(인덱스)끼리 */
-function carryImages(next: BookContent, prev: BookContent): BookContent {
-  const out: BookContent = {
-    ...next,
-    designs: { ...next.designs, items: next.designs.items.map((x) => ({ ...x })) },
-    scenes: { ...next.scenes },
-    cases: { ...next.cases, items: next.cases.items.map((x) => ({ ...x })) },
-  };
-  if (hasImage(prev.cover)) out.cover = prev.cover;
-  if (hasImage(prev.scenes.image)) out.scenes.image = prev.scenes.image;
-  out.designs.items.forEach((it, i) => {
-    const old = prev.designs.items[i]?.image;
-    if (hasImage(old)) it.image = old;
-  });
-  out.cases.items.forEach((it, i) => {
-    const old = prev.cases.items[i]?.image;
-    if (hasImage(old)) it.image = old;
-  });
-  return out;
+async function createDraft(
+  id: string,
+  lead: ReturnType<typeof quoteFromRow>,
+  actor: string
+): Promise<{ doc: ProposalDoc; notice?: string }> {
+  // AI 호출 직전 다시 확인 — 앞선 요청이 그 사이 저장을 끝냈으면 AI 를 부르지 않는다
+  const again = await getProposalDoc(id);
+  if (again.tableMissing) throw new ProposalTableMissingError();
+  if (again.doc) return { doc: again.doc };
+
+  let content: BookContent | null = null;
+  let reason = "";
+  try {
+    content = (await generateDraft(lead)).content;
+  } catch (e) {
+    reason = describeGenerateError(e);
+    console.error("[proposals/generate] AI 초안 실패 → 대체 원고", e);
+  }
+  if (content) {
+    const { doc, created } = await createProposalDoc(id, content, "ai", actor);
+    // 다른 인스턴스가 먼저 넣었으면 그 문서를 돌려줄 뿐, 기록은 그쪽이 남겼다
+    if (created) await logActivity(id, "제안서 AI 초안 작성", actor);
+    return { doc };
+  }
+  const { doc, created } = await createProposalDoc(id, buildFallback(lead), "fallback", actor);
+  if (!created) return { doc };
+  await logActivity(id, "제안서 초안(기존 자료)", actor);
+  return { doc, notice: `AI 초안을 만들지 못해 기존 자료로 채웠습니다 — ${reason}` };
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -107,22 +119,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     if (mode === "create") {
       if (cur.doc) return ok(cur.doc);
-      let content: BookContent | null = null;
-      let reason = "";
-      try {
-        content = (await generateDraft(lead)).content;
-      } catch (e) {
-        reason = describeGenerateError(e);
-        console.error("[proposals/generate] AI 초안 실패 → 대체 원고", e);
+      let p = createInFlight.get(id);
+      if (!p) {
+        p = createDraft(id, lead, actor).finally(() => createInFlight.delete(id));
+        createInFlight.set(id, p);
       }
-      if (content) {
-        const doc = await createProposalDoc(id, content, "ai", actor);
-        await logActivity(id, "제안서 AI 초안 작성", actor);
-        return ok(doc);
-      }
-      const doc = await createProposalDoc(id, buildFallback(lead), "fallback", actor);
-      await logActivity(id, "제안서 초안(기존 자료)", actor);
-      return ok(doc, `AI 초안을 만들지 못해 기존 자료로 채웠습니다 — ${reason}`);
+      const r = await p;
+      return ok(r.doc, r.notice);
     }
 
     // regenerate

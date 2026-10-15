@@ -13,7 +13,7 @@
  *  - 이미지 칸은 전부 빈칸 (사람이 올린다)
  *  - 개수 한도는 자르거나 빈칸 항목으로 채운다, 추천 구간은 정확히 하나
  *  - 쪽 제목·리드·인용·시안 설명은 글자 수 한도로 자른다
- *  - 출처 URL·연락처 메일은 입력 자료에 실제로 있는 것만 남긴다 (지어낸 링크 차단)
+ *  - 출처 URL 은 조사 산출물의 URL 칸·운영자 메모에 있는 것만, 수신 메일은 리드 자신의 메일만 (지어낸 링크·주소 차단)
  */
 
 import { z } from "zod";
@@ -136,15 +136,53 @@ function matchedCasesOf(o: Record<string, unknown>): string[] {
     .filter(Boolean);
 }
 
-/** 입력 자료 전체(사람·에이전트가 남긴 글) — 출처 URL·메일이 여기 있는지 볼 때 쓴다 */
-export function sourceText(lead: GenerateLead | null | undefined): string {
-  const parts = [str(lead?.org), str(lead?.name), str(lead?.email), str(lead?.notes)];
-  try {
-    parts.push(JSON.stringify(outreachOf(lead)));
-  } catch {
-    /* 순환 참조 등 — 무시 */
+/* ── 출처 URL 허용 목록 ───────────────────────────────────────
+ * 규칙 — observation.sources 의 URL 은 아래 두 곳에 "URL 로서" 적힌 것과 정확히 같을 때만 남긴다.
+ *  1) 조사 산출물(quotes.outreach)의 URL 칸: 키 이름에 url·link·href 가 든 칸(contact_form_url, view_url,
+ *     source_url …)과 sources·links 배열(문자열이든 {label,url} 객체든). 중첩 객체 안의 같은 칸도 본다.
+ *  2) 운영자 메모(notes) — 사람이 직접 붙여 넣은 링크라 믿는다.
+ * 조사 메모 본문(body_text) 같은 자유 서술 안의 URL 은 받지 않는다. 그 본문은 발굴 에이전트가 쓴 글이라
+ * 거기서 지어낸 링크가 이미 섞여 있을 수 있고, 예전처럼 "입력 전체에 부분 문자열로 있으면 통과"면
+ * 모델이 본문 속 링크를 잘라 붙이거나 앞부분만 맞춘 주소도 통과했다.
+ * 비교는 양끝 공백·끝의 문장부호·끝 '/' 를 걷은 뒤 전체 일치다. */
+
+const URL_RE = /https?:\/\/[^\s<>"'`)\]]+/gi;
+const URL_KEY_RE = /url|link|href/i;
+const URL_LIST_KEYS = new Set(["sources", "links"]);
+
+function normUrl(u: string): string {
+  return u.trim().replace(/[.,;:!?)\]}>'"]+$/, "").replace(/\/+$/, "");
+}
+
+function urlsIn(text: string): string[] {
+  return (text.match(URL_RE) ?? []).map(normUrl).filter(Boolean);
+}
+
+/** outreach 의 URL 칸에서만 URL 을 모은다(자유 서술 칸은 건너뛴다) */
+function collectFieldUrls(v: unknown, urlish: boolean, out: Set<string>, depth: number): void {
+  if (depth > 6 || v == null) return;
+  if (typeof v === "string") {
+    if (urlish) for (const u of urlsIn(v)) out.add(u);
+    return;
   }
-  return parts.join("\n");
+  if (Array.isArray(v)) {
+    for (const x of v) collectFieldUrls(x, urlish, out, depth + 1);
+    return;
+  }
+  if (typeof v === "object") {
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      // URL 칸 아래의 문자열만 받는다. sources·links 배열 안의 맨 문자열도 URL 칸으로 친다
+      collectFieldUrls(x, URL_KEY_RE.test(k) || URL_LIST_KEYS.has(k), out, depth + 1);
+    }
+  }
+}
+
+/** 출처로 쓸 수 있는 URL — 위 규칙의 1)·2) */
+export function allowedSourceUrls(lead: GenerateLead | null | undefined): Set<string> {
+  const out = new Set<string>();
+  collectFieldUrls(outreachOf(lead), false, out, 0);
+  for (const u of urlsIn(str(lead?.notes))) out.add(u);
+  return out;
 }
 
 export interface BuiltPrompt {
@@ -166,7 +204,7 @@ export function buildPrompt(lead: GenerateLead | null | undefined, studio: Studi
     "- 기관에 관한 사실(전시·캐릭터·예산·부서·수치·연도·사업명)은 아래 '입력 자료'에 있는 것만 쓴다.",
     "- 자료에 없는 사실이 필요한 자리에는 `[확인 필요: 무엇]` 을 쓴다. 예: `[확인 필요: 기념품점 운영 주체]`.",
     "- 빈칸이 그럴듯한 거짓보다 낫다. 추정 수치는 쓰지 않는다.",
-    "- 출처(observation.sources)에는 입력 자료에 실제로 적힌 URL 만 넣는다. 없으면 `{\"label\":\"[확인 필요: 출처]\",\"url\":\"\"}` 하나만 둔다.",
+    "- 출처(observation.sources)에는 입력 자료의 URL 칸(…_url, sources)이나 운영자 메모에 적힌 URL 만 그대로 넣는다. 조사 메모 본문 속 링크는 쓰지 않는다. 없으면 `{\"label\":\"[확인 필요: 출처]\",\"url\":\"\"}` 하나만 둔다.",
     "- 본문에 각주 `[^1]` 을 붙일 때는 같은 번호의 출처가 sources 에 있어야 한다.",
     "",
     "## 입력 자료를 다루는 법",
@@ -198,7 +236,7 @@ export function buildPrompt(lead: GenerateLead | null | undefined, studio: Studi
     "",
     "## 칸별 지시",
     "- org: 기관 정식 이름. org_display: 표지에서 줄을 바꾸고 싶을 때만 `\\n` 을 넣은 이름, 아니면 빈 문자열.",
-    `- contact.dept: 입력 자료에 담당 부서가 있으면 그 부서, 없으면 "${TBD("수신 부서")}". contact.email: 자료에 있는 메일만, 없으면 빈 문자열.`,
+    `- contact.dept: 입력 자료에 담당 부서가 있으면 그 부서, 없으면 "${TBD("수신 부서")}". contact.email: 빈 문자열(리드 메일로 채운다).`,
     "- cases.items: '매칭 사례' 목록에서 최대 3개를 고른다. 모자라면 org·title 을 `[확인 필요: 기관]`·`[확인 필요: 사례명]` 으로 둔다.",
     "- plan·pricing.includes·closing.next 는 아래 스튜디오 표준값을 그대로 써도 된다(스튜디오 사실이라 빈칸이 아니다).",
     "- designs.headline·designs.note 는 쓰지 않아도 된다(빈 문자열).",
@@ -364,7 +402,7 @@ export function finalizeDraft(raw: unknown, lead: GenerateLead | null | undefine
   const c: BookContent = strict.success ? strict.data : conformContent(shaped, base);
   if (!strict.success && c === base) throw new GenerateOutputError("AI 응답이 원고 형식에 맞지 않습니다.");
 
-  const src = sourceText(lead);
+  const allowedUrls = allowedSourceUrls(lead);
   const C = LIMITS.counts;
 
   /* 표지 */
@@ -372,11 +410,11 @@ export function finalizeDraft(raw: unknown, lead: GenerateLead | null | undefine
   if (c.org_display !== undefined && !str(c.org_display)) delete c.org_display;
   c.issue = issueOf();
   c.cover = "";
-  const email = str(c.contact.email);
   c.contact = {
     dept: str(c.contact.dept) || TBD("수신 부서"),
-    // 메일 주소는 자료에 있는 것만 — 모델이 만든 주소로 나가면 사고다
-    email: email && src.includes(email) ? email : str(lead?.email),
+    // 수신 메일은 리드 자신의 메일만 — 모델이 쓴 값은 보지 않는다. 조사 메모 안의 다른 주소(대표 메일·
+    // 다른 부서·지어낸 주소)가 표지에 실려 엉뚱한 곳으로 나가면 사고다. 없으면 비워 둔다(지면에서 감춘다)
+    email: str(lead?.email),
   };
 
   /* 개수 맞추기 */
@@ -396,7 +434,7 @@ export function finalizeDraft(raw: unknown, lead: GenerateLead | null | undefine
   const sources = c.observation.sources.filter((x) => {
     const url = str(x.url);
     if (!url) return /확인\s*필요/.test(x.label);
-    return /^https?:\/\//i.test(url) && src.includes(url);
+    return /^https?:\/\//i.test(url) && allowedUrls.has(normUrl(url));
   });
   c.observation.sources = sources.length
     ? sources.slice(0, C["observation.sources"].max)

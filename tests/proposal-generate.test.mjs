@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  allowedSourceUrls,
   buildPrompt,
   describeGenerateError,
   generateDraft,
@@ -254,4 +255,44 @@ test("describeGenerateError: 인증·속도 제한·시간 초과·재시도 감
   });
   assert.match(describeGenerateError(retry), /크레딧/);
   assert.match(describeGenerateError(new Error("boom")), /boom/);
+});
+
+test("출처 URL: outreach 의 URL 칸·운영자 메모만, 본문 속 링크·앞부분만 맞춘 주소는 버린다", async () => {
+  const l = {
+    ...lead,
+    email: "",
+    notes: "담당 공고 https://www.tongyeong.go.kr/notice/1.",
+    outreach: {
+      ...lead.outreach,
+      body_text: "본문 속 링크 https://agent-made.example.com/article 와 tour@tongyeong.go.kr",
+      contact_form_url: "https://www.tongyeong.go.kr/contact",
+      research: { view_url: "https://news.example.com/v/9/", sources: [{ label: "기사", url: "https://press.example.com/a" }] },
+      links: ["https://blog.example.com/p"],
+    },
+  };
+  const allowed = allowedSourceUrls(l);
+  assert.ok(allowed.has("https://www.tongyeong.go.kr/notice/1"), "메모의 링크(끝 마침표 제거)");
+  assert.ok(allowed.has("https://www.tongyeong.go.kr/contact"));
+  assert.ok(allowed.has("https://news.example.com/v/9"), "중첩 view_url, 끝 / 제거");
+  assert.ok(allowed.has("https://press.example.com/a"), "sources 안의 url");
+  assert.ok(allowed.has("https://blog.example.com/p"), "links 배열의 문자열");
+  assert.equal(allowed.has("https://agent-made.example.com/article"), false, "자유 서술 본문 속 링크는 아니다");
+
+  const d = validDraft();
+  d.contact.email = "tour@tongyeong.go.kr"; // 본문에 있는 주소라도 리드 메일이 아니면 받지 않는다
+  d.observation.sources = [
+    { label: "본문 링크", url: "https://agent-made.example.com/article" },
+    { label: "앞부분만 맞춤", url: "https://www.tongyeong.go.kr" },
+    { label: "기사", url: "https://news.example.com/v/9/" },
+    { label: "문의", url: "https://www.tongyeong.go.kr/contact" },
+  ];
+  const c = (await generateDraft(l, { call: fakeCall(d) })).content;
+  assert.deepEqual(
+    c.observation.sources.map((x) => x.url),
+    ["https://news.example.com/v/9/", "https://www.tongyeong.go.kr/contact"]
+  );
+  assert.equal(c.contact.email, "", "리드 메일이 없으면 비운다 — 모델·본문의 주소를 쓰지 않는다");
+
+  const c2 = (await generateDraft({ ...l, email: "desk@tongyeong.go.kr" }, { call: fakeCall(d) })).content;
+  assert.equal(c2.contact.email, "desk@tongyeong.go.kr", "리드 자신의 메일만");
 });

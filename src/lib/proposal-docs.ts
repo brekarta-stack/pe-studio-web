@@ -143,14 +143,21 @@ export async function getProposalDoc(quoteId: string): Promise<ProposalDocResult
 /**
  * 새 제안서. 같은 리드에 이미 있으면(두 창이 동시에 초안을 만든 경우) 새로 넣지 않고 있는 것을 돌려준다
  * — quote_id 가 UNIQUE 라 두 번째 INSERT 는 23505 로 실패한다.
+ * created 는 이 호출이 실제로 넣었는지다. 호출한 쪽은 created 일 때만 활동 기록을 남긴다
+ * (동시에 만든 두 요청이 "초안 작성"을 타임라인에 두 번 남기던 것을 막는다).
  */
+export interface CreateProposalResult {
+  doc: ProposalDoc;
+  created: boolean;
+}
+
 export async function createProposalDoc(
   quoteId: string,
   content: BookContent,
   source: ProposalSource,
   actor: string | null,
   opts: { style?: BookStyle; pages?: BookPage[] } = {}
-): Promise<ProposalDoc> {
+): Promise<CreateProposalResult> {
   const v = validate({ content, style: opts.style, pages: opts.pages });
   const { data, error } = await supabaseAdmin
     .from(TABLE)
@@ -168,12 +175,12 @@ export async function createProposalDoc(
   if (error) {
     if ((error as { code?: string }).code === "23505") {
       const existing = await getProposalDoc(quoteId);
-      if (existing.doc) return existing.doc;
+      if (existing.doc) return { doc: existing.doc, created: false };
     }
     if (isMissingTableError(error)) throw new ProposalTableMissingError();
     throw new Error(`제안서를 만들지 못했습니다: ${error.message}`);
   }
-  return fromRow(data);
+  return { doc: fromRow(data), created: true };
 }
 
 async function currentRev(quoteId: string): Promise<number | null | "none"> {
@@ -224,7 +231,7 @@ export async function resetProposalDoc(
 ): Promise<ProposalDoc> {
   const cur = await getProposalDoc(quoteId);
   if (cur.tableMissing) throw new ProposalTableMissingError();
-  if (!cur.doc) return createProposalDoc(quoteId, content, source, actor);
+  if (!cur.doc) return (await createProposalDoc(quoteId, content, source, actor)).doc;
   if (opts.expectedRev != null && opts.expectedRev !== cur.doc.rev) throw new RevConflictError(cur.doc.rev);
   const v = validate({
     content,

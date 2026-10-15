@@ -277,6 +277,9 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   );
 }
 
+/** 사이드바 없이 화면 전체를 쓰는 제안서 편집기·인쇄 화면 */
+const PROPOSAL_FULLSCREEN_RE = /^\/admin\/outreach\/[^/]+\/proposal(\/print)?$/;
+
 /* ─── AdminShell (메인 export) ─── */
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -289,8 +292,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }
 
   // 제안서 인쇄 화면은 A4 지면만 — 사이드바가 있으면 인쇄 미리보기에서 지면이 밀리고 잘린다.
-  // 제안서 편집기도 화면 전체를 쓴다(쪽 목록·지면·속성 세 단) — 돌아가는 길은 편집기 도구막대에 있다
-  if (pathname?.endsWith("/proposal/print") || pathname?.endsWith("/proposal")) {
+  // 제안서 편집기도 화면 전체를 쓴다(쪽 목록·지면·속성 세 단) — 돌아가는 길은 편집기 도구막대에 있다.
+  // 경로 전체를 맞춘다 — endsWith("/proposal") 로는 앞으로 생길 다른 "…/proposal" 화면까지 사이드바를 잃는다
+  if (pathname && PROPOSAL_FULLSCREEN_RE.test(pathname)) {
     return <>{children}</>;
   }
 

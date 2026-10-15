@@ -6,6 +6,7 @@ import { getProposalDoc } from "@/lib/proposal-docs";
 import { fontStylesheetUrls } from "@/lib/proposal-book/fonts";
 import { listTbd } from "@/lib/proposal-book/markup";
 import BookPages from "@/components/proposal-book/BookPages";
+import HideSiteChrome from "@/components/proposal-book/HideSiteChrome";
 import PrintTrigger from "./PrintTrigger";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +59,7 @@ export default async function ProposalPrintPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <style>{`body > header, body > footer { display: none !important; }`}</style>
+      <HideSiteChrome />
       {fontStylesheetUrls(doc.style).map((href) => (
         <link key={href} rel="stylesheet" href={href} precedence="proposal-fonts" />
       ))}
@@ -84,6 +85,8 @@ export default async function ProposalPrintPage({ params }: { params: Promise<{ 
 function Notice({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl p-6 md:p-8">
+      {/* 안내 화면도 정상 화면과 같은 껍데기 — 사이드바가 없는 경로라 머리말만 남으면 엉뚱해 보인다 */}
+      <HideSiteChrome />
       <Link href="/admin/outreach" className="text-sm text-slate-500 hover:text-slate-800">← 제안 영업</Link>
       <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-6">
         <p className="font-bold text-amber-800">{title}</p>

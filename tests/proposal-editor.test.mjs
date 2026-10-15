@@ -18,6 +18,7 @@ import {
   canAdd,
   canMovePage,
   canRemove,
+  carryImages,
   dragFocal,
   fontRoleOfPath,
   hasImage,
@@ -292,4 +293,30 @@ test("patchImage/dragFocal: 범위 안으로 자른다", () => {
   const start = patchImage("https://x/a.jpg", {});
   assert.deepEqual(dragFocal(start, 0.1, -0.2), { ...start, x: 40, y: 70 });
   assert.equal(dragFocal(start, -2, 0).x, 100);
+});
+
+test("carryImages: 편집기와 같은 hasImage 기준 — 상대 파일명은 빈 칸이라 새 원고를 덮지 않는다", () => {
+  const prev = structuredClone(content);
+  prev.cover = "cover.jpg"; // data.json 의 상대 파일명 = 아직 없는 그림
+  prev.scenes.image = { url: "https://cdn.example.com/scene.jpg", fit: "contain", zoom: 2, x: 10, y: 20 };
+  prev.designs.items[0].image = "/uploads/a.png";
+  prev.designs.items[1].image = "design-b.png";
+  prev.cases.items[0].image = { url: "case.jpg", fit: "cover", zoom: 1, x: 50, y: 50 };
+
+  const next = structuredClone(content);
+  next.cover = "";
+  next.scenes.image = "";
+  next.designs.items.forEach((d) => (d.image = ""));
+  next.cases.items.forEach((d) => (d.image = ""));
+
+  const out = carryImages(next, prev);
+  assert.equal(out.cover, "", "상대 파일명은 옮기지 않는다");
+  assert.deepEqual(out.scenes.image, prev.scenes.image);
+  assert.equal(out.designs.items[0].image, "/uploads/a.png");
+  assert.equal(out.designs.items[1].image, "", "상대 파일명은 옮기지 않는다");
+  assert.equal(out.cases.items[0].image, "", "객체여도 url 이 상대 파일명이면 빈 칸");
+  assert.equal(next.designs.items[0].image, "", "입력 원고는 건드리지 않는다");
+  for (const [v, want] of [["cover.jpg", false], ["", false], ["/x.png", true], ["https://a/b.png", true]]) {
+    assert.equal(hasImage(v), want, String(v));
+  }
 });
