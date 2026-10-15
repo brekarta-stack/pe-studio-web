@@ -9,18 +9,61 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { setQuoteArtist } from "@/lib/assignments";
-import { isQuoteStage } from "@/lib/assignment-types";
-import { requireAdmin } from "@/lib/session";
+import { isQuoteStage, STAGE_LABELS } from "@/lib/assignment-types";
+import { getAdminEmail, requireAdmin } from "@/lib/session";
 import { isManualChannel, manualAcquisition } from "@/lib/quote-types";
+import { addActivity } from "@/lib/lead-activities";
+import type { ActivityKind } from "@/lib/lead-activity-types";
+import { clip, isMissingColumnError, LIMITS, nextClosedAt, SALES_PATHS } from "@/lib/outreach";
 
 
 /** 편집 결과 — 클라이언트가 실패를 사용자에게 보여줄 수 있게 예외 대신 값으로 돌려준다 */
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 function fail(e: unknown): ActionResult {
-  const msg = e instanceof Error ? e.message : String(e);
+  // PostgREST 오류는 Error 인스턴스가 아니라 {message, code} 객체로 온다
+  const msg =
+    e instanceof Error
+      ? e.message
+      : e && typeof e === "object" && typeof (e as { message?: unknown }).message === "string"
+        ? (e as { message: string }).message
+        : String(e);
   console.error("[admin/quotes] action error:", msg);
   return { ok: false, error: msg };
+}
+
+/** 단계·Drop 이 바뀌면 리드가 화면 사이를 옮겨 다니므로 관련 화면을 전부 다시 그린다 */
+function revalidateSales(): void {
+  for (const p of SALES_PATHS) revalidatePath(p);
+}
+
+/**
+ * 활동 기록 한 줄 — best-effort.
+ * 기록 실패(마이그레이션 전이라 표가 없는 경우 포함)로 본 조치까지 실패시키지 않는다.
+ * 단계 변경 자체는 이미 DB 에 반영됐는데 "실패"라고 보이면 운영자가 같은 조치를 반복한다.
+ */
+async function logActivity(quoteId: string, kind: ActivityKind, body: string): Promise<void> {
+  try {
+    await addActivity({ quoteId, kind, body, actor: (await getAdminEmail()) ?? "" });
+  } catch (e) {
+    console.error("[admin/quotes] activity log failed:", e);
+  }
+}
+
+/**
+ * quotes 업데이트 — 새 컬럼(20261013)이 아직 없으면 옛 컬럼만으로 다시 쓴다.
+ * 마이그레이션 전에도 콘솔의 단계 변경·Drop 이 계속 동작해야 하기 때문이다.
+ */
+async function updateQuoteWithFallback(
+  id: string,
+  full: Record<string, unknown>,
+  legacy: Record<string, unknown>
+): Promise<void> {
+  const { error } = await supabaseAdmin.from("quotes").update(full).eq("id", id);
+  if (!error) return;
+  if (!isMissingColumnError(error)) throw error;
+  const { error: legacyErr } = await supabaseAdmin.from("quotes").update(legacy).eq("id", id);
+  if (legacyErr) throw legacyErr;
 }
 
 /** 진행 여부 체크박스 토글 */
@@ -40,15 +83,44 @@ export async function setQuoteProgress(id: string, value: boolean): Promise<Acti
   }
 }
 
-/** 진행 단계 변경 */
+/**
+ * 진행 단계 변경.
+ * stage_changed_at 을 함께 찍고, 완료(delivered·settled)로 들어가면 closed_at 을 남긴다.
+ * 완료 단계끼리 옮길 때(납품 → 정산)는 처음 완료된 시각을 유지한다 — 월 집계가 흔들리지 않게.
+ * 완료에서 빠져나오면 closed_at 을 비운다(되돌리기).
+ */
 export async function setQuoteStage(id: string, stage: string): Promise<ActionResult> {
   try {
     await requireAdmin();
     if (!isQuoteStage(stage)) throw new Error(`알 수 없는 단계입니다: ${stage}`);
-    const { error } = await supabaseAdmin.from("quotes").update({ stage }).eq("id", id);
-    if (error) throw error;
-    revalidatePath("/admin/quotes");
-    revalidatePath("/admin/works");
+
+    // closed_at 이 마이그레이션 전엔 없으므로 * 로 읽는다 (없는 컬럼을 지목하면 읽기부터 실패)
+    const { data: current, error: readErr } = await supabaseAdmin
+      .from("quotes")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!current) throw new Error("문의를 찾을 수 없습니다.");
+
+    const nowDate = new Date();
+    await updateQuoteWithFallback(
+      id,
+      {
+        stage,
+        stage_changed_at: nowDate.toISOString(),
+        closed_at: nextClosedAt(current.closed_at as string | null | undefined, stage, nowDate),
+      },
+      { stage }
+    );
+
+    if (current.stage !== stage) {
+      const prevStage: unknown = current.stage;
+      const prevLabel = isQuoteStage(prevStage) ? STAGE_LABELS[prevStage] : String(prevStage ?? "—");
+      await logActivity(id, "stage", `${prevLabel} → ${STAGE_LABELS[stage]}`);
+    }
+
+    revalidateSales();
     return { ok: true };
   } catch (e) {
     return fail(e);
@@ -70,26 +142,28 @@ export async function assignArtist(quoteId: string, artistId: string): Promise<A
 
 /**
  * Drop(제외) 처리 — 제작 문의 목록에서 빼고 운영 > Drop 으로 보낸다.
- * dropped_at 에 현재 시각을 찍는다. 배정/단계는 건드리지 않아 복구 시 그대로 살아난다.
+ * dropped_at 에 현재 시각을 찍고 사유(lost_reason)를 남긴다.
+ * 배정/단계는 건드리지 않아 복구 시 그대로 살아난다.
  */
-export async function dropQuote(id: string): Promise<ActionResult> {
+export async function dropQuote(id: string, reason = ""): Promise<ActionResult> {
   try {
     await requireAdmin();
-    const { error } = await supabaseAdmin
-      .from("quotes")
-      .update({ dropped_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) throw error;
-    revalidatePath("/admin/quotes");
-    revalidatePath("/admin/drops");
-    revalidatePath("/admin/works");
+    const why = clip(reason, LIMITS.reason);
+    const droppedAt = new Date().toISOString();
+    await updateQuoteWithFallback(
+      id,
+      { dropped_at: droppedAt, lost_reason: why || null },
+      { dropped_at: droppedAt }
+    );
+    await logActivity(id, "drop", why);
+    revalidateSales();
     return { ok: true };
   } catch (e) {
     return fail(e);
   }
 }
 
-/** Drop 복구 — dropped_at 을 비워 제작 문의 목록으로 되돌린다 */
+/** Drop 복구 — dropped_at 을 비워 원래 화면으로 되돌린다 (사유는 이력으로 남겨 둔다) */
 export async function restoreQuote(id: string): Promise<ActionResult> {
   try {
     await requireAdmin();
@@ -98,9 +172,8 @@ export async function restoreQuote(id: string): Promise<ActionResult> {
       .update({ dropped_at: null })
       .eq("id", id);
     if (error) throw error;
-    revalidatePath("/admin/quotes");
-    revalidatePath("/admin/drops");
-    revalidatePath("/admin/works");
+    await logActivity(id, "restore", "");
+    revalidateSales();
     return { ok: true };
   } catch (e) {
     return fail(e);

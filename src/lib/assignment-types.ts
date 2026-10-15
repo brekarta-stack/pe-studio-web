@@ -6,21 +6,37 @@
  * 작업비·청구금액·진행률·납기·지급상태가 모두 이 단위로 붙는다.
  */
 
-/** 리드 진행 단계 — quotes.stage
- *  (보류·취소(on_hold)는 제거 — 제외는 Drop 기능으로 처리한다) */
-export const QUOTE_STAGES = [
-  "new",
-  "consulting",
-  "quoted",
-  "contracted",
-  "producing",
-  "delivered",
-  "settled",
-] as const;
+/* ── 리드 진행 단계 — quotes.stage ─────────────────────────
+ * 한 표(quotes)가 아웃바운드 제안부터 정산까지 전부 담는다. 단계는 세 그룹으로 나뉜다:
+ *   outreach  내가 먼저 보내는 제안 — sourced(발굴) → drafted(제안서 준비) → sent(발송) → followup(팔로업)
+ *   active    손이 필요한 진행 건 — new(접수) → consulting → quoted → contracted → producing
+ *   done      끝난 건          — delivered(납품) → settled(정산)
+ *
+ * 화면이 어디에 속하는지는 source(인바운드/아웃바운드)가 아니라 **단계 그룹**이 정한다.
+ * 아웃바운드에서 전환된 건은 source='outbound' 를 유지한 채 consulting 으로 옮겨
+ * 활성 큐에 나타난다 (docs/sales-pipeline-plan.md §2).
+ * 화면마다 단계를 손으로 열거하지 말고 아래 그룹 배열·stageGroup() 에서 파생한다.
+ * (보류·취소(on_hold)는 제거 — 제외는 Drop 기능으로 처리한다) */
+
+/** 제안 영업 보드(/admin/outreach) 단계 — 마이그레이션 20261013 */
+export const OUTREACH_STAGES = ["sourced", "drafted", "sent", "followup"] as const;
+
+/** 활성 큐(/admin/quotes) 단계 */
+export const ACTIVE_STAGES = ["new", "consulting", "quoted", "contracted", "producing"] as const;
+
+/** 완료 프로젝트(/admin/completed) 단계 */
+export const DONE_STAGES = ["delivered", "settled"] as const;
+
+/** 전체 단계 — 파이프라인 순서 그대로 (셀렉트 옵션·정렬 기준) */
+export const QUOTE_STAGES = [...OUTREACH_STAGES, ...ACTIVE_STAGES, ...DONE_STAGES] as const;
 
 export type QuoteStage = (typeof QUOTE_STAGES)[number];
 
 export const STAGE_LABELS: Record<QuoteStage, string> = {
+  sourced:    "발굴",
+  drafted:    "제안서 준비",
+  sent:       "제안 발송",
+  followup:   "팔로업",
   new:        "신규 접수",
   consulting: "상담중",
   quoted:     "견적 발송",
@@ -30,8 +46,13 @@ export const STAGE_LABELS: Record<QuoteStage, string> = {
   settled:    "정산완료",
 };
 
-/** 단계별 배지 색 (Tailwind 클래스 — 어드민 팔레트에 맞춘 pastel) */
+/** 단계별 배지 색 (Tailwind 클래스 — 어드민 팔레트에 맞춘 pastel)
+ *  아웃바운드 단계는 따뜻한 계열(stone→orange→rose)로 묶어 인바운드 청색 계열과 한눈에 갈리게 한다 */
 export const STAGE_COLORS: Record<QuoteStage, string> = {
+  sourced:    "bg-stone-50 text-stone-600 border-stone-200",
+  drafted:    "bg-orange-50 text-orange-700 border-orange-200",
+  sent:       "bg-pink-50 text-pink-700 border-pink-200",
+  followup:   "bg-rose-50 text-rose-700 border-rose-200",
   new:        "bg-blue-50 text-blue-700 border-blue-200",
   consulting: "bg-sky-50 text-sky-700 border-sky-200",
   quoted:     "bg-violet-50 text-violet-700 border-violet-200",
@@ -43,6 +64,33 @@ export const STAGE_COLORS: Record<QuoteStage, string> = {
 
 export function isQuoteStage(v: unknown): v is QuoteStage {
   return typeof v === "string" && (QUOTE_STAGES as readonly string[]).includes(v);
+}
+
+export type StageGroup = "outreach" | "active" | "done";
+
+export const STAGE_GROUP_LABELS: Record<StageGroup, string> = {
+  outreach: "제안 영업",
+  active:   "진행 중",
+  done:     "완료",
+};
+
+export function isOutreachStage(v: unknown): v is (typeof OUTREACH_STAGES)[number] {
+  return typeof v === "string" && (OUTREACH_STAGES as readonly string[]).includes(v);
+}
+
+export function isActiveStage(v: unknown): v is (typeof ACTIVE_STAGES)[number] {
+  return typeof v === "string" && (ACTIVE_STAGES as readonly string[]).includes(v);
+}
+
+export function isDoneStage(v: unknown): v is (typeof DONE_STAGES)[number] {
+  return typeof v === "string" && (DONE_STAGES as readonly string[]).includes(v);
+}
+
+/** 단계 → 소속 그룹. 세 그룹이 QUOTE_STAGES 를 빠짐없이 나누므로 남는 경우는 없다 */
+export function stageGroup(stage: QuoteStage): StageGroup {
+  if (isOutreachStage(stage)) return "outreach";
+  if (isDoneStage(stage)) return "done";
+  return "active";
 }
 
 /** 배정 작업 상태 — assignments.status */
@@ -169,6 +217,8 @@ export interface Assignment {
   depositPaidAt: string | null;
   /** 잔금 지급일 (YYYY-MM-DD). null 이면 미지급 */
   balancePaidAt: string | null;
+  /** 고객 입금일(수금일, YYYY-MM-DD). null 이면 미수 (마이그레이션 20261013) */
+  clientPaidAt: string | null;
   payoutStatus: PayoutStatus;
   /** 지급 완료 시각 (ISO) */
   paidAt: string | null;

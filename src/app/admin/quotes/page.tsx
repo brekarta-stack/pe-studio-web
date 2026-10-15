@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { quoteFromRow, type QuoteSubmission } from "@/lib/quote-types";
 import { getAllArtists } from "@/lib/artists";
 import { listAssignments } from "@/lib/assignments";
+import { isActiveStage } from "@/lib/assignment-types";
+import { listActivitiesForQuotes, type LeadActivity } from "@/lib/lead-activities";
 import QuoteSheet, { type AssignedMap, type ArtistOption } from "@/components/admin/QuoteSheet";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +27,20 @@ export default async function AdminQuotesPage() {
   ]);
 
   const { data, error } = quotesRes;
-  // Drop(제외) 처리된 문의는 목록에서 빼고 운영 > Drop 에서만 본다.
+  /* 활성 큐 — 손이 필요한 진행 중 건만 (docs/sales-pipeline-plan.md §2 원칙 2).
+     Drop 은 운영 > Drop, 완료(납품·정산)는 완료 프로젝트, 아웃바운드 단계는 제안 영업에서 본다.
+     정렬: 아직 아무도 안 본 신규 접수가 맨 위, 그다음 접수일 역순(쿼리 순서 유지 — sort 는 stable). */
   const allQuotes: QuoteSubmission[] = error ? [] : (data ?? []).map(quoteFromRow);
-  const quotes = allQuotes.filter((q) => !q.droppedAt);
+  const quotes = allQuotes
+    .filter((q) => !q.droppedAt && isActiveStage(q.stage))
+    .sort((a, b) => Number(b.stage === "new") - Number(a.stage === "new"));
+
+  // 보이는 행의 활동 기록만 한 번에 — 표가 없으면 빈 기록으로 폴백한다
+  const activities = await listActivitiesForQuotes(quotes.map((q) => q.id)).catch((e) => {
+    // 타임라인은 보조 정보 — 읽기 실패(사용량 차단 등)로 목록 전체가 죽지 않게 빈 기록으로 둔다
+    console.error("[admin] activities load failed:", e);
+    return {} as Record<string, LeadActivity[]>;
+  });
 
   const artists: ArtistOption[] = artistsRes.artists.map((a) => ({ id: a.id, name: a.name }));
   const assignmentsReady = !assignmentProbe.error;
@@ -45,7 +58,7 @@ export default async function AdminQuotesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">제작 문의</h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          총 {quotes.length}건 · 고객이 입력한 모든 항목을 컬럼별로 확인할 수 있습니다.
+          진행 중 {quotes.length}건 · 완료된 건은 완료 프로젝트, 제외한 건은 Drop 에서 봅니다.
         </p>
       </div>
 
@@ -64,6 +77,7 @@ export default async function AdminQuotesPage() {
         artists={artists}
         assigned={assigned}
         assignmentsReady={assignmentsReady}
+        activities={activities}
       />
     </div>
   );

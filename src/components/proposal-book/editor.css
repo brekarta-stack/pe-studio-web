@@ -1,0 +1,52 @@
+/* 제안서 편집기 — 지면 위 편집 손잡이. 지면(book.css) 규칙은 건드리지 않고 .pb-edit 아래에만 얹는다 */
+
+/* 손잡이(span)는 인라인이라 외곽선이 줄마다 끊긴다 — 테두리는 칸 요소(data-path)에 그린다 */
+.pb-root.pb-edit .pb-ed-field { cursor: text; outline: none; }
+.pb-root.pb-edit [data-path]:not([data-kind="image"]) { border-radius: 1px; outline: 1px solid transparent; outline-offset: 1.5px; }
+.pb-root.pb-edit [data-path]:has(> .pb-ed-field:hover) { outline: 1px dashed color-mix(in srgb, var(--key) 55%, transparent); }
+.pb-root.pb-edit [data-path]:has(> .pb-ed-field[data-selected]) { outline: 1.5px solid var(--key); }
+.pb-root.pb-edit [data-path]:has(> .pb-ed-field:focus-visible) { outline: 2px solid var(--key); }
+.pb-root.pb-edit [data-path]:has(> .pb-ed-editing) {
+  outline: 2px solid var(--key);
+  background: color-mix(in srgb, var(--key) 6%, #FFFFFF);
+}
+/* 빈 칸도 누를 자리가 있게 */
+.pb-root.pb-edit .pb-ed-field:empty {
+  display: inline-block; min-width: 3em; min-height: 1em; vertical-align: middle;
+  outline: 1px dashed var(--muted);
+}
+
+.pb-root.pb-edit .pb-ed-editing { white-space: pre-wrap; cursor: text; outline: none; }
+.pb-root.pb-edit .pb-ed-editing:empty { display: inline-block; min-width: 3em; min-height: 1em; }
+
+/* ── 이미지 칸 ── */
+.pb-root.pb-edit .pb-ed-img { position: absolute; inset: 0; cursor: grab; touch-action: none; }
+.pb-root.pb-edit .pb-ed-img[data-dragging] { cursor: grabbing; }
+.pb-root.pb-edit .pb-ed-img[data-empty] { cursor: pointer; }
+.pb-root.pb-edit .pb-ed-img img { user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.pb-root.pb-edit .pb-ed-img[data-selected] { outline: 2px solid var(--key); outline-offset: -2px; }
+.pb-root.pb-edit .pb-ed-img:focus-visible { outline: 2px solid var(--key); outline-offset: -2px; }
+
+.pb-root.pb-edit .pb-ed-img-bar {
+  position: absolute; left: 50%; bottom: 4mm; transform: translateX(-50%); z-index: 3;
+  opacity: 0; transition: opacity .15s;
+}
+.pb-root.pb-edit .pb-ed-img:hover .pb-ed-img-bar,
+.pb-root.pb-edit .pb-ed-img:focus-within .pb-ed-img-bar,
+.pb-root.pb-edit .pb-ed-img[data-selected] .pb-ed-img-bar,
+.pb-root.pb-edit .pb-ed-img[data-empty] .pb-ed-img-bar { opacity: 1; }
+.pb-root.pb-edit .pb-ed-img-btn {
+  display: inline-block; cursor: pointer; white-space: nowrap;
+  font: 600 9pt/1 var(--sans); letter-spacing: 0;
+  background: rgba(21, 23, 28, .86); color: #FFFFFF;
+  padding: 2.2mm 3.6mm; border-radius: 999px;
+}
+.pb-root.pb-edit .pb-ed-img-btn:focus-within { outline: 2px solid #FFFFFF; outline-offset: 1px; }
+.pb-root.pb-edit .pb-ed-img-busy {
+  position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .75); font-size: 9pt; font-weight: 700; color: var(--ink);
+}
+.pb-root.pb-edit .pb-ed-img-err {
+  position: absolute; left: 3mm; right: 3mm; top: 3mm; z-index: 3;
+  background: #FEE2E2; color: #B42318; font-size: 8pt; line-height: 1.4; padding: 1.5mm 2.5mm;
+}

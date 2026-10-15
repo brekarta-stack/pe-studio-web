@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getAllArtists } from "@/lib/artists";
 import { listAssignmentViews } from "@/lib/assignments";
+import { ACTIVE_STAGES } from "@/lib/assignment-types";
 import WorksBoard, {
   type ArtistOption,
   type UnassignedLead,
@@ -22,9 +23,12 @@ export default async function AdminWorksPage() {
     supabaseAdmin.from("assignments").select("id").limit(1),
     listAssignmentViews(),
     getAllArtists(),
+    /* 배정 대상은 진행 중(활성) 리드만 — 아웃바운드 발굴·제안 단계 리드가 섞이면
+       100건 한도를 금방 채워 진짜 문의가 밀려난다 */
     supabaseAdmin
       .from("quotes")
       .select("id, name, product, created_at")
+      .in("stage", [...ACTIVE_STAGES])
       .order("created_at", { ascending: false })
       .limit(100),
   ]);

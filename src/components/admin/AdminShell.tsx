@@ -20,6 +20,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
     </svg>
   ),
+  outreach: (
+    // 종이비행기 — 내가 먼저 보내는 제안
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+    </svg>
+  ),
   quotes: (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
       <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
@@ -33,6 +39,17 @@ const ICONS: Record<string, React.ReactNode> = {
   works: (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
       <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zM4 8v8h12V8H4zm2.7 3.3a1 1 0 011.4 0l.9.9 2.9-2.9a1 1 0 111.4 1.4l-3.6 3.6a1 1 0 01-1.4 0l-1.6-1.6a1 1 0 010-1.4z" clipRule="evenodd" />
+    </svg>
+  ),
+  completed: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+    </svg>
+  ),
+  settlement: (
+    // 달력 — 월 단위 정산
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75zM7 10a1 1 0 11-2 0 1 1 0 012 0zm3 1a1 1 0 100-2 1 1 0 000 2zm4-1a1 1 0 11-2 0 1 1 0 012 0zm-8 4a1 1 0 100-2 1 1 0 000 2zm5-1a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
     </svg>
   ),
   drop: (
@@ -83,18 +100,26 @@ const ICONS: Record<string, React.ReactNode> = {
    → 사이트에 싣는 것(콘텐츠) → 배포물(다운로드) → 시스템. */
 const NAV_GROUPS = [
   {
+    // 유입·클릭 분석은 파이프라인의 한 단계가 아니라 전체를 내려다보는 지표라 대시보드 옆에 둔다
     label: null,
-    items: [{ href: "/admin", exact: true, label: "대시보드", icon: ICONS.dashboard }],
+    items: [
+      { href: "/admin", exact: true, label: "대시보드", icon: ICONS.dashboard },
+      { href: "/admin/analytics", exact: false, label: "유입·클릭 분석", icon: ICONS.analytics },
+    ],
   },
   {
-    // 리드가 들어와서 아티스트에게 배정되고 납품·정산되기까지
+    /* 영업 파이프라인 순서 그대로 — 아웃바운드 제안 → 인바운드 문의 → 견적 → 작업 → 완료 → 정산.
+       한 표(quotes)를 단계 그룹으로 나눠 보여 주므로 같은 건이 두 화면에 겹치지 않는다
+       (docs/sales-pipeline-plan.md §4). Drop 은 어느 단계에서든 빠진 건의 보관함이라 맨 끝. */
     label: "운영",
     items: [
-      { href: "/admin/analytics", exact: false, label: "유입·클릭 분석", icon: ICONS.analytics },
+      { href: "/admin/outreach", exact: false, label: "제안 영업", icon: ICONS.outreach },
       { href: "/admin/quotes", exact: false, label: "제작 문의", icon: ICONS.quotes },
       // 견적서 생성 → 확인 → 발송 (구글 시트로 만들고 PDF 로 메일 발송)
       { href: "/admin/estimates", exact: false, label: "견적서", icon: ICONS.estimate },
       { href: "/admin/works", exact: false, label: "작업 관리", icon: ICONS.works },
+      { href: "/admin/completed", exact: false, label: "완료 프로젝트", icon: ICONS.completed },
+      { href: "/admin/settlements", exact: false, label: "월 정산", icon: ICONS.settlement },
       // Drop(제외) 처리한 제작 문의 — 목록에서 빠진 건을 따로 모아 본다(복구 가능)
       { href: "/admin/drops", exact: false, label: "Drop", icon: ICONS.drop },
     ],
@@ -252,13 +277,24 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   );
 }
 
+/** 사이드바 없이 화면 전체를 쓰는 제안서 편집기·인쇄 화면 */
+const PROPOSAL_FULLSCREEN_RE = /^\/admin\/outreach\/[^/]+\/proposal(\/print)?$/;
+
 /* ─── AdminShell (메인 export) ─── */
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session, status } = useSession();
+  const pathname = usePathname();
 
   // 로그인 전(로딩 중 or 비로그인) → 사이드바 없이 렌더
   if (status === "loading" || !session) {
+    return <>{children}</>;
+  }
+
+  // 제안서 인쇄 화면은 A4 지면만 — 사이드바가 있으면 인쇄 미리보기에서 지면이 밀리고 잘린다.
+  // 제안서 편집기도 화면 전체를 쓴다(쪽 목록·지면·속성 세 단) — 돌아가는 길은 편집기 도구막대에 있다.
+  // 경로 전체를 맞춘다 — endsWith("/proposal") 로는 앞으로 생길 다른 "…/proposal" 화면까지 사이드바를 잃는다
+  if (pathname && PROPOSAL_FULLSCREEN_RE.test(pathname)) {
     return <>{children}</>;
   }
 

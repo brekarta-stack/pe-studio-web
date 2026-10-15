@@ -8,21 +8,31 @@
  *
  * 인라인 편집: 진행 여부(체크박스) · 진행 단계 · 담당 아티스트.
  * 서버 액션 왕복 전에 화면을 먼저 바꾸고(낙관적 갱신), 실패하면 되돌린다.
+ *
+ * 활성 큐다 — 진행 중(ACTIVE_STAGES) 건만 받는다. 완료 단계로 옮기면 행이 빠지고
+ * 완료 프로젝트 화면으로 넘어간다. 아웃바운드 단계(발굴~팔로업)는 제안 영업 보드 몫이라
+ * 여기 단계 셀렉트에는 넣지 않는다 (docs/sales-pipeline-plan.md §3.4).
  */
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   MANUAL_CHANNELS,
   MANUAL_CHANNEL_LABELS,
+  SOURCE_LABELS,
   type ManualChannel,
   type QuoteSubmission,
 } from "@/lib/quote-types";
+import type { LeadActivity } from "@/lib/lead-activity-types";
+import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { ACQ_TONE_STYLE, acquisitionBadge } from "@/lib/quote-acquisition";
 import { SITE_URL } from "@/lib/site";
 import {
-  QUOTE_STAGES,
+  ACTIVE_STAGES,
+  DONE_STAGES,
   STAGE_LABELS,
   STAGE_COLORS,
+  isDoneStage,
   type QuoteStage,
 } from "@/lib/assignment-types";
 import {
@@ -39,9 +49,17 @@ import {
   dropQuote,
   createManualQuote,
 } from "@/app/admin/quotes/actions";
+import { unconvertLead } from "@/app/admin/outreach/actions";
 
-/** 담당 아티스트 셀렉트의 특수 선택지 값 — 아티스트가 아니라 Drop(제외) 동작 */
+/** 전환 취소 버튼이 실행 대기 상태로 머무는 시간 — 보드의 전환 버튼과 같은 값 */
+const ARM_MS = 4000;
+
+/** 단계 셀렉트의 특수 선택지 값 — 단계가 아니라 Drop(제외) 동작.
+    "이 건을 어떻게 할지"는 단계 칸에서 정하는 게 자연스러워서 담당 아티스트 칸에서 옮겼다 */
 const DROP_VALUE = "__drop__";
+
+/** 이 시트에서 고를 수 있는 단계 — 진행 중 + 완료(완료로 옮기면 목록에서 빠진다) */
+const SHEET_STAGES = [...ACTIVE_STAGES, ...DONE_STAGES] as const;
 
 export interface ArtistOption {
   id: string;
@@ -57,6 +75,8 @@ interface Props {
   assigned: AssignedMap;
   /** assignments 테이블이 아직 없으면 배정 UI 를 비활성화하고 안내한다 */
   assignmentsReady: boolean;
+  /** 리드별 활동 기록 (최신순) — 펼친 행의 타임라인 */
+  activities: Record<string, LeadActivity[]>;
 }
 
 /* ─── 컬럼 정의 ───
@@ -65,7 +85,7 @@ type ColKey =
   | "progress" | "stage" | "artist" | "createdAt" | "name" | "phone" | "email"
   | "product" | "quantity" | "deliveryDate" | "purpose" | "customDesign"
   | "styleType" | "productText" | "sampling" | "rushed" | "packaging"
-  | "colorRequest" | "notes" | "files" | "designs" | "acquisition";
+  | "colorRequest" | "notes" | "files" | "designs" | "acquisition" | "source";
 
 const COLUMNS: { key: ColKey; label: string; width: string }[] = [
   { key: "progress",     label: "진행",        width: "w-14"  },
@@ -90,6 +110,7 @@ const COLUMNS: { key: ColKey; label: string; width: string }[] = [
   { key: "notes",        label: "메모",        width: "w-56"  },
   { key: "files",        label: "첨부",        width: "w-40"  },
   { key: "acquisition",  label: "유입",        width: "w-32"  },
+  { key: "source",       label: "원천",        width: "w-24"  },
 ];
 
 const HIDDEN_KEY = "pe-admin-quote-hidden-cols";
@@ -126,9 +147,11 @@ function BoolCell({ on, label: text }: { on: boolean; label: string }) {
   );
 }
 
-export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady }: Props) {
+export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady, activities }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  /** 성공 안내 — 어느 화면으로 옮겨 갔는지에 따라 따라갈 링크가 다르다 */
+  const [notice, setNotice] = useState<{ text: string; href: string; link: string } | null>(null);
   const [showManual, setShowManual] = useState(false);
 
   /* 낙관적 갱신용 로컬 오버레이 — 서버 재검증 전까지 화면을 즉시 바꾼다 */
@@ -185,15 +208,34 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
   };
 
+  /* 완료 단계로 옮긴 행 — 활성 큐에서 즉시 빼고, 실패하면 되돌린다 */
+  const [closedIds, setClosedIds] = useState<Set<string>>(new Set());
+
   const onChangeStage = (q: QuoteSubmission, stage: QuoteStage) => {
     const prev = curStage(q);
+    const toDone = isDoneStage(stage);
     setStageOv((p) => ({ ...p, [q.id]: stage }));
+    if (toDone) setClosedIds((s) => new Set(s).add(q.id));
     setError(null);
+    setNotice(null);
     startTransition(async () => {
       const res = await setQuoteStage(q.id, stage);
       if (!res.ok) {
         setStageOv((p) => ({ ...p, [q.id]: prev }));
+        if (toDone) {
+          setClosedIds((s) => {
+            const n = new Set(s);
+            n.delete(q.id);
+            return n;
+          });
+        }
         setError(res.error);
+      } else if (toDone) {
+        setNotice({
+          text: `'${q.name || q.org || "문의"}'을(를) 완료 프로젝트로 이동했습니다.`,
+          href: "/admin/completed",
+          link: "완료 프로젝트 보기",
+        });
       }
     });
   };
@@ -211,20 +253,18 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
   };
 
-  /* Drop(제외) — 목록에서 즉시 감추고(낙관적) 서버에 dropped_at 을 찍는다. 실패 시 복원 */
+  /* Drop(제외) — 목록에서 즉시 감추고(낙관적) 서버에 dropped_at 을 찍는다. 실패 시 복원.
+     확인창(window.confirm) 대신 셀렉트 아래에 사유 입력칸을 펼쳐 한 번 더 누르게 한다 */
   const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set());
+  const [dropPromptId, setDropPromptId] = useState<string | null>(null);
 
-  const onDrop = (q: QuoteSubmission) => {
-    if (
-      !window.confirm(
-        `'${q.name || "이 문의"}'를 Drop 처리할까요?\n제작 문의 목록에서 빠지고, 운영 > Drop 에서 볼 수 있습니다. (복구 가능)`,
-      )
-    )
-      return;
+  const onDrop = (q: QuoteSubmission, reason: string) => {
+    setDropPromptId(null);
     setDroppedIds((s) => new Set(s).add(q.id));
     setError(null);
+    setNotice(null);
     startTransition(async () => {
-      const res = await dropQuote(q.id);
+      const res = await dropQuote(q.id, reason);
       if (!res.ok) {
         setDroppedIds((s) => {
           const n = new Set(s);
@@ -236,13 +276,50 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     });
   };
 
-  /** 담당 아티스트 셀렉트 변경 — 특수값이면 Drop, 아니면 배정 */
-  const onArtistSelect = (q: QuoteSubmission, value: string) => {
-    if (value === DROP_VALUE) {
-      onDrop(q);
+  /* 전환 취소 — 제안 영업 보드에서 실수로 전환한 건을 팔로업으로 되돌린다.
+     서버 규칙(상담중 + 전환 기록 있음)과 같은 조건에서만 버튼을 보이고, 2단계로 누르게 한다 */
+  const [unconvertedIds, setUnconvertedIds] = useState<Set<string>>(new Set());
+  const [armedUnconvert, setArmedUnconvert] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (armTimer.current) clearTimeout(armTimer.current);
+  }, []);
+
+  const onUnconvert = (q: QuoteSubmission) => {
+    if (armedUnconvert !== q.id) {
+      setArmedUnconvert(q.id);
+      if (armTimer.current) clearTimeout(armTimer.current);
+      armTimer.current = setTimeout(() => setArmedUnconvert(null), ARM_MS);
       return;
     }
-    onChangeArtist(q, value);
+    if (armTimer.current) clearTimeout(armTimer.current);
+    setArmedUnconvert(null);
+    setUnconvertedIds((s) => new Set(s).add(q.id));
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const res = await unconvertLead(q.id);
+      if (!res.ok) {
+        setUnconvertedIds((s) => {
+          const n = new Set(s);
+          n.delete(q.id);
+          return n;
+        });
+        setError(res.error);
+      } else {
+        setNotice({ text: "제안 영업으로 되돌렸습니다", href: "/admin/outreach", link: "제안 영업 보기" });
+      }
+    });
+  };
+
+  /** 단계 셀렉트 변경 — 특수값이면 Drop 사유 입력칸을 펼치고(단계는 그대로), 아니면 단계 변경 */
+  const onStageSelect = (q: QuoteSubmission, value: string) => {
+    if (value === DROP_VALUE) {
+      setDropPromptId(q.id);
+      return;
+    }
+    onChangeStage(q, value as QuoteStage);
   };
 
   /* ── 필터링 ── */
@@ -250,20 +327,22 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
     const q = search.trim().toLowerCase();
     return quotes.filter((row) => {
       if (droppedIds.has(row.id)) return false; // Drop 낙관적 제거
+      if (closedIds.has(row.id)) return false; // 완료로 이동 — 낙관적 제거
+      if (unconvertedIds.has(row.id)) return false; // 전환 취소 — 제안 영업 보드로 이동
       if (stageFilter !== "all" && curStage(row) !== stageFilter) return false;
       if (progressFilter === "on" && !curProgress(row)) return false;
       if (progressFilter === "off" && curProgress(row)) return false;
       if (!q) return true;
       return [
         row.name, row.email, row.phone, row.notes, row.colorRequest,
-        row.productText, row.quantity, label(PRODUCT_LABELS, row.product),
+        row.productText, row.quantity, label(PRODUCT_LABELS, row.product), row.org,
       ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
     // curStage/curProgress 는 오버레이 state 에 의존하므로 함께 재계산되어야 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quotes, search, stageFilter, progressFilter, stageOv, progressOv, droppedIds]);
+  }, [quotes, search, stageFilter, progressFilter, stageOv, progressOv, droppedIds, closedIds, unconvertedIds]);
 
   const visible = COLUMNS.filter((c) => !hidden.has(c.key));
 
@@ -293,6 +372,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
         case "files":        return [...q.files.map((f) => f.name), q.fileName, q.logoFileName].filter(Boolean).join(" / ");
         case "designs":      return q.designs.map((d) => `${d.name || "이름없음"}(${d.quantity || "-"})`).join(" / ");
         case "acquisition":  return acqInfo(q)?.text ?? "";
+        case "source":       return SOURCE_LABELS[q.source] + (q.source === "outbound" && q.convertedAt ? " (전환)" : "");
       }
     };
     const esc = (s: string) => `"${(s ?? "").replace(/"/g, '""')}"`;
@@ -331,7 +411,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
           className="h-9 rounded-lg border border-slate-200 px-2 text-sm outline-none focus:border-slate-400"
         >
           <option value="all">단계 전체</option>
-          {QUOTE_STAGES.map((s) => (
+          {ACTIVE_STAGES.map((s) => (
             <option key={s} value={s}>{STAGE_LABELS[s]}</option>
           ))}
         </select>
@@ -396,6 +476,11 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
           저장하지 못했습니다: {error}
         </div>
       )}
+      {notice && (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          {notice.text} <a href={notice.href} className="font-semibold underline">{notice.link}</a>
+        </div>
+      )}
 
       {!assignmentsReady && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -452,14 +537,23 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               <td key={c.key} className={td} onClick={(e) => e.stopPropagation()}>
                                 <select
                                   value={stage}
-                                  onChange={(e) => onChangeStage(q, e.target.value as QuoteStage)}
+                                  onChange={(e) => onStageSelect(q, e.target.value)}
                                   aria-label={`${q.name} 진행 단계`}
                                   className={`w-full min-w-[6.5rem] cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold outline-none ${STAGE_COLORS[stage]}`}
                                 >
-                                  {QUOTE_STAGES.map((s) => (
+                                  {SHEET_STAGES.map((s) => (
                                     <option key={s} value={s}>{STAGE_LABELS[s]}</option>
                                   ))}
+                                  <option disabled>──────────</option>
+                                  <option value={DROP_VALUE}>⛔ Drop (목록에서 제외)</option>
                                 </select>
+                                {dropPromptId === q.id && (
+                                  <DropPrompt
+                                    pending={isPending}
+                                    onCancel={() => setDropPromptId(null)}
+                                    onConfirm={(reason) => onDrop(q, reason)}
+                                  />
+                                )}
                               </td>
                             );
                           case "artist":
@@ -467,7 +561,7 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               <td key={c.key} className={td} onClick={(e) => e.stopPropagation()}>
                                 <select
                                   value={curArtistId(q)}
-                                  onChange={(e) => onArtistSelect(q, e.target.value)}
+                                  onChange={(e) => onChangeArtist(q, e.target.value)}
                                   disabled={!assignmentsReady}
                                   aria-label={`${q.name} 담당 아티스트`}
                                   className="w-full cursor-pointer rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
@@ -476,8 +570,6 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                   {artists.map((a) => (
                                     <option key={a.id} value={a.id}>{a.name}</option>
                                   ))}
-                                  <option disabled>──────────</option>
-                                  <option value={DROP_VALUE}>⛔ Drop (목록에서 제외)</option>
                                 </select>
                                 {extra > 0 && (
                                   <span className="mt-1 block text-[11px] text-slate-400">외 {extra}명</span>
@@ -604,6 +696,40 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                                 )}
                               </td>
                             );
+                          case "source":
+                            return (
+                              <td key={c.key} className={td}>
+                                <span
+                                  className={`inline-block whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                    q.source === "outbound"
+                                      ? "border-orange-200 bg-orange-50 text-orange-700"
+                                      : "border-slate-200 bg-slate-50 text-slate-600"
+                                  }`}
+                                >
+                                  {SOURCE_LABELS[q.source]}
+                                </span>
+                                {q.source === "outbound" && q.convertedAt && (
+                                  <span className="mt-0.5 block text-[10px] text-slate-400">전환</span>
+                                )}
+                                {q.source === "outbound" && q.convertedAt && curStage(q) === "consulting" && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation(); // 행 클릭(상세 펼치기)으로 번지지 않게
+                                      onUnconvert(q);
+                                    }}
+                                    disabled={isPending}
+                                    className={`mt-1 block whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-semibold disabled:opacity-50 ${
+                                      armedUnconvert === q.id
+                                        ? "border-amber-300 bg-amber-50 text-amber-800"
+                                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {armedUnconvert === q.id ? "한 번 더 누르면 취소" : "전환 취소"}
+                                  </button>
+                                )}
+                              </td>
+                            );
                         }
                       })}
                     </tr>
@@ -647,6 +773,20 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
                               )}
                             </div>
                           </div>
+                          {/* 아웃바운드에서 전환된 건은 보낸 제안서를 상담 중에도 다시 본다 */}
+                          {q.source === "outbound" && (
+                            <p className="mt-4 text-sm">
+                              <Link
+                                href={`/admin/outreach/${q.id}/proposal`}
+                                className="font-semibold text-[#1E22B2] hover:underline"
+                              >
+                                제안서 열기
+                              </Link>
+                            </p>
+                          )}
+                          <div className="mt-5 border-t border-slate-200 pt-4">
+                            <ActivityTimeline quoteId={q.id} activities={activities[q.id] ?? []} compact />
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -676,6 +816,50 @@ export default function QuoteSheet({ quotes, artists, assigned, assignmentsReady
           }}
         />
       )}
+    </div>
+  );
+}
+
+/* ─── Drop 사유 입력 ───
+ * 담당 아티스트 셀렉트에서 Drop 을 고르면 바로 그 아래에 펼친다. 사유는 선택이지만
+ * 남겨 두면 Drop 화면과 나중의 실패 분석에서 "왜 놓쳤나"를 볼 수 있다. */
+function DropPrompt({
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <div className="mt-2 w-56 rounded-lg border border-red-200 bg-white p-2 shadow-sm">
+      <textarea
+        rows={2}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Drop 사유(선택)"
+        aria-label="Drop 사유"
+        autoFocus
+        className="w-full resize-y rounded-md border border-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400"
+      />
+      <p className="mt-1 text-[10px] text-slate-400">목록에서 빠지고 운영 &gt; Drop 에서 복구할 수 있습니다.</p>
+      <div className="mt-1.5 flex gap-1.5">
+        <button
+          disabled={pending}
+          onClick={() => onConfirm(reason.trim())}
+          className="flex-1 rounded-md bg-red-600 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        >
+          Drop
+        </button>
+        <button
+          onClick={onCancel}
+          className="flex-1 rounded-md border border-slate-200 py-1 text-xs text-slate-600 hover:bg-slate-50"
+        >
+          취소
+        </button>
+      </div>
     </div>
   );
 }
