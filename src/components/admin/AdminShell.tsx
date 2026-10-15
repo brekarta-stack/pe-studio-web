@@ -288,8 +288,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return <>{children}</>;
   }
 
-  // 제안서 인쇄 화면은 A4 지면만 — 사이드바가 있으면 인쇄 미리보기에서 지면이 밀리고 잘린다
-  if (pathname?.endsWith("/proposal/print")) {
+  // 제안서 인쇄 화면은 A4 지면만 — 사이드바가 있으면 인쇄 미리보기에서 지면이 밀리고 잘린다.
+  // 제안서 편집기도 화면 전체를 쓴다(쪽 목록·지면·속성 세 단) — 돌아가는 길은 편집기 도구막대에 있다
+  if (pathname?.endsWith("/proposal/print") || pathname?.endsWith("/proposal")) {
     return <>{children}</>;
   }
 
