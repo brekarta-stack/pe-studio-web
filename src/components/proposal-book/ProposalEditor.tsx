@@ -80,6 +80,7 @@ import { prepareImageForUpload } from "@/lib/image-resize";
 import type { ProposalDoc } from "@/lib/proposal-docs";
 import {
   applyAiResult,
+  cancelAi,
   createFromFallback,
   discardAiResult,
   getGenStatus,
@@ -723,7 +724,7 @@ function Editor({
   /** 자동 적용됐는데 이 창에 저장 안 된 변경이 있다 — 자동 저장을 멈추고 "불러오기"를 띄운다(충돌 띠 대신) */
   const [aiApplied, setAiApplied] = useState(false);
   const aiAppliedRef = useRef(false);
-  const [genAction, setGenAction] = useState<"idle" | "requesting" | "applying" | "discarding">("idle");
+  const [genAction, setGenAction] = useState<"idle" | "requesting" | "applying" | "discarding" | "cancelling">("idle");
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (!toast) return;
@@ -960,10 +961,31 @@ function Editor({
     const first = setTimeout(() => void pollGen(), 0);
     return () => clearTimeout(first);
   }, [aiEngine, pollGen]);
+  // 탭이 가려져 있으면 묻지 않는다(창 여러 개를 띄워 둔 채 두면 10초마다 DB 를 두드린다). 다시 보이면 곧바로 한 번 묻고 이어 간다
   useEffect(() => {
     if (aiEngine !== "mac" || !isGenActive(gen.status)) return;
-    const t = setInterval(() => void pollGen(), GEN_POLL_MS);
-    return () => clearInterval(t);
+    let t: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (t == null) t = setInterval(() => void pollGen(), GEN_POLL_MS);
+    };
+    const stop = () => {
+      if (t != null) clearInterval(t);
+      t = null;
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        void pollGen();
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
   }, [aiEngine, gen.status, pollGen]);
 
   /* ── 크기 맞춤 ── */
@@ -1254,6 +1276,22 @@ function Editor({
     setToast("AI 원고를 적용했습니다 · 되돌리기로 앞 판을 다시 불러올 수 있습니다");
   };
 
+  /** 요청 취소 — 아직 안 잡혔으면 거두고, 맥이 쓰는 중이면 "취소됨"으로 닫는다(늦게 온 원고는 버려진다) */
+  const runCancelRequest = async () => {
+    setGenAction("cancelling");
+    setActionError(null);
+    const r = await cancelAi(lead.id).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    setGenAction("idle");
+    if (!r.ok) {
+      setActionError(r.error);
+      return;
+    }
+    const g = genOf(r.doc);
+    setGen(g);
+    genWatchRef.current = isGenActive(g.status);
+    if (!isGenActive(g.status)) setToast("AI 작성 요청을 취소했습니다");
+  };
+
   const runDiscardResult = async () => {
     setGenAction("discarding");
     setActionError(null);
@@ -1540,6 +1578,14 @@ function Editor({
               {gen.requestedAt && fmtIsoTime(gen.requestedAt) ? ` (요청 ${fmtIsoTime(gen.requestedAt)})` : ""}
             </span>
             <span className="text-xs text-indigo-700">편집은 계속해도 됩니다</span>
+            <button
+              type="button"
+              className="ml-auto rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
+              onClick={() => void runCancelRequest()}
+              disabled={genAction !== "idle"}
+            >
+              {genAction === "cancelling" ? "취소 중…" : "요청 취소"}
+            </button>
           </div>
         )}
         {aiEngine === "mac" && !aiApplied && gen.status === "done" && gen.hasResult && (

@@ -18,9 +18,11 @@ import { quoteFromRow } from "@/lib/quote-types";
 import {
   RevConflictError,
   applyGenResult,
+  cancelGeneration,
   createProposalDoc,
   discardGenResult,
   ensureDocAndRequest,
+  getGenState,
   getProposalDoc,
   resetProposalDoc,
   saveProposalDoc,
@@ -142,24 +144,27 @@ export type GenStatusResult =
     }
   | { ok: false; error: string };
 
-/** 편집기가 10초마다 묻는 작업 상태 — 원고는 싣지 않는다(가볍게) */
+/**
+ * 편집기가 10초마다 묻는 작업 상태 — gen_* 와 rev·source·updated_at 만 읽는다(원고·도착 원고는 안 읽는다).
+ * 읽기 전에 이 문서의 묵은 요청(30분 넘게 안 잡힌 requested)·작업을 정리한다 — 작업자가 꺼져 있어도 갇히지 않게.
+ */
 export async function getGenStatus(quoteId: string): Promise<GenStatusResult> {
   try {
     await requireAdmin();
     checkId(quoteId);
-    const { doc } = await getProposalDoc(quoteId);
-    if (!doc) return { ok: false, error: "제안서가 없습니다." };
+    const st = await getGenState(quoteId);
+    if (!st) return { ok: false, error: "제안서가 없습니다." };
     return {
       ok: true,
-      genStatus: doc.genStatus,
-      genMode: doc.genMode,
-      genError: doc.genError,
-      hasResult: doc.hasGenResult,
-      resultAt: doc.genResultAt,
-      requestedAt: doc.genRequestedAt,
-      finishedAt: doc.genFinishedAt,
-      rev: doc.rev,
-      source: doc.source,
+      genStatus: st.genStatus,
+      genMode: st.genMode,
+      genError: st.genError,
+      hasResult: st.hasResult,
+      resultAt: st.resultAt,
+      requestedAt: st.requestedAt,
+      finishedAt: st.finishedAt,
+      rev: st.rev,
+      source: st.source,
     };
   } catch (e) {
     return { ok: false, error: errMessage(e) };
@@ -204,6 +209,23 @@ export async function applyAiResult(quoteId: string, expectedRev: number): Promi
     const actor = await getAdminEmail();
     const doc = await applyGenResult(quoteId, expectedRev, actor);
     await logActivity(quoteId, "제안서 AI 원고 적용", actor);
+    return { ok: true, doc };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** AI 작성 요청 취소 — 아직 안 잡혔으면 조용히 거두고, 맥이 쓰는 중이면 "취소됨"으로 닫는다(늦은 결과는 버려진다) */
+export async function cancelAi(quoteId: string): Promise<ProposalActionResult> {
+  try {
+    await requireAdmin();
+    checkId(quoteId);
+    const actor = await getAdminEmail();
+    const before = await getGenState(quoteId);
+    const doc = await cancelGeneration(quoteId);
+    if (before && (before.genStatus === "requested" || before.genStatus === "running") && doc.genStatus !== before.genStatus) {
+      await logActivity(quoteId, "제안서 AI 작성 요청 취소", actor);
+    }
     return { ok: true, doc };
   } catch (e) {
     return fail(e);

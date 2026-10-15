@@ -28,8 +28,11 @@ import {
 import { carryImages } from "./proposal-book/editor-ops";
 import { buildFallback, type FallbackLead } from "./proposal-book/fallback";
 import {
+  GEN_CANCELLED_ERROR,
+  GEN_REQUEST_EXPIRE_MS,
   GEN_STALE_MS,
   GEN_TIMEOUT_ERROR,
+  GEN_UNRESPONSIVE_ERROR,
   clipGenError,
   isGenActive,
   isGenMode,
@@ -325,6 +328,8 @@ export interface RequestGenerationResult {
  */
 export async function requestGeneration(quoteId: string, mode: GenMode, actor: string | null): Promise<RequestGenerationResult> {
   void actor; // 요청자는 활동 기록(호출한 쪽)에 남긴다 — updated_by 는 원고를 바꾼 사람 칸이라 건드리지 않는다
+  // 작업자가 꺼져 있어 묵은 requested 는 먼저 실패로 닫는다 — 안 그러면 "이미 요청 중"이라며 새 요청을 영영 못 한다
+  await reapJobsFor(quoteId);
   const cur = await getProposalDoc(quoteId);
   if (cur.tableMissing) throw new ProposalTableMissingError();
   if (!cur.doc) throw new Error("요청할 제안서가 없습니다. 먼저 제안서를 여세요.");
@@ -355,15 +360,19 @@ export async function requestGeneration(quoteId: string, mode: GenMode, actor: s
   return { doc: again.doc, requested: false };
 }
 
-/** 20분 넘은 running — 시도 한도 안이면 다시 줄 세우고, 넘었으면 failed("시간 초과") */
-async function reapStaleJobs(now = Date.now()): Promise<void> {
+/**
+ * 30분 넘은 running — 시도 한도 안이면 다시 줄 세우고, 넘었으면 failed("시간 초과").
+ * quoteId 를 주면 그 문서 하나만 본다(편집기 상태 확인·요청 경로의 가벼운 정리).
+ */
+async function reapStaleJobs(now = Date.now(), quoteId?: string): Promise<void> {
   const cutoff = new Date(now - GEN_STALE_MS).toISOString();
-  const { data, error } = await supabaseAdmin
+  let q = supabaseAdmin
     .from(TABLE)
     .select("id, gen_started_at, gen_attempts")
     .eq("gen_status", "running")
-    .or(`gen_started_at.is.null,gen_started_at.lt.${cutoff}`)
-    .limit(20);
+    .or(`gen_started_at.is.null,gen_started_at.lt.${cutoff}`);
+  if (quoteId) q = q.eq("quote_id", quoteId);
+  const { data, error } = await q.limit(20);
   if (error) throw jobsError(error, "작업 상태를 읽지 못했습니다");
   for (const r of data ?? []) {
     const decision = staleDecision({ startedAt: r.gen_started_at ?? null, attempts: Number(r.gen_attempts) || 0 }, now);
@@ -379,12 +388,35 @@ async function reapStaleJobs(now = Date.now()): Promise<void> {
 }
 
 /**
+ * 30분 넘게 아무도 잡아 가지 않은 requested → failed("맥 작업자가 응답하지 않습니다").
+ * 조건부 UPDATE 한 번 — 그 사이 작업자가 잡았으면(running) 건드리지 않는다. quoteId 를 주면 그 문서만.
+ */
+async function reapExpiredRequests(now = Date.now(), quoteId?: string): Promise<void> {
+  const cutoff = new Date(now - GEN_REQUEST_EXPIRE_MS).toISOString();
+  let q = supabaseAdmin
+    .from(TABLE)
+    .update({ gen_status: "failed", gen_error: GEN_UNRESPONSIVE_ERROR, gen_finished_at: new Date(now).toISOString() })
+    .eq("gen_status", "requested")
+    .or(`gen_requested_at.is.null,gen_requested_at.lt.${cutoff}`);
+  if (quoteId) q = q.eq("quote_id", quoteId);
+  const { error } = await q;
+  if (error) throw jobsError(error, "오래된 요청을 정리하지 못했습니다");
+}
+
+/** 문서 하나의 묵은 작업 정리 — 상태 확인·요청 때 부른다(작업자가 꺼져 있어도 편집기가 갇히지 않게) */
+async function reapJobsFor(quoteId: string, now = Date.now()): Promise<void> {
+  await reapExpiredRequests(now, quoteId);
+  await reapStaleJobs(now, quoteId);
+}
+
+/**
  * 작업자가 다음 작업 하나를 잡는다 — 가장 오래된 requested 를 running 으로.
  * 고른 뒤 "WHERE id = ? AND gen_status = 'requested'" 로 바꾸므로 작업자 둘이 같은 것을 잡지 못한다.
  * 진 쪽은 다음 후보로 몇 번 더 시도한다. 없으면 null.
  */
 export async function claimNextJob(): Promise<ProposalDoc | null> {
   await reapStaleJobs();
+  await reapExpiredRequests();
   for (let i = 0; i < 5; i++) {
     const { data: cand, error } = await supabaseAdmin
       .from(TABLE)
@@ -409,24 +441,27 @@ export async function claimNextJob(): Promise<ProposalDoc | null> {
   return null;
 }
 
-/** 작업자 결과 보관 — running 일 때만. 아니면 null (늦게 온 결과가 새 요청·적용을 덮지 않게) */
-export async function storeWorkerResult(quoteId: string, content: BookContent): Promise<ProposalDoc | null> {
+/**
+ * 작업자 결과 보관 — running 이고 (attempt 를 주면) 시도 번호가 같을 때만. 아니면 null
+ * (늦게 온 결과·앞 시도의 결과가 새 요청·적용을 덮지 않게)
+ */
+export async function storeWorkerResult(quoteId: string, content: BookContent, attempt?: number): Promise<ProposalDoc | null> {
   const v = check<BookContent>(bookContentSchema, content, "AI 원고");
   const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
+  let q = supabaseAdmin
     .from(TABLE)
     .update({ gen_status: "done", gen_result: v, gen_result_at: now, gen_finished_at: now, gen_error: null })
     .eq("quote_id", quoteId)
-    .eq("gen_status", "running")
-    .select("*")
-    .maybeSingle();
+    .eq("gen_status", "running");
+  if (attempt != null) q = q.eq("gen_attempts", attempt);
+  const { data, error } = await q.select("*").maybeSingle();
   if (error) throw jobsError(error, "AI 원고를 보관하지 못했습니다");
   return data ? fromRow(data) : null;
 }
 
-/** 작업자 실패 기록 — running 일 때만. 아니면 null */
-export async function storeWorkerError(quoteId: string, message: unknown): Promise<ProposalDoc | null> {
-  const { data, error } = await supabaseAdmin
+/** 작업자 실패 기록 — running 이고 (attempt 를 주면) 시도 번호가 같을 때만. 아니면 null */
+export async function storeWorkerError(quoteId: string, message: unknown, attempt?: number): Promise<ProposalDoc | null> {
+  let q = supabaseAdmin
     .from(TABLE)
     .update({
       gen_status: "failed",
@@ -436,9 +471,9 @@ export async function storeWorkerError(quoteId: string, message: unknown): Promi
       gen_result_at: null,
     })
     .eq("quote_id", quoteId)
-    .eq("gen_status", "running")
-    .select("*")
-    .maybeSingle();
+    .eq("gen_status", "running");
+  if (attempt != null) q = q.eq("gen_attempts", attempt);
+  const { data, error } = await q.select("*").maybeSingle();
   if (error) throw jobsError(error, "실패를 기록하지 못했습니다");
   return data ? fromRow(data) : null;
 }
@@ -493,6 +528,76 @@ export async function discardGenResult(quoteId: string): Promise<ProposalDoc> {
   const cur = await getProposalDoc(quoteId);
   if (!cur.doc) throw new Error("제안서가 없습니다.");
   return cur.doc;
+}
+
+/**
+ * 요청 취소. requested(아직 아무도 안 잡음)는 조용히 idle 로, running(맥이 쓰는 중)은 failed("취소됨")로 닫는다
+ * — running 을 닫아 두면 뒤늦게 온 작업자 결과는 409 로 버려진다(맥의 조사 자체는 끝까지 돈다).
+ * 이미 끝났으면(done·failed·idle) 아무것도 하지 않고 지금 문서를 돌려준다.
+ */
+export async function cancelGeneration(quoteId: string): Promise<ProposalDoc> {
+  const now = new Date().toISOString();
+  const { data: q, error: qErr } = await supabaseAdmin
+    .from(TABLE)
+    .update({ gen_status: "idle", gen_error: null, gen_finished_at: now })
+    .eq("quote_id", quoteId)
+    .eq("gen_status", "requested")
+    .select("*")
+    .maybeSingle();
+  if (qErr) throw jobsError(qErr, "요청을 취소하지 못했습니다");
+  if (q) return fromRow(q);
+  const { data: r, error: rErr } = await supabaseAdmin
+    .from(TABLE)
+    .update({ gen_status: "failed", gen_error: GEN_CANCELLED_ERROR, gen_finished_at: now, gen_result: null, gen_result_at: null })
+    .eq("quote_id", quoteId)
+    .eq("gen_status", "running")
+    .select("*")
+    .maybeSingle();
+  if (rErr) throw jobsError(rErr, "요청을 취소하지 못했습니다");
+  if (r) return fromRow(r);
+  const cur = await getProposalDoc(quoteId);
+  if (!cur.doc) throw new Error("제안서가 없습니다.");
+  return cur.doc;
+}
+
+/** 편집기가 10초마다 묻는 작업 상태 — 원고(content)·도착 원고(gen_result)는 읽지 않는다 */
+export interface GenState {
+  genStatus: GenStatus;
+  genMode: GenMode | null;
+  genError: string | null;
+  /** gen_result_at 이 있으면 도착 원고가 있다 — 보관·적용·버리기·실패가 둘을 늘 함께 채우고 비운다 */
+  hasResult: boolean;
+  resultAt: string | null;
+  requestedAt: string | null;
+  finishedAt: string | null;
+  rev: number;
+  source: ProposalSource;
+  updatedAt: string | null;
+}
+
+const GEN_STATE_COLUMNS =
+  "rev, source, updated_at, gen_status, gen_mode, gen_requested_at, gen_started_at, gen_finished_at, gen_attempts, gen_error, gen_result_at";
+
+/** 가벼운 상태 읽기 — 그 전에 이 문서의 묵은 요청·작업을 정리한다. 문서가 없으면 null */
+export async function getGenState(quoteId: string): Promise<GenState | null> {
+  await reapJobsFor(quoteId);
+  const { data, error } = await supabaseAdmin.from(TABLE).select(GEN_STATE_COLUMNS).eq("quote_id", quoteId).maybeSingle();
+  if (error) throw jobsError(error, "작업 상태를 읽지 못했습니다");
+  if (!data) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = data as any;
+  return {
+    genStatus: normalizeGenStatus(r.gen_status),
+    genMode: isGenMode(r.gen_mode) ? r.gen_mode : null,
+    genError: typeof r.gen_error === "string" ? r.gen_error : null,
+    hasResult: r.gen_result_at != null,
+    resultAt: r.gen_result_at ?? null,
+    requestedAt: r.gen_requested_at ?? null,
+    finishedAt: r.gen_finished_at ?? null,
+    rev: Number.isFinite(Number(r.rev)) ? Number(r.rev) : 0,
+    source: isProposalSource(r.source) ? r.source : "manual",
+    updatedAt: r.updated_at ?? null,
+  };
 }
 
 export interface EnsureAndRequestResult extends RequestGenerationResult {

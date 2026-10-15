@@ -32,7 +32,9 @@ import {
   conformContent,
   emptyContent,
   getAt,
+  isTrustedCaseImageUrl,
   issueOf,
+  normalizeImage,
   setAt,
   type BookContent,
 } from "./schema.ts";
@@ -482,8 +484,12 @@ function finalizeContent(raw: unknown, lead: GenerateLead | null | undefined, po
   c.scenes.image = "";
   c.scenes.items = fit(c.scenes.items, 2, 2, () => ({ title: TBD("장면"), body: TBD("장면 설명") }));
 
+  // 사례 사진: 맥 작업자(web)는 사례 라이브러리의 photo_url 을 옮겨 적는다 — 우리 스토리지 https 주소만 남긴다
   c.cases.items = fit(c.cases.items, 3, 3, () => ({ org: TBD("기관"), title: TBD("사례명"), note: "", image: "" })).map(
-    (x) => ({ ...x, image: "" })
+    (x) => {
+      const url = normalizeImage(x.image).url;
+      return { ...x, image: policy === "web" && isTrustedCaseImageUrl(url) ? url : "" };
+    }
   );
 
   /* 견적 — 금액은 언제나 빈칸, 추천은 정확히 하나 */

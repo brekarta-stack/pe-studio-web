@@ -111,8 +111,12 @@ Vercel AI Gateway 는 크레딧이 없어 운영에서 실패했다. 사용자 �
 
 - 인증: 헤더 `x-intake-token` = Vercel env `OUTREACH_INTAKE_TOKEN` (맥은 `~/agents-bd/.intake.env`). 상수 시간 비교.
 - `POST /api/admin/proposals/{quoteId}/request` (토큰 또는 관리자) body `{mode:"create"|"regenerate"}` → 문서가 없으면 기존 자료로 만들고 요청 상태로. 이미 requested/running 이면 그대로 둔다. 응답 `{ok, doc}`.
-- `GET /api/admin/proposals/jobs/next` (토큰) → 없으면 204. 있으면 200 `{job:{quoteId, mode, requestedAt, lead:{org,segment,score,name,email,phone,notes,outreach}, current: BookContent}}`. 원자적으로 requested→running. running 이 20분 넘으면 재요청(시도 2회까지), 넘으면 failed.
-- `POST /api/admin/proposals/{quoteId}/worker-result` (토큰) body `{ok:true, content}` 또는 `{ok:false, error}` → `{ok, applied}`.
+- `GET /api/admin/proposals/jobs/next` (토큰) → 없으면 204. 있으면 200 `{job:{quoteId, attempt, mode, requestedAt, lead:{org,segment,score,name,notes,outreach}, current: BookContent}}`. 원자적으로 requested→running. running 이 30분(작업자 시간 한도 20분보다 길게) 넘으면 재요청(시도 2회까지), 넘으면 failed. 리드 메일·전화는 싣지 않는다.
+- requested 가 30분 넘게 안 잡히면 failed "맥 작업자가 응답하지 않습니다 (작업자가 꺼져 있을 수 있음)". 이 정리는 jobs/next 뿐 아니라 편집기 상태 확인·요청 때도 그 문서에 대해 돈다(작업자가 꺼져 있어도 편집기가 갇히지 않게).
+- 편집기 "요청 취소": requested → idle, running → failed "취소됨"(그 뒤 도착한 결과는 409).
+- `POST /api/admin/proposals/{quoteId}/worker-result` (토큰) body `{ok:true, content, attempt}` 또는 `{ok:false, error, attempt}` → `{ok, applied}`. attempt 는 jobs/next 가 준 값 그대로 — 다르면 409(앞 시도의 늦은 결과). running 이 아니면 409, 원고 형식 오류면 422(failed 로 기록).
+- 사례 사진: 작업자 원고의 cases.items[].image 는 supabase 공개 스토리지(`syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/`) https 주소만 남기고 나머지는 비운다. 적용할 때 옛 원고의 사례 사진은 기관+사례명이 같은 사례로만 옮긴다(자리 번호로 옮기면 다른 사례에 엉뚱한 사진이 붙는다).
+- 작업자 격리(맥): claude 는 `~/Library/Caches/papercraft-proposal-jobs/<id>/work` 에서 `--restricted`·`--tools Read,Write,WebSearch,WebFetch`·`--permission-mode dontAsk` 로 돌고, 작업별 설정 파일이 `Edit(content.json)` 만 허용하고 홈의 비밀 위치 읽기·쓰기를 막는다. 리드 메모·기관명은 "신뢰할 수 없는 자료" 블록에 넣는다(공개 문의 폼 → 프롬프트 주입 경로).
 
 ### 표 변경 — `supabase/migrations/20261016_proposal_jobs.sql`
 

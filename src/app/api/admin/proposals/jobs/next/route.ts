@@ -16,8 +16,12 @@ import {
  * 브라우저에서 열어 보기만 해도 작업이 running 으로 넘어가 버리기 때문이다.
  *
  * 204 (본문 없음) — 할 일 없음
- * 200 { job: { quoteId, mode, requestedAt, lead: {org,segment,score,name,email,phone,notes,outreach}, current } }
- *     잡는 순간 requested → running (원자적). running 이 20분 넘으면 다시 줄 세움(2회까지), 넘으면 failed.
+ * 200 { job: { quoteId, attempt, mode, requestedAt, lead: {org,segment,score,name,notes,outreach}, current } }
+ *     잡는 순간 requested → running (원자적). running 이 30분 넘으면 다시 줄 세움(2회까지), 넘으면 failed.
+ *     requested 가 30분 넘게 안 잡히면 failed("맥 작업자가 응답하지 않습니다").
+ *     attempt 는 이번 시도 번호 — 작업자는 worker-result 에 그대로 돌려준다(다르면 409).
+ *     리드의 메일·전화는 싣지 않는다 — 조사에 쓸 데가 없고(수신 메일은 서버가 리드 메일로 박는다),
+ *     공개 문의 폼에서 온 글과 함께 외부 모델 프롬프트로 들어가는 자료는 적을수록 좋다.
  * 401 · 503 컬럼 없음 · 500
  */
 
@@ -41,6 +45,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         job: {
           quoteId: doc.quoteId,
+          attempt: doc.genAttempts,
           mode: doc.genMode ?? "regenerate",
           requestedAt: doc.genRequestedAt,
           lead: {
@@ -48,12 +53,11 @@ export async function GET(req: Request) {
             segment: lead.segment ?? "",
             score: lead.score ?? null,
             name: lead.name ?? "",
-            email: lead.email ?? "",
-            phone: lead.phone ?? "",
             notes: lead.notes ?? "",
             outreach: lead.outreach ?? null,
           },
-          current: doc.content,
+          // 지금 원고의 수신 메일도 뺀다 — 결과의 수신 메일은 서버가 리드 메일로 다시 박는다
+          current: { ...doc.content, contact: { ...doc.content.contact, email: "" } },
         },
       });
     }

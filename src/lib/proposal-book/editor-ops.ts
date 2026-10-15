@@ -415,8 +415,20 @@ export function dragFocal(start: ImageObject, dxFrac: number, dyFrac: number): I
   return patchImage(start, { x: r(start.x - dxFrac * 100), y: r(start.y - dyFrac * 100) });
 }
 
+/** 사례 하나를 알아보는 열쇠 — 기관+사례명, 공백은 하나로 접고 앞뒤는 걷는다. 둘 중 하나라도 비었거나 빈칸 표기면 null */
+export function caseKey(it: { org?: unknown; title?: unknown }): string | null {
+  const n = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+  const org = n(it.org);
+  const title = n(it.title);
+  // 빈칸 표기([확인 필요: 기관])끼리는 같은 사례가 아니다
+  if (!org || !title || /확인\s*필요/.test(org + title)) return null;
+  return `${org}\u0000${title}`;
+}
+
 /**
  * AI 로 다시 쓴 새 원고에 옛 원고의 이미지를 옮긴다 — 같은 자리(인덱스)끼리, 보여 줄 수 있는 것만.
+ * 사례(cases)만은 자리가 아니라 기관+사례명이 같은 사례로 옮긴다 — 새 원고가 다른 사례를 골랐는데 자리 번호로
+ * 옮기면 엉뚱한 사례에 다른 제품 사진이 붙는다. 짝이 없으면 새 원고의 사진(작업자가 고른 라이브러리 사진)을 둔다.
  * "있다"의 기준은 편집기 지면과 같은 hasImage 다: data.json 의 상대 파일명(cover.jpg)은 빈 칸이다.
  * 기준이 다르면 다시 쓰기가 빈 칸(상대 파일명)을 새 원고 위에 덮어 "이미지는 유지" 약속과 어긋난다.
  * (generate API 의 regenerate·keepImages 가 쓴다)
@@ -434,9 +446,15 @@ export function carryImages(next: BookContent, prev: BookContent): BookContent {
     const old = prev.designs.items[i]?.image;
     if (hasImage(old)) it.image = old;
   });
-  out.cases.items.forEach((it, i) => {
-    const old = prev.cases.items[i]?.image;
-    if (hasImage(old)) it.image = old;
+  const oldCases = new Map<string, BookContent["cases"]["items"][number]["image"]>();
+  for (const it of prev.cases.items) {
+    const k = caseKey(it);
+    if (k && hasImage(it.image) && !oldCases.has(k)) oldCases.set(k, it.image);
+  }
+  out.cases.items.forEach((it) => {
+    const k = caseKey(it);
+    const old = k ? oldCases.get(k) : undefined;
+    if (old !== undefined) it.image = old;
   });
   return out;
 }

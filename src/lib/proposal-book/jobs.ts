@@ -9,8 +9,15 @@ export type GenStatus = (typeof GEN_STATUSES)[number];
 export const GEN_MODES = ["create", "regenerate"] as const;
 export type GenMode = (typeof GEN_MODES)[number];
 
-/** running 이 이만큼 지나도 결과가 없으면 작업자가 죽은 것으로 본다 */
-export const GEN_STALE_MS = 20 * 60 * 1000;
+/**
+ * running 이 이만큼 지나도 결과가 없으면 작업자가 죽은 것으로 본다.
+ * 작업자의 claude 시간 한도(20분)보다 길어야 한다 — 같으면 끝나 가는 작업을 다시 줄 세워 두 번 돈다.
+ */
+export const GEN_STALE_MS = 30 * 60 * 1000;
+/** requested 가 이만큼 지나도 아무도 잡아 가지 않으면 작업자가 꺼진 것으로 보고 failed 로 닫는다 */
+export const GEN_REQUEST_EXPIRE_MS = 30 * 60 * 1000;
+export const GEN_UNRESPONSIVE_ERROR = "맥 작업자가 응답하지 않습니다 (작업자가 꺼져 있을 수 있음)";
+export const GEN_CANCELLED_ERROR = "취소됨";
 /** 한 요청을 작업자가 잡아 가는 횟수 한도 — 넘으면 failed("시간 초과") */
 export const GEN_MAX_ATTEMPTS = 2;
 export const GEN_ERROR_MAX = 300;
@@ -42,6 +49,23 @@ export function staleDecision(
   // 시작 시각이 없거나 깨졌으면 오래된 것으로 친다 — 영원히 running 으로 남지 않게
   if (Number.isFinite(started) && now - started < GEN_STALE_MS) return null;
   return job.attempts < GEN_MAX_ATTEMPTS ? "requeue" : "fail";
+}
+
+/**
+ * 아무도 잡아 가지 않은 requested 가 만료됐는가. 요청 시각이 없거나 깨졌으면 만료로 친다
+ * — 영원히 "요청 중" 띠가 떠 있지 않게.
+ */
+export function requestExpired(requestedAt: string | null, now: number = Date.now()): boolean {
+  const t = requestedAt ? Date.parse(requestedAt) : NaN;
+  return !Number.isFinite(t) || now - t >= GEN_REQUEST_EXPIRE_MS;
+}
+
+/**
+ * 작업자가 결과와 함께 돌려준 시도 번호(jobs/next 가 준 attempt). 정수가 아니면 null.
+ * 지금 DB 의 gen_attempts 와 다르면 그 결과는 앞 시도(다시 줄 선 뒤 다른 작업자가 잡은 것)의 늦은 결과다.
+ */
+export function parseAttempt(v: unknown): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : null;
 }
 
 /**

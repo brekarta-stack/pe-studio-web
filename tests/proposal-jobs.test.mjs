@@ -12,8 +12,11 @@ import { finalizeDraft, postProcessWorkerContent } from "../src/lib/proposal-boo
 import { bookContentSchema, checkLimits, emptyContent, LIMITS, TBD } from "../src/lib/proposal-book/schema.ts";
 import {
   GEN_MAX_ATTEMPTS,
+  GEN_REQUEST_EXPIRE_MS,
   GEN_STALE_MS,
   clipGenError,
+  parseAttempt,
+  requestExpired,
   isGenActive,
   isGenMode,
   normalizeGenStatus,
@@ -108,7 +111,47 @@ test("작업 상태: 모르는 값·마이그레이션 전은 idle, 살아 있�
   assert.equal(isGenMode("delete"), false);
 });
 
-test("staleDecision: 20분 안이면 기다림, 넘으면 시도 2회 전까지 다시 줄 세움, 그 뒤 실패", () => {
+test("시간 한도: running 정리(30분)는 작업자 claude 한도(20분)보다 길다 — 끝나 가는 작업을 다시 줄 세우지 않게", () => {
+  assert.ok(GEN_STALE_MS > 20 * 60 * 1000);
+  assert.ok(GEN_REQUEST_EXPIRE_MS >= 30 * 60 * 1000);
+});
+
+test("requestExpired: 30분 안 requested 는 기다리고, 넘었거나 시각이 없거나 깨졌으면 만료", () => {
+  const now = Date.parse("2026-10-16T10:00:00Z");
+  assert.equal(requestExpired(new Date(now - 5 * 60 * 1000).toISOString(), now), false);
+  assert.equal(requestExpired(new Date(now - GEN_REQUEST_EXPIRE_MS - 1).toISOString(), now), true);
+  assert.equal(requestExpired(null, now), true);
+  assert.equal(requestExpired("garbage", now), true);
+});
+
+test("parseAttempt: 1 이상 정수만 — 문자열·0·소수·없음은 null", () => {
+  assert.equal(parseAttempt(1), 1);
+  assert.equal(parseAttempt(3), 3);
+  for (const v of [0, -1, 1.5, "1", null, undefined, NaN]) assert.equal(parseAttempt(v), null, String(v));
+});
+
+test("postProcessWorkerContent: 사례 사진은 우리 supabase 공개 스토리지 https 주소만 남긴다", () => {
+  const ok = "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/uploads/7e695ff4.jpg";
+  const c0 = workerContent();
+  c0.cases.items[0].image = ok;
+  c0.cases.items[1].image = { url: "https://evil.example.com/track.png", fit: "cover", zoom: 1, x: 50, y: 50 };
+  c0.cases.items[2].image = "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/../../evil";
+  const c = postProcessWorkerContent(c0, lead);
+  assert.equal(c.cases.items[0].image, ok);
+  assert.equal(c.cases.items[1].image, "", "다른 호스트는 비운다");
+  assert.equal(c.cases.items[2].image, "", "경로 끼워 넣기는 비운다");
+  // http(평문)·같은 호스트의 공개 아닌 경로도 비운다
+  const c1 = workerContent();
+  c1.cases.items[0].image = ok.replace("https://", "http://");
+  c1.cases.items[1].image = "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/sign/uploads/a.jpg";
+  const d = postProcessWorkerContent(c1, lead);
+  assert.equal(d.cases.items[0].image, "");
+  assert.equal(d.cases.items[1].image, "");
+  // Vercel 경로(finalizeDraft)는 사례 사진을 받지 않는다
+  assert.ok(finalizeDraft(c0, lead).cases.items.every((x) => x.image === ""));
+});
+
+test("staleDecision: 30분 안이면 기다림, 넘으면 시도 2회 전까지 다시 줄 세움, 그 뒤 실패", () => {
   const now = Date.parse("2026-10-16T10:00:00Z");
   const fresh = new Date(now - 5 * 60 * 1000).toISOString();
   const old = new Date(now - GEN_STALE_MS - 1000).toISOString();

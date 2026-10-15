@@ -19,6 +19,7 @@ import {
   canMovePage,
   canRemove,
   carryImages,
+  caseKey,
   dragFocal,
   fontRoleOfPath,
   hasImage,
@@ -293,6 +294,25 @@ test("patchImage/dragFocal: 범위 안으로 자른다", () => {
   const start = patchImage("https://x/a.jpg", {});
   assert.deepEqual(dragFocal(start, 0.1, -0.2), { ...start, x: 40, y: 70 });
   assert.equal(dragFocal(start, -2, 0).x, 100);
+});
+
+test("carryImages: 사례 사진은 자리 번호가 아니라 기관+사례명이 같은 사례로만 옮긴다(공백 차이는 무시)", () => {
+  const prev = structuredClone(content);
+  prev.cases.items[0] = { org: "공주시", title: "흥미진진  공주 캐릭터", note: "", image: "https://x/gongju.jpg" };
+  prev.cases.items[1] = { org: "경찰청", title: "포돌이 페이퍼토이", note: "", image: "https://x/police.jpg" };
+  prev.cases.items[2] = { org: "[확인 필요: 기관]", title: "[확인 필요: 사례명]", note: "", image: "https://x/tbd.jpg" };
+
+  const next = structuredClone(content);
+  next.cases.items[0] = { org: "남산타워", title: "팝업북", note: "", image: "https://lib/namsan.jpg" };
+  next.cases.items[1] = { org: " 공주시 ", title: "흥미진진 공주 캐릭터", note: "", image: "" };
+  next.cases.items[2] = { org: "[확인 필요: 기관]", title: "[확인 필요: 사례명]", note: "", image: "" };
+
+  const out = carryImages(next, prev);
+  assert.equal(out.cases.items[0].image, "https://lib/namsan.jpg", "짝이 없으면 새 원고 사진 그대로 — 자리 0 의 공주시 사진을 붙이지 않는다");
+  assert.equal(out.cases.items[1].image, "https://x/gongju.jpg", "자리가 바뀌어도 같은 사례면 따라간다");
+  assert.equal(out.cases.items[2].image, "", "빈칸 표기끼리는 같은 사례가 아니다");
+  assert.equal(caseKey({ org: "a", title: "" }), null);
+  assert.equal(caseKey({ org: " a  b ", title: "c" }), caseKey({ org: "a b", title: "c" }));
 });
 
 test("carryImages: 편집기와 같은 hasImage 기준 — 상대 파일명은 빈 칸이라 새 원고를 덮지 않는다", () => {

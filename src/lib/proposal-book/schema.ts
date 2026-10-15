@@ -54,6 +54,20 @@ export function normalizeImage(v: unknown): ImageObject {
   return { url: "", fit: "cover", zoom: 1, x: 50, y: 50 };
 }
 
+/**
+ * 작업자 원고의 사례 사진으로 받아 주는 주소 — 우리 포트폴리오 공개 스토리지(supabase)의 https 주소만.
+ * 사례 사진은 memory/cases.md 의 photo_url 을 옮겨 적는 것이라 다른 호스트일 이유가 없다. 그 밖의 주소는
+ * 외부 모델이 웹 조사 중 주입받은 엉뚱한 그림(또는 추적용 주소)일 수 있어 비운다.
+ */
+export const TRUSTED_CASE_IMAGE_PREFIX = "https://syrfoqwvsciicfbeemqv.supabase.co/storage/v1/object/public/";
+
+export function isTrustedCaseImageUrl(url: string): boolean {
+  if (!url.startsWith(TRUSTED_CASE_IMAGE_PREFIX)) return false;
+  const rest = url.slice(TRUSTED_CASE_IMAGE_PREFIX.length);
+  // 경로 끼워 넣기(../)·공백·따옴표·다른 스킴 조각은 받지 않는다
+  return rest.length > 0 && !/[\s"'<>\\]|\.\.\//.test(rest);
+}
+
 /** 이미지 값의 주소만 */
 export function imageUrl(v: unknown): string {
   return normalizeImage(v).url;
