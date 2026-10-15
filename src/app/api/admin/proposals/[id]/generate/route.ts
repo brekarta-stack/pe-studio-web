@@ -6,8 +6,10 @@ import { isUuid } from "@/lib/estimate-types";
 import { addActivity } from "@/lib/lead-activities";
 import {
   createProposalDoc,
+  ensureDocAndRequest,
   getProposalDoc,
   isMissingTableError,
+  ProposalJobsMissingError,
   ProposalTableMissingError,
   resetProposalDoc,
   RevConflictError,
@@ -26,11 +28,25 @@ import { carryImages } from "@/lib/proposal-book/editor-ops";
  *  - regenerate: 있는 문서의 원고만 AI 로 갈아 끼운다(서체·쪽 구성 유지). AI 가 실패하면 덮어쓰지 않는다.
  *
  * 응답 { ok: true, doc, source, notice? } | { ok: false, error }  — 편집기 화면이 이 모양에 기댄다.
+ *
+ * 엔진 (docs/proposal-editor-plan.md §8): 기본은 맥 스튜디오 작업자다. Vercel AI Gateway 호출은
+ * PROPOSAL_AI_ENGINE=vercel 일 때만 한다(크레딧이 없어 운영에서 실패했다).
+ *  - 맥 + create: 문서가 없으면 기존 자료로 만든 초안(fallback)을 즉시 저장하고 AI 작성을 요청한다(바로 응답).
+ *    문서가 있으면 그대로 돌려준다.
+ *  - 맥 + regenerate: 요청만 남긴다. 원고는 맥이 쓰고, 도착하면 편집기에서 적용한다.
  */
 
 // AI 호출 90초 + DB 왕복 — 기본 함수 시간 한도보다 길다
 export const maxDuration = 120;
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const MAC_NOTICE = "맥에서 기관을 조사해 원고를 쓰고 있습니다. 보통 3~10분 걸립니다.";
+
+/** Vercel AI Gateway 로 직접 쓸지 — 환경 변수 끝 줄바꿈을 걷고 본다 */
+function vercelEngineOn(): boolean {
+  return (process.env.PROPOSAL_AI_ENGINE ?? "").trim().toLowerCase() === "vercel";
+}
 
 const TABLE_MISSING_MSG =
   "제안서 표(proposal_docs)가 아직 없습니다. /admin/setup 에서 마이그레이션을 실행해 주세요.";
@@ -117,6 +133,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const cur = await getProposalDoc(id);
     if (cur.tableMissing) return fail(TABLE_MISSING_MSG, 503);
 
+    if (!vercelEngineOn()) {
+      if (mode === "create" && cur.doc) return ok(cur.doc);
+      if (mode === "regenerate" && !cur.doc) return fail("다시 쓸 제안서가 없습니다. 먼저 제안서를 여세요.", 404);
+      try {
+        const r = await ensureDocAndRequest(id, lead, mode, actor);
+        if (r.created) await logActivity(id, "제안서 초안(기존 자료)", actor);
+        if (r.requested) await logActivity(id, "제안서 AI 작성 요청 (맥)", actor);
+        return ok(r.doc, MAC_NOTICE);
+      } catch (e) {
+        if (!(e instanceof ProposalJobsMissingError)) throw e;
+        // 작업 컬럼이 아직 없다 — create 면 만든 초안으로는 열어 준다
+        if (mode === "regenerate") return fail(e.message, 503);
+        const again = await getProposalDoc(id);
+        if (!again.doc) throw e;
+        return ok(again.doc, `기존 자료로 초안을 만들었습니다. AI 작성은 요청하지 못했습니다 — ${e.message}`);
+      }
+    }
+
     if (mode === "create") {
       if (cur.doc) return ok(cur.doc);
       let p = createInFlight.get(id);
@@ -145,6 +179,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     await logActivity(id, "제안서 AI로 다시 씀", actor);
     return ok(doc);
   } catch (e) {
+    if (e instanceof ProposalJobsMissingError) return fail(e.message, 503);
     if (e instanceof ProposalTableMissingError || isMissingTableError(e)) return fail(TABLE_MISSING_MSG, 503);
     if (e instanceof RevConflictError) return fail(e.message, 409);
     const msg = e instanceof Error ? e.message : String(e);

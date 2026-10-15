@@ -1,7 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireAdminApi } from "@/lib/session";
+import { workerTokenMatches } from "@/lib/worker-auth";
 import { addActivity } from "@/lib/lead-activities";
 import {
   validateLead,
@@ -35,20 +35,6 @@ export const dynamic = "force-dynamic";
 const MAX_LEADS = 200;
 const ACTOR = "intake";
 
-/** 토큰 비교 — 길이가 다르면 timingSafeEqual 이 던지므로 먼저 거른다. 환경변수가 없으면 토큰 경로 자체를 닫는다 */
-function tokenMatches(req: Request): boolean {
-  const expected = process.env.OUTREACH_INTAKE_TOKEN?.trim();
-  if (!expected) return false;
-  const bearer = req.headers.get("authorization");
-  const given =
-    req.headers.get("x-intake-token")?.trim() ||
-    (bearer && /^Bearer\s+/i.test(bearer) ? bearer.replace(/^Bearer\s+/i, "").trim() : "");
-  if (!given) return false;
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 function errMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
@@ -81,7 +67,7 @@ interface ResultRow {
 }
 
 export async function POST(req: Request) {
-  if (!tokenMatches(req)) {
+  if (!workerTokenMatches(req)) {
     const guard = await requireAdminApi();
     if (guard) return guard;
   }

@@ -25,6 +25,19 @@ import {
   type BookPage,
   type BookStyle,
 } from "./proposal-book/schema";
+import { carryImages } from "./proposal-book/editor-ops";
+import { buildFallback, type FallbackLead } from "./proposal-book/fallback";
+import {
+  GEN_STALE_MS,
+  GEN_TIMEOUT_ERROR,
+  clipGenError,
+  isGenActive,
+  isGenMode,
+  normalizeGenStatus,
+  staleDecision,
+  type GenMode,
+  type GenStatus,
+} from "./proposal-book/jobs";
 
 export const PROPOSAL_SOURCES = ["ai", "fallback", "manual"] as const;
 export type ProposalSource = (typeof PROPOSAL_SOURCES)[number];
@@ -46,6 +59,19 @@ export interface ProposalDoc {
   updatedAt: string;
   /** 저장본이 스키마에 안 맞아 틀에 맞춰 고쳐 읽었다 — 편집기가 "다시 저장하세요" 안내를 띄울 수 있게 */
   repaired: boolean;
+  /* ── AI 작성 작업 (맥 작업자, 마이그레이션 20261016). 컬럼이 없으면 idle·null ── */
+  genStatus: GenStatus;
+  genMode: GenMode | null;
+  genRequestedAt: string | null;
+  genStartedAt: string | null;
+  genFinishedAt: string | null;
+  /** 요청할 때의 rev — 결과가 왔을 때 그대로면 아무도 안 고친 것 */
+  genRequestedRev: number | null;
+  genAttempts: number;
+  genError: string | null;
+  /** 도착해서 적용을 기다리는 원고가 있다 (원고 자체는 클라이언트에 싣지 않는다 — applyGenResult 가 읽는다) */
+  hasGenResult: boolean;
+  genResultAt: string | null;
 }
 
 export interface ProposalDocResult {
@@ -111,6 +137,16 @@ function fromRow(r: any): ProposalDoc {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     repaired: !parsed.success,
+    genStatus: normalizeGenStatus(r.gen_status),
+    genMode: isGenMode(r.gen_mode) ? r.gen_mode : null,
+    genRequestedAt: r.gen_requested_at ?? null,
+    genStartedAt: r.gen_started_at ?? null,
+    genFinishedAt: r.gen_finished_at ?? null,
+    genRequestedRev: r.gen_requested_rev == null || !Number.isFinite(Number(r.gen_requested_rev)) ? null : Number(r.gen_requested_rev),
+    genAttempts: Number.isFinite(Number(r.gen_attempts)) ? Number(r.gen_attempts) : 0,
+    genError: typeof r.gen_error === "string" ? r.gen_error : null,
+    hasGenResult: r.gen_result != null && typeof r.gen_result === "object",
+    genResultAt: r.gen_result_at ?? null,
   };
 }
 
@@ -255,4 +291,229 @@ export async function resetProposalDoc(
   if (error) throw new Error(`제안서를 바꾸지 못했습니다: ${error.message}`);
   if (!data) throw new RevConflictError(null);
   return fromRow(data);
+}
+
+/* ── AI 작성 작업 (맥 작업자) — docs/proposal-editor-plan.md §8 ─────────────────────
+ * 상태: idle → requested(요청) → running(작업자가 잡아 감) → done(결과 보관) | failed
+ *       done 은 적용하면(applyGenResult) 원고가 바뀌고 idle, 버리면(discardGenResult) idle.
+ * 작업 상태는 rev 를 건드리지 않는다 — 편집기의 자동 저장 잠금과 서로 간섭하지 않게.
+ * 모든 전이는 "WHERE gen_status = 기대값" 조건부 UPDATE 다(작업자 두 대·두 창이 동시에 눌러도 한 번만). */
+
+/** 작업 컬럼이 없다(마이그레이션 20261016 전) */
+export class ProposalJobsMissingError extends Error {
+  constructor() {
+    super("AI 작성 작업 컬럼이 아직 없습니다. /admin/setup 에서 마이그레이션(20261016_proposal_jobs)을 실행해 주세요.");
+    this.name = "ProposalJobsMissingError";
+  }
+}
+
+function jobsError(error: unknown, what: string): Error {
+  if (isMissingTableError(error)) return new ProposalJobsMissingError();
+  const msg = error && typeof error === "object" && "message" in error ? String((error as { message: unknown }).message) : String(error);
+  return new Error(`${what}: ${msg}`);
+}
+
+export interface RequestGenerationResult {
+  doc: ProposalDoc;
+  /** 이 호출이 실제로 요청 상태로 바꿨다 (이미 requested/running 이었으면 false) */
+  requested: boolean;
+}
+
+/**
+ * AI 작성 요청. 이미 requested/running 이면 아무것도 하지 않는다.
+ * 도착해서 기다리던 결과(done)·실패 이유(failed)는 새 요청이 지운다.
+ */
+export async function requestGeneration(quoteId: string, mode: GenMode, actor: string | null): Promise<RequestGenerationResult> {
+  void actor; // 요청자는 활동 기록(호출한 쪽)에 남긴다 — updated_by 는 원고를 바꾼 사람 칸이라 건드리지 않는다
+  const cur = await getProposalDoc(quoteId);
+  if (cur.tableMissing) throw new ProposalTableMissingError();
+  if (!cur.doc) throw new Error("요청할 제안서가 없습니다. 먼저 제안서를 여세요.");
+  if (isGenActive(cur.doc.genStatus)) return { doc: cur.doc, requested: false };
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .update({
+      gen_status: "requested",
+      gen_mode: mode,
+      gen_requested_at: new Date().toISOString(),
+      gen_requested_rev: cur.doc.rev,
+      gen_started_at: null,
+      gen_finished_at: null,
+      gen_attempts: 0,
+      gen_error: null,
+      gen_result: null,
+      gen_result_at: null,
+    })
+    .eq("quote_id", quoteId)
+    .not("gen_status", "in", "(requested,running)")
+    .select("*")
+    .maybeSingle();
+  if (error) throw jobsError(error, "AI 작성을 요청하지 못했습니다");
+  if (data) return { doc: fromRow(data), requested: true };
+  // 그 사이 다른 요청이 먼저 바꿨다 — 그 상태를 돌려준다
+  const again = await getProposalDoc(quoteId);
+  if (!again.doc) throw new Error("요청할 제안서가 없습니다.");
+  return { doc: again.doc, requested: false };
+}
+
+/** 20분 넘은 running — 시도 한도 안이면 다시 줄 세우고, 넘었으면 failed("시간 초과") */
+async function reapStaleJobs(now = Date.now()): Promise<void> {
+  const cutoff = new Date(now - GEN_STALE_MS).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .select("id, gen_started_at, gen_attempts")
+    .eq("gen_status", "running")
+    .or(`gen_started_at.is.null,gen_started_at.lt.${cutoff}`)
+    .limit(20);
+  if (error) throw jobsError(error, "작업 상태를 읽지 못했습니다");
+  for (const r of data ?? []) {
+    const decision = staleDecision({ startedAt: r.gen_started_at ?? null, attempts: Number(r.gen_attempts) || 0 }, now);
+    if (!decision) continue;
+    const patch =
+      decision === "requeue"
+        ? { gen_status: "requested", gen_started_at: null }
+        : { gen_status: "failed", gen_error: GEN_TIMEOUT_ERROR, gen_finished_at: new Date(now).toISOString() };
+    // 조건부 — 그 사이 결과가 도착했으면(running 이 아니면) 건드리지 않는다
+    const { error: upErr } = await supabaseAdmin.from(TABLE).update(patch).eq("id", r.id).eq("gen_status", "running");
+    if (upErr) throw jobsError(upErr, "오래된 작업을 정리하지 못했습니다");
+  }
+}
+
+/**
+ * 작업자가 다음 작업 하나를 잡는다 — 가장 오래된 requested 를 running 으로.
+ * 고른 뒤 "WHERE id = ? AND gen_status = 'requested'" 로 바꾸므로 작업자 둘이 같은 것을 잡지 못한다.
+ * 진 쪽은 다음 후보로 몇 번 더 시도한다. 없으면 null.
+ */
+export async function claimNextJob(): Promise<ProposalDoc | null> {
+  await reapStaleJobs();
+  for (let i = 0; i < 5; i++) {
+    const { data: cand, error } = await supabaseAdmin
+      .from(TABLE)
+      .select("id, gen_attempts")
+      .eq("gen_status", "requested")
+      .order("gen_requested_at", { ascending: true, nullsFirst: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw jobsError(error, "작업을 고르지 못했습니다");
+    if (!cand) return null;
+    const attempts = Number(cand.gen_attempts) || 0;
+    const { data, error: upErr } = await supabaseAdmin
+      .from(TABLE)
+      .update({ gen_status: "running", gen_started_at: new Date().toISOString(), gen_attempts: attempts + 1 })
+      .eq("id", cand.id)
+      .eq("gen_status", "requested")
+      .select("*")
+      .maybeSingle();
+    if (upErr) throw jobsError(upErr, "작업을 잡지 못했습니다");
+    if (data) return fromRow(data);
+  }
+  return null;
+}
+
+/** 작업자 결과 보관 — running 일 때만. 아니면 null (늦게 온 결과가 새 요청·적용을 덮지 않게) */
+export async function storeWorkerResult(quoteId: string, content: BookContent): Promise<ProposalDoc | null> {
+  const v = check<BookContent>(bookContentSchema, content, "AI 원고");
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .update({ gen_status: "done", gen_result: v, gen_result_at: now, gen_finished_at: now, gen_error: null })
+    .eq("quote_id", quoteId)
+    .eq("gen_status", "running")
+    .select("*")
+    .maybeSingle();
+  if (error) throw jobsError(error, "AI 원고를 보관하지 못했습니다");
+  return data ? fromRow(data) : null;
+}
+
+/** 작업자 실패 기록 — running 일 때만. 아니면 null */
+export async function storeWorkerError(quoteId: string, message: unknown): Promise<ProposalDoc | null> {
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .update({
+      gen_status: "failed",
+      gen_error: clipGenError(message),
+      gen_finished_at: new Date().toISOString(),
+      gen_result: null,
+      gen_result_at: null,
+    })
+    .eq("quote_id", quoteId)
+    .eq("gen_status", "running")
+    .select("*")
+    .maybeSingle();
+  if (error) throw jobsError(error, "실패를 기록하지 못했습니다");
+  return data ? fromRow(data) : null;
+}
+
+/**
+ * 도착한 AI 원고를 적용 — 원고만 갈아 끼우고(지금 문서의 이미지는 옮긴다) 서체·쪽 구성은 둔다.
+ * source 'ai', rev +1, 작업 상태는 idle 로. expectedRev 가 지금 rev 와 다르면 RevConflictError.
+ */
+export async function applyGenResult(quoteId: string, expectedRev: number | null, actor: string | null): Promise<ProposalDoc> {
+  const { data: row, error } = await supabaseAdmin.from(TABLE).select("*").eq("quote_id", quoteId).maybeSingle();
+  if (error) throw jobsError(error, "제안서를 불러오지 못했습니다");
+  if (!row) throw new Error("제안서가 없습니다.");
+  const cur = fromRow(row);
+  if (cur.genStatus !== "done" || !row.gen_result) throw new Error("적용할 AI 원고가 없습니다. 이미 적용했거나 버렸을 수 있습니다.");
+  if (expectedRev != null && expectedRev !== cur.rev) throw new RevConflictError(cur.rev);
+  const incoming = check<BookContent>(bookContentSchema, row.gen_result, "AI 원고");
+  const v = validate({ content: carryImages(incoming, cur.content), style: cur.style, pages: cur.pages });
+  const { data, error: upErr } = await supabaseAdmin
+    .from(TABLE)
+    .update({
+      content: v.content,
+      source: "ai",
+      rev: cur.rev + 1,
+      updated_by: actor,
+      gen_status: "idle",
+      gen_result: null,
+      gen_result_at: null,
+      gen_error: null,
+    })
+    .eq("quote_id", quoteId)
+    .eq("rev", cur.rev)
+    .eq("gen_status", "done")
+    .select("*")
+    .maybeSingle();
+  if (upErr) throw jobsError(upErr, "AI 원고를 적용하지 못했습니다");
+  if (data) return fromRow(data);
+  const now = await currentRev(quoteId);
+  throw new RevConflictError(typeof now === "number" ? now : null);
+}
+
+/** 도착한 원고·실패 표시를 지운다(idle). 요청 중(requested/running)이면 그대로 둔다 */
+export async function discardGenResult(quoteId: string): Promise<ProposalDoc> {
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .update({ gen_status: "idle", gen_result: null, gen_result_at: null, gen_error: null })
+    .eq("quote_id", quoteId)
+    .in("gen_status", ["done", "failed"])
+    .select("*")
+    .maybeSingle();
+  if (error) throw jobsError(error, "AI 원고를 버리지 못했습니다");
+  if (data) return fromRow(data);
+  const cur = await getProposalDoc(quoteId);
+  if (!cur.doc) throw new Error("제안서가 없습니다.");
+  return cur.doc;
+}
+
+export interface EnsureAndRequestResult extends RequestGenerationResult {
+  /** 문서가 없어 이 호출이 기존 자료(옛 본문)로 새로 만들었다 */
+  created: boolean;
+}
+
+/**
+ * 문서가 없으면 기존 자료로 만든 초안(source "fallback")을 먼저 넣고, AI 작성을 요청한다.
+ * 편집기는 그 초안으로 바로 열리고, 맥 작업자의 원고는 나중에 도착한다.
+ */
+export async function ensureDocAndRequest(
+  quoteId: string,
+  lead: FallbackLead,
+  mode: GenMode,
+  actor: string | null
+): Promise<EnsureAndRequestResult> {
+  const cur = await getProposalDoc(quoteId);
+  if (cur.tableMissing) throw new ProposalTableMissingError();
+  let created = false;
+  if (!cur.doc) created = (await createProposalDoc(quoteId, buildFallback(lead), "fallback", actor)).created;
+  const r = await requestGeneration(quoteId, mode, actor);
+  return { ...r, created };
 }

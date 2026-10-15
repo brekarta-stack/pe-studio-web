@@ -78,7 +78,17 @@ import {
 } from "@/lib/proposal-book/editor-ops";
 import { prepareImageForUpload } from "@/lib/image-resize";
 import type { ProposalDoc } from "@/lib/proposal-docs";
-import { createFromFallback, resetToFallback, saveProposal } from "@/app/admin/outreach/[id]/proposal/actions";
+import {
+  applyAiResult,
+  createFromFallback,
+  discardAiResult,
+  getGenStatus,
+  getProposal,
+  requestAi,
+  resetToFallback,
+  saveProposal,
+} from "@/app/admin/outreach/[id]/proposal/actions";
+import { isGenActive, type GenMode, type GenStatus } from "@/lib/proposal-book/jobs";
 
 const BRAND = "#1E22B2";
 const KEY_PRESETS = ["#1E22B2", "#0F172A", "#B42318", "#0E7A5F", "#9A5B00", "#6D28D9"];
@@ -88,13 +98,49 @@ const PAGE_W_PX = (297 * 96) / 25.4;
 const SHEET_PAD_PX = (10 * 96) / 25.4;
 const AUTOSAVE_MS = 2000;
 const GENERATE_TIMEOUT_MS = 150_000;
+/** 맥 작업자 상태를 묻는 간격 (requested·running 동안) */
+const GEN_POLL_MS = 10_000;
+const TOAST_MS = 4000;
+
+/** AI 원고를 누가 쓰나 — mac: 맥 스튜디오 작업자(요청 후 몇 분 뒤 도착), vercel: AI Gateway 즉시 호출(PROPOSAL_AI_ENGINE=vercel) */
+export type ProposalAiEngine = "mac" | "vercel";
 
 export interface ProposalEditorLead {
   id: string;
   org: string;
 }
 
-type DocLike = Pick<ProposalDoc, "content" | "style" | "pages" | "rev" | "source"> & { repaired?: boolean };
+type DocLike = Pick<ProposalDoc, "content" | "style" | "pages" | "rev" | "source"> &
+  Partial<
+    Pick<ProposalDoc, "repaired" | "genStatus" | "genMode" | "genError" | "genRequestedAt" | "genFinishedAt" | "hasGenResult" | "genResultAt">
+  >;
+
+/** 편집기가 보는 AI 작성 작업 상태 */
+interface GenView {
+  status: GenStatus;
+  mode: GenMode | null;
+  error: string | null;
+  hasResult: boolean;
+  requestedAt: string | null;
+  resultAt: string | null;
+}
+
+function genOf(doc: DocLike): GenView {
+  return {
+    status: doc.genStatus ?? "idle",
+    mode: doc.genMode ?? null,
+    error: doc.genError ?? null,
+    hasResult: !!doc.hasGenResult,
+    requestedAt: doc.genRequestedAt ?? null,
+    resultAt: doc.genResultAt ?? null,
+  };
+}
+
+function fmtIsoTime(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
 
 /* ── 서버 응답 → 스냅샷 ─────────────────────────────────────── */
 
@@ -167,15 +213,35 @@ function generateDraftOnce(quoteId: string): Promise<GenerateResult> {
 
 /* ── 맨 바깥: 문서가 없으면 초안부터 ──────────────────────────── */
 
-export default function ProposalEditor({ lead, initialDoc }: { lead: ProposalEditorLead; initialDoc: ProposalDoc | null }) {
+export default function ProposalEditor({
+  lead,
+  initialDoc,
+  aiEngine = "mac",
+}: {
+  lead: ProposalEditorLead;
+  initialDoc: ProposalDoc | null;
+  aiEngine?: ProposalAiEngine;
+}) {
   const [loaded, setLoaded] = useState<{ doc: DocLike; notice: string | null } | null>(
     initialDoc ? { doc: initialDoc, notice: null } : null
   );
-  if (!loaded) return <DraftScreen lead={lead} onReady={(doc, notice) => setLoaded({ doc, notice })} />;
-  return <Editor lead={lead} initial={loaded.doc} initialNotice={loaded.notice} />;
+  if (!loaded) return <DraftScreen lead={lead} aiEngine={aiEngine} onReady={(doc, notice) => setLoaded({ doc, notice })} />;
+  return <Editor lead={lead} initial={loaded.doc} initialNotice={loaded.notice} aiEngine={aiEngine} />;
 }
 
-function DraftScreen({ lead, onReady }: { lead: ProposalEditorLead; onReady: (doc: DocLike, notice: string | null) => void }) {
+/**
+ * 문서가 없을 때. 맥 엔진이면 서버가 기존 자료로 초안을 즉시 만들고 AI 작성을 요청만 해 두므로 금방 끝난다
+ * (원고는 편집기가 열린 뒤 도착한다). vercel 엔진이면 AI 응답을 기다린다(최대 1분 30초).
+ */
+function DraftScreen({
+  lead,
+  aiEngine,
+  onReady,
+}: {
+  lead: ProposalEditorLead;
+  aiEngine: ProposalAiEngine;
+  onReady: (doc: DocLike, notice: string | null) => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const started = useRef(false);
@@ -188,8 +254,11 @@ function DraftScreen({ lead, onReady }: { lead: ProposalEditorLead; onReady: (do
   const run = useCallback(async () => {
     const r = await generateDraftOnce(lead.id);
     if (!mounted.current) return;
-    if (r.ok) onReadyRef.current(r.doc, r.notice ?? (r.source === "fallback" ? "AI 초안을 쓰지 못해 옛 본문으로 채웠습니다." : null));
-    else {
+    if (r.ok) {
+      // 맥에 요청이 걸렸으면 편집기의 작업 띠가 같은 말을 하므로 안내 띠는 띄우지 않는다
+      const queued = isGenActive(r.doc.genStatus ?? "idle");
+      onReadyRef.current(r.doc, queued ? null : r.notice ?? (r.source === "fallback" ? "AI 초안을 쓰지 못해 옛 본문으로 채웠습니다." : null));
+    } else {
       setError(r.error);
       setBusy(false);
     }
@@ -237,9 +306,13 @@ function DraftScreen({ lead, onReady }: { lead: ProposalEditorLead; onReady: (do
                 aria-hidden
               />
               <p className="mt-5 font-bold text-slate-900" role="status">
-                초안 작성 중
+                {aiEngine === "vercel" ? "초안 작성 중" : "초안 준비 중"}
               </p>
-              <p className="mt-1 text-sm text-slate-500">기관 정보를 바탕으로 AI가 원고를 쓰고 있습니다 (최대 1분)</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {aiEngine === "vercel"
+                  ? "기관 정보를 바탕으로 AI가 원고를 쓰고 있습니다 (최대 1분)"
+                  : "기존 자료로 초안을 만들고 맥에 AI 원고를 요청합니다"}
+              </p>
             </>
           ) : (
             <>
@@ -612,7 +685,17 @@ function fmtTime(d: Date): string {
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; initial: DocLike; initialNotice: string | null }) {
+function Editor({
+  lead,
+  initial,
+  initialNotice,
+  aiEngine,
+}: {
+  lead: ProposalEditorLead;
+  initial: DocLike;
+  initialNotice: string | null;
+  aiEngine: ProposalAiEngine;
+}) {
   const org = lead.org;
   const router = useRouter();
   const [hist, dispatch] = useReducer(historyReducer, undefined, () => initHistory(snapOf(initial, org)));
@@ -632,6 +715,22 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const presentRef = useRef(present);
   const savedRef = useRef(savedSnap);
   const conflictRef = useRef(false);
+
+  /* AI 작성 작업 (맥) — docs/proposal-editor-plan.md §8 */
+  const [gen, setGen] = useState<GenView>(() => genOf(initial));
+  /** 요청이 살아 있는 것(requested·running)을 이 창이 봤다 — 그 뒤 idle + rev 이동이면 서버가 자동 적용한 것 */
+  const genWatchRef = useRef(isGenActive(genOf(initial).status));
+  /** 자동 적용됐는데 이 창에 저장 안 된 변경이 있다 — 자동 저장을 멈추고 "불러오기"를 띄운다(충돌 띠 대신) */
+  const [aiApplied, setAiApplied] = useState(false);
+  const aiAppliedRef = useRef(false);
+  const [genAction, setGenAction] = useState<"idle" | "requesting" | "applying" | "discarding">("idle");
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   useEffect(() => {
     presentRef.current = present;
     const ws = presentWaiters.current.splice(0);
@@ -652,7 +751,8 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const [resetArm, setResetArm] = useState<"idle" | "armed" | "running">("idle");
   const [leaveState, setLeaveState] = useState<"idle" | "checking" | "armed">("idle");
   const tbdCursor = useRef(0);
-  const busy = regen === "running" || resetArm === "running";
+  // 오래 걸리는 맥 요청(requesting)은 막지 않는다 — 편집을 계속하다 원고가 도착하면 고른다
+  const busy = regen === "running" || resetArm === "running" || genAction === "applying";
   /**
    * 원고를 서버가 갈아 끼우는 중(AI 다시 쓰기·옛 초안 채우기). 이동안의 변경(되돌리기·업로드 완료 등)은
    * 서버의 새 판과 rev 가 어긋나 409 → 영구 충돌이 됐다. 그래서 이 동안은 commit·undo·redo·자동 저장을 막는다.
@@ -723,6 +823,19 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
           return true;
         }
         if (r.conflict) {
+          // 맥 원고가 서버에서 자동 적용돼 rev 가 움직였을 수 있다 — 그렇다면 충돌이 아니라 "불러오기"를 띄운다
+          if (genWatchRef.current) {
+            const st = await getGenStatus(lead.id).catch(() => null);
+            if (st?.ok && !isGenActive(st.genStatus) && st.rev !== revRef.current && st.source === "ai" && st.genStatus === "idle") {
+              genWatchRef.current = false;
+              aiAppliedRef.current = true;
+              setAiApplied(true);
+              setGen((g) => ({ ...g, status: "idle", hasResult: false, error: null }));
+              setSaveError(null);
+              setSaveStatus("idle");
+              return false;
+            }
+          }
           conflictRef.current = true;
           setConflict(true);
         }
@@ -743,11 +856,11 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   // 자동 저장 — 마지막 변경 2초 뒤. 저장 중에 또 바뀌면 저장이 끝난 뒤(savedSnap 이 바뀐 뒤) 다시 잰다
   useEffect(() => {
     // 원고를 갈아 끼우는 중에는 쉰다 — 그 흐름이 직접 flush 하고, 끝나면 새 판이 저장된 판이 된다
-    if (busy || conflict || !dirty || saveStatus === "saving") return;
+    if (busy || conflict || aiApplied || !dirty || saveStatus === "saving") return;
     if (saveStatus === "error") return; // 실패하면 다음 변경이나 '다시 저장'까지 멈춘다
     const t = setTimeout(() => void doSave(present), AUTOSAVE_MS);
     return () => clearTimeout(t);
-  }, [present, dirty, conflict, saveStatus, doSave, busy]);
+  }, [present, dirty, conflict, aiApplied, saveStatus, doSave, busy]);
 
   // 저장 안 된 변경이 있으면 창을 닫기 전에 묻는다. 칸을 고치는 중(editing)도 — 그 글은 아직 present 에 없다
   useEffect(() => {
@@ -764,7 +877,7 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
   const flush = useCallback(async (): Promise<boolean> => {
     // 자동 저장이 도는 중이면 끝나기를 기다린다 (최대 15초)
     for (let i = 0; i < 150 && savingRef.current; i++) await new Promise((r) => setTimeout(r, 100));
-    if (conflictRef.current || savingRef.current) return false;
+    if (conflictRef.current || aiAppliedRef.current || savingRef.current) return false;
     if (presentRef.current === savedRef.current) return true;
     return doSave(presentRef.current);
   }, [doSave]);
@@ -787,9 +900,71 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
       setSaveError(null);
       setSelection(null);
       setEditing(null);
+      setGen(genOf(doc));
+      genWatchRef.current = isGenActive(doc.genStatus ?? "idle");
+      aiAppliedRef.current = false;
+      setAiApplied(false);
     },
     [org]
   );
+
+  /* ── AI 작성 작업 상태 (맥) ── */
+
+  /** 서버가 자동 적용한 원고를 불러온다. 저장 안 된 변경은 기록에 남아 되돌리기로 다시 꺼낼 수 있다 */
+  const loadApplied = useCallback(async (): Promise<boolean> => {
+    const r = await getProposal(lead.id);
+    if (!r.ok) {
+      setActionError(r.error);
+      return false;
+    }
+    loadServerDoc(r.doc);
+    return true;
+  }, [lead.id, loadServerDoc]);
+
+  const pollGen = useCallback(async () => {
+    const r = await getGenStatus(lead.id).catch(() => null);
+    if (!r || !r.ok) return;
+    const wasWatching = genWatchRef.current;
+    setGen({
+      status: r.genStatus,
+      mode: r.genMode,
+      error: r.genError,
+      hasResult: r.hasResult,
+      requestedAt: r.requestedAt,
+      resultAt: r.resultAt,
+    });
+    if (isGenActive(r.genStatus)) {
+      genWatchRef.current = true;
+      return;
+    }
+    genWatchRef.current = false;
+    // 요청 중이던 것이 idle 로 끝났고 rev 가 움직였다 = 서버가 맥 원고를 바로 적용했다
+    if (!wasWatching || r.genStatus !== "idle" || r.rev === revRef.current || r.source !== "ai") return;
+    const clean =
+      !busyRef.current &&
+      !savingRef.current &&
+      !conflictRef.current &&
+      activeEditRef.current == null &&
+      presentRef.current === savedRef.current;
+    if (clean) {
+      if (await loadApplied()) setToast("AI 원고를 적용했습니다");
+    } else {
+      aiAppliedRef.current = true;
+      setAiApplied(true);
+    }
+  }, [lead.id, loadApplied]);
+
+  // 열자마자 한 번, 그 뒤 요청이 살아 있는 동안 10초마다
+  useEffect(() => {
+    if (aiEngine !== "mac") return;
+    const first = setTimeout(() => void pollGen(), 0);
+    return () => clearTimeout(first);
+  }, [aiEngine, pollGen]);
+  useEffect(() => {
+    if (aiEngine !== "mac" || !isGenActive(gen.status)) return;
+    const t = setInterval(() => void pollGen(), GEN_POLL_MS);
+    return () => clearInterval(t);
+  }, [aiEngine, gen.status, pollGen]);
 
   /* ── 크기 맞춤 ── */
 
@@ -1038,6 +1213,66 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
     setNotice(r.notice ?? (r.source === "fallback" ? "AI 초안을 쓰지 못해 옛 본문으로 채웠습니다." : "AI가 원고를 새로 썼습니다. 이미지는 그대로 두었습니다."));
   };
 
+  /** 맥에 AI 작성을 요청한다 — 바로 돌아오고 편집은 막지 않는다. 원고는 몇 분 뒤 도착한다 */
+  const runRequestAi = async (mode: GenMode) => {
+    setRegen("idle");
+    setGenAction("requesting");
+    setActionError(null);
+    const r = await requestAi(lead.id, mode).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    setGenAction("idle");
+    if (!r.ok) {
+      setActionError(r.error);
+      return;
+    }
+    const g = genOf(r.doc);
+    setGen(g);
+    genWatchRef.current = isGenActive(g.status);
+  };
+
+  /** 도착한 원고 적용 — 저장 대기분을 먼저 저장하고 서버에서 갈아 끼운다. 되돌리기 한 번이면 앞 판으로 */
+  const runApplyResult = async () => {
+    setGenAction("applying");
+    setActionError(null);
+    const r = await withBusy(async () => {
+      if (!(await flush())) return null;
+      return applyAiResult(lead.id, revRef.current);
+    });
+    setGenAction("idle");
+    if (!r) {
+      setActionError("저장되지 않은 변경이 있어 적용을 멈췄습니다. 저장 상태를 확인해 주세요.");
+      return;
+    }
+    if (!r.ok) {
+      if (r.conflict) {
+        conflictRef.current = true;
+        setConflict(true);
+      }
+      setActionError(r.error);
+      return;
+    }
+    loadServerDoc(r.doc);
+    setToast("AI 원고를 적용했습니다 · 되돌리기로 앞 판을 다시 불러올 수 있습니다");
+  };
+
+  const runDiscardResult = async () => {
+    setGenAction("discarding");
+    setActionError(null);
+    const r = await discardAiResult(lead.id).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    setGenAction("idle");
+    if (!r.ok) {
+      setActionError(r.error);
+      return;
+    }
+    setGen(genOf(r.doc));
+  };
+
+  /** 자동 적용 띠의 "불러오기" — 지금 고친 내용은 기록에 남는다(되돌리기로 다시 꺼낼 수 있다) */
+  const runLoadApplied = async () => {
+    await commitPendingEdit();
+    setEditing(null);
+    await loadApplied();
+  };
+
   const runReset = async () => {
     setResetArm("running");
     setActionError(null);
@@ -1259,17 +1494,29 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
             )}
             {regen === "armed" ? (
               <span className="flex items-center gap-1.5">
-                <span className="text-xs text-red-600">글을 새로 씁니다 (이미지는 유지)</span>
-                <button type="button" className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700" onClick={() => void runRegenerate()}>
-                  다시 쓰기
+                <span className="text-xs text-red-600">
+                  {aiEngine === "vercel" ? "글을 새로 씁니다 (이미지는 유지)" : "맥에 새 원고를 요청합니다 — 도착하면 적용할지 고릅니다"}
+                </span>
+                <button
+                  type="button"
+                  className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                  onClick={() => void (aiEngine === "vercel" ? runRegenerate() : runRequestAi("regenerate"))}
+                >
+                  {aiEngine === "vercel" ? "다시 쓰기" : "요청하기"}
                 </button>
                 <button type="button" className={btn} onClick={() => setRegen("idle")}>
                   취소
                 </button>
               </span>
             ) : (
-              <button type="button" className={btn} onClick={() => { setResetArm("idle"); setRegen("armed"); }} disabled={busy || conflict}>
-                AI로 다시 쓰기
+              <button
+                type="button"
+                className={btn}
+                onClick={() => { setResetArm("idle"); setRegen("armed"); }}
+                disabled={busy || conflict || genAction !== "idle" || isGenActive(gen.status)}
+                title={isGenActive(gen.status) ? "맥이 원고를 쓰고 있습니다" : undefined}
+              >
+                {genAction === "requesting" ? "요청 중…" : isGenActive(gen.status) ? "AI 작성 중" : "AI로 다시 쓰기"}
               </button>
             )}
             <button
@@ -1285,6 +1532,67 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
         </div>
 
         {/* ── 알림 띠 ── */}
+        {aiEngine === "mac" && !aiApplied && isGenActive(gen.status) && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-900" role="status" aria-live="polite">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-200" style={{ borderTopColor: BRAND }} aria-hidden />
+            <span>
+              맥에서 기관을 조사해 원고를 쓰고 있습니다 · 보통 3~10분
+              {gen.requestedAt && fmtIsoTime(gen.requestedAt) ? ` (요청 ${fmtIsoTime(gen.requestedAt)})` : ""}
+            </span>
+            <span className="text-xs text-indigo-700">편집은 계속해도 됩니다</span>
+          </div>
+        )}
+        {aiEngine === "mac" && !aiApplied && gen.status === "done" && gen.hasResult && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900" role="status">
+            <span className="font-semibold">
+              AI 원고가 도착했습니다{gen.resultAt && fmtIsoTime(gen.resultAt) ? ` (${fmtIsoTime(gen.resultAt)})` : ""}
+            </span>
+            <span className="text-xs text-emerald-700">적용하면 글만 바뀌고 이미지·서체·쪽 구성은 그대로입니다</span>
+            <button
+              type="button"
+              className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+              style={{ background: BRAND }}
+              onClick={() => void runApplyResult()}
+              disabled={busy || conflict || genAction !== "idle"}
+            >
+              {genAction === "applying" ? "적용 중…" : "적용하기"}
+            </button>
+            <button type="button" className={btn} onClick={() => void runDiscardResult()} disabled={busy || genAction !== "idle"}>
+              버리기
+            </button>
+          </div>
+        )}
+        {aiEngine === "mac" && !aiApplied && gen.status === "failed" && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700" role="alert">
+            <span className="flex-1">AI 작성 실패: {gen.error || "알 수 없는 오류"}</span>
+            <button
+              type="button"
+              className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+              onClick={() => void runRequestAi(gen.mode ?? "regenerate")}
+              disabled={busy || conflict || genAction !== "idle"}
+            >
+              {genAction === "requesting" ? "요청 중…" : "다시 요청"}
+            </button>
+            <button type="button" className="text-xs font-semibold underline" onClick={() => void runDiscardResult()} disabled={genAction !== "idle"}>
+              닫기
+            </button>
+          </div>
+        )}
+        {aiApplied && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900" role="alert">
+            <span className="flex-1">
+              맥이 쓴 AI 원고가 적용됐습니다. 이 창에서 고친 내용은 아직 저장되지 않았습니다 — 불러온 뒤 되돌리기로 다시 꺼낼 수 있습니다.
+            </span>
+            <button
+              type="button"
+              className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white"
+              style={{ background: BRAND }}
+              onClick={() => void runLoadApplied()}
+            >
+              불러오기
+            </button>
+          </div>
+        )}
         {conflict && (
           <div className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700" role="alert">
             다른 창에서 저장된 판이 있습니다 — 새로고침하면 그 판을 불러옵니다
@@ -1428,9 +1736,20 @@ function Editor({ lead, initial, initialNotice }: { lead: ProposalEditorLead; in
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80" role="status" aria-live="polite">
             <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-lg">
               <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-200" style={{ borderTopColor: BRAND }} aria-hidden />
-              <p className="mt-4 font-bold">{regen === "running" ? "AI가 원고를 다시 쓰고 있습니다" : "옛 초안으로 채우는 중입니다"}</p>
+              <p className="mt-4 font-bold">
+                {regen === "running" ? "AI가 원고를 다시 쓰고 있습니다" : genAction === "applying" ? "AI 원고를 적용하는 중입니다" : "옛 초안으로 채우는 중입니다"}
+              </p>
               <p className="mt-1 text-sm text-slate-500">{regen === "running" ? "최대 1분 30초쯤 걸립니다. 창을 닫지 마세요." : "잠시만 기다려 주세요."}</p>
             </div>
+          </div>
+        )}
+        {toast && (
+          <div
+            className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
+            role="status"
+            aria-live="polite"
+          >
+            {toast}
           </div>
         )}
       </div>

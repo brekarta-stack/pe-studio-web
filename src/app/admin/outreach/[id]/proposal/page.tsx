@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * 제안서 편집기 — 리드 하나의 편집 디자인 10쪽 원고를 칸 안에서 고친다 (docs/proposal-editor-plan.md §4).
- * 저장된 문서가 없으면 편집기가 열리자마자 AI 초안을 요청한다.
+ * 저장된 문서가 없으면 편집기가 열리자마자 초안을 요청한다 — 기본(맥 엔진)은 기존 자료 초안을 즉시 만들고
+ * 맥 스튜디오에 AI 원고를 요청한다(docs/proposal-editor-plan.md §8). PROPOSAL_AI_ENGINE=vercel 이면 AI Gateway 로 바로 쓴다.
  *
  * 서체는 고를 수 있는 Google 서체를 전부 한 주소로 미리 받는다 — 서체 목록에서 고르는 즉시
  * 지면에 보여야 해서다(고른 뒤에 받으면 한동안 시스템 서체로 보인다). 인쇄 화면은 쓰는 것만 받는다.
@@ -68,7 +69,11 @@ export default async function ProposalEditorPage({ params }: { params: Promise<{
       {allFonts.map((href) => (
         <link key={href} rel="stylesheet" href={href} precedence="proposal-fonts" />
       ))}
-      <ProposalEditor lead={{ id: lead.id, org: lead.org || lead.name || "" }} initialDoc={doc} />
+      <ProposalEditor
+        lead={{ id: lead.id, org: lead.org || lead.name || "" }}
+        initialDoc={doc}
+        aiEngine={(process.env.PROPOSAL_AI_ENGINE ?? "").trim().toLowerCase() === "vercel" ? "vercel" : "mac"}
+      />
     </>
   );
 }

@@ -145,6 +145,12 @@ const COLUMN_CHECKS: { table: TableName; column: string; sql: string; note: stri
     sql: "migrations/20261013_sales_pipeline.sql",
     note: "영업 파이프라인 — assignments.client_paid_at (고객 수금일)",
   },
+  {
+    table: "proposal_docs",
+    column: "gen_status",
+    sql: "migrations/20261016_proposal_jobs.sql",
+    note: "proposal_docs.gen_status / gen_result … (제안서 AI 작성 작업 — 맥 스튜디오가 원고를 씀)",
+  },
 ];
 
 async function checkTable(name: string): Promise<"ok" | "missing" | "error"> {

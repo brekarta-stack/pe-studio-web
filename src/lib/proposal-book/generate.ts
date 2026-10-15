@@ -14,6 +14,8 @@
  *  - 개수 한도는 자르거나 빈칸 항목으로 채운다, 추천 구간은 정확히 하나
  *  - 쪽 제목·리드·인용·시안 설명은 글자 수 한도로 자른다
  *  - 출처 URL 은 조사 산출물의 URL 칸·운영자 메모에 있는 것만, 수신 메일은 리드 자신의 메일만 (지어낸 링크·주소 차단)
+ *
+ * 맥 작업자(웹 조사)가 쓴 원고도 같은 교정을 거친다 — postProcessWorkerContent (출처만 http(s) 이면 남긴다).
  */
 
 import { z } from "zod";
@@ -387,10 +389,31 @@ function fit<T>(arr: T[], min: number, max: number, pad: (i: number) => T): T[] 
 }
 
 /**
+ * 출처 거르기 방식
+ *  - "allowlist": Vercel AI 초안 — 모델은 웹을 못 본다. 입력 자료의 URL 칸·운영자 메모에 있는 URL 만 (지어낸 링크 차단)
+ *  - "web": 맥 작업자 원고 — Claude Code 가 실제로 웹을 조사했다. http(s) URL 이면 남기고 그 밖(javascript:·상대 경로)은 버린다
+ */
+export type SourcePolicy = "allowlist" | "web";
+
+/**
  * 모양 검증 + 기계적 교정. 모양이 아예 안 맞으면 GenerateOutputError (→ 대체 원고로).
  * 고친 뒤에도 checkLimits 의 개수·추천 문제는 남지 않는다(글자 수도 잘라 넣는다).
  */
 export function finalizeDraft(raw: unknown, lead: GenerateLead | null | undefined): BookContent {
+  return finalizeContent(raw, lead, "allowlist");
+}
+
+/**
+ * 맥 작업자(Claude Code, 웹 조사)가 보낸 원고 → 저장 모양. finalizeDraft 와 같은 교정
+ * (분량 한도·추천 하나·견적 금액 빈칸·시안 키 A/B/C·이미지 칸 비움·수신 메일은 리드 메일)을 하되,
+ * 출처는 http(s) 이기만 하면 남긴다 — 작업자는 실제로 웹을 읽고 쓴 것이라 입력 자료 허용 목록과 맞출 이유가 없다.
+ * 이미지는 비워 둔다. 지금 문서의 이미지는 적용할 때(applyGenResult) carryImages 로 옮긴다.
+ */
+export function postProcessWorkerContent(raw: unknown, lead: GenerateLead | null | undefined): BookContent {
+  return finalizeContent(raw, lead, "web");
+}
+
+function finalizeContent(raw: unknown, lead: GenerateLead | null | undefined, policy: SourcePolicy): BookContent {
   const shaped = toBookShape(raw);
   if (!shaped || typeof shaped !== "object") throw new GenerateOutputError("AI 응답이 비어 있습니다.");
   const leadOrg = str(lead?.org) || str(lead?.name);
@@ -402,7 +425,7 @@ export function finalizeDraft(raw: unknown, lead: GenerateLead | null | undefine
   const c: BookContent = strict.success ? strict.data : conformContent(shaped, base);
   if (!strict.success && c === base) throw new GenerateOutputError("AI 응답이 원고 형식에 맞지 않습니다.");
 
-  const allowedUrls = allowedSourceUrls(lead);
+  const allowedUrls = policy === "allowlist" ? allowedSourceUrls(lead) : null;
   const C = LIMITS.counts;
 
   /* 표지 */
@@ -430,12 +453,14 @@ export function finalizeDraft(raw: unknown, lead: GenerateLead | null | undefine
     C["observation.body"].max,
     () => TBD("기관 현황")
   );
-  // 출처: 자료에 있는 URL 만. 빈 url 은 '[확인 필요]' 라벨일 때만 남긴다
-  const sources = c.observation.sources.filter((x) => {
-    const url = str(x.url);
-    if (!url) return /확인\s*필요/.test(x.label);
-    return /^https?:\/\//i.test(url) && allowedUrls.has(normUrl(url));
-  });
+  // 출처: allowlist 면 자료에 있는 URL 만, web 이면 http(s) 면 된다. 빈 url 은 '[확인 필요]' 라벨일 때만 남긴다
+  const sources = c.observation.sources
+    .map((x) => ({ ...x, url: str(x.url) }))
+    .filter((x) => {
+      if (!x.url) return /확인\s*필요/.test(x.label);
+      if (!/^https?:\/\/[^\s]+$/i.test(x.url)) return false;
+      return allowedUrls ? allowedUrls.has(normUrl(x.url)) : true;
+    });
   c.observation.sources = sources.length
     ? sources.slice(0, C["observation.sources"].max)
     : [{ label: TBD("출처"), url: "" }];

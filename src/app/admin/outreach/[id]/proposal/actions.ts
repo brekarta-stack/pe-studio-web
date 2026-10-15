@@ -17,12 +17,16 @@ import { isUuid } from "@/lib/estimate-types";
 import { quoteFromRow } from "@/lib/quote-types";
 import {
   RevConflictError,
+  applyGenResult,
   createProposalDoc,
+  discardGenResult,
+  ensureDocAndRequest,
   getProposalDoc,
   resetProposalDoc,
   saveProposalDoc,
   type ProposalDoc,
 } from "@/lib/proposal-docs";
+import { isGenMode, type GenMode, type GenStatus } from "@/lib/proposal-book/jobs";
 import { buildFallback } from "@/lib/proposal-book/fallback";
 import type { BookContent, BookPage, BookStyle } from "@/lib/proposal-book/schema";
 
@@ -115,6 +119,103 @@ export async function createFromFallback(quoteId: string): Promise<ProposalActio
     // 다른 창이 먼저 만들었으면(created=false) 그 문서를 돌려줄 뿐 — 타임라인에 두 번 남기지 않는다
     if (created) await logActivity(quoteId, "제안서 초안 만듦 (옛 본문)", actor);
     revalidatePath("/admin/outreach");
+    return { ok: true, doc };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/* ── AI 작성 작업 (맥 작업자) — docs/proposal-editor-plan.md §8 ── */
+
+export type GenStatusResult =
+  | {
+      ok: true;
+      genStatus: GenStatus;
+      genMode: GenMode | null;
+      genError: string | null;
+      hasResult: boolean;
+      resultAt: string | null;
+      requestedAt: string | null;
+      finishedAt: string | null;
+      rev: number;
+      source: ProposalDoc["source"];
+    }
+  | { ok: false; error: string };
+
+/** 편집기가 10초마다 묻는 작업 상태 — 원고는 싣지 않는다(가볍게) */
+export async function getGenStatus(quoteId: string): Promise<GenStatusResult> {
+  try {
+    await requireAdmin();
+    checkId(quoteId);
+    const { doc } = await getProposalDoc(quoteId);
+    if (!doc) return { ok: false, error: "제안서가 없습니다." };
+    return {
+      ok: true,
+      genStatus: doc.genStatus,
+      genMode: doc.genMode,
+      genError: doc.genError,
+      hasResult: doc.hasGenResult,
+      resultAt: doc.genResultAt,
+      requestedAt: doc.genRequestedAt,
+      finishedAt: doc.genFinishedAt,
+      rev: doc.rev,
+      source: doc.source,
+    };
+  } catch (e) {
+    return { ok: false, error: errMessage(e) };
+  }
+}
+
+/** 지금 저장본을 다시 읽는다 — 맥 원고가 자동 적용됐을 때 편집기가 불러온다 */
+export async function getProposal(quoteId: string): Promise<ProposalActionResult> {
+  try {
+    await requireAdmin();
+    checkId(quoteId);
+    const { doc } = await getProposalDoc(quoteId);
+    if (!doc) throw new Error("제안서가 없습니다.");
+    return { ok: true, doc };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** AI 작성 요청 (맥). 문서가 없으면 기존 자료로 먼저 만든다. 이미 요청 중이면 그대로 */
+export async function requestAi(quoteId: string, mode: GenMode): Promise<ProposalActionResult> {
+  try {
+    await requireAdmin();
+    checkId(quoteId);
+    if (!isGenMode(mode)) throw new Error("요청 종류가 올바르지 않습니다.");
+    const actor = await getAdminEmail();
+    const lead = await readLead(quoteId);
+    const r = await ensureDocAndRequest(quoteId, lead, mode, actor);
+    if (r.created) await logActivity(quoteId, "제안서 초안(기존 자료)", actor);
+    if (r.requested) await logActivity(quoteId, "제안서 AI 작성 요청 (맥)", actor);
+    return { ok: true, doc: r.doc };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 도착한 AI 원고를 적용 — expectedRev 가 DB 와 다르면 conflict:true. 이미지·서체·쪽 구성은 그대로 */
+export async function applyAiResult(quoteId: string, expectedRev: number): Promise<ProposalActionResult> {
+  try {
+    await requireAdmin();
+    checkId(quoteId);
+    const actor = await getAdminEmail();
+    const doc = await applyGenResult(quoteId, expectedRev, actor);
+    await logActivity(quoteId, "제안서 AI 원고 적용", actor);
+    return { ok: true, doc };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 도착한 AI 원고(또는 실패 표시)를 버린다 */
+export async function discardAiResult(quoteId: string): Promise<ProposalActionResult> {
+  try {
+    await requireAdmin();
+    checkId(quoteId);
+    const doc = await discardGenResult(quoteId);
     return { ok: true, doc };
   } catch (e) {
     return fail(e);
