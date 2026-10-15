@@ -136,7 +136,7 @@ function JsonLd() {
     applicationCategory: "DesignApplication",
     operatingSystem: "Windows 10, Windows 11",
     softwareVersion: DOWNLOAD.version,
-    downloadUrl: DOWNLOAD.url,
+    downloadUrl: `${SITE_URL}${DOWNLOAD.href}`,
     description: PAGE_META.download.description,
     offers: { "@type": "Offer", price: "0", priceCurrency: "KRW" },
     publisher: { "@type": "Organization", name: "Paper Engineering Studio", url: SITE_URL },
@@ -166,11 +166,19 @@ function JsonLd() {
   );
 }
 
+/**
+ * 다운로드 버튼.
+ *
+ * href 는 벤더 URL 이 아니라 우리 도메인의 고정 경로(/download/app)다 — 호스팅을 옮겨도
+ * 이 링크는 산다. rel=nofollow 는 크롤러가 따라가 126MB 전송을 태우는 걸 막는다
+ * (robots.ts·route.ts 의 X-Robots-Tag 와 같은 목적).
+ */
 function DownloadButton({ large = false }: { large?: boolean }) {
   return (
     <a
-      href={DOWNLOAD.url}
+      href={DOWNLOAD.href}
       download
+      rel="nofollow"
       className={`group inline-flex items-center justify-center gap-2.5 font-bold rounded-xl text-white shadow-lg hover:-translate-y-0.5 transition-all ${
         large ? "px-9 py-4.5 text-lg" : "px-7 py-3.5 text-base"
       }`}

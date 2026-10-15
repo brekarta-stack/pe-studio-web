@@ -145,11 +145,37 @@ export const PAGE_META = {
 /**
  * 무료 배포 프로그램 — 페이퍼크래프트 스튜디오 (Papercraft Studio)
  *
- * 배포 바이너리는 공개 GitHub 릴리스로 호스팅합니다(무료·트래픽 무제한·2GB 자산 한도).
- * 저장소: github.com/brekarta-stack/papercraft-studio-releases (배포 전용 public, 소스는 별도 private).
- * 새 버전 배포 시: 새 릴리스(예: v1.1)에 같은 파일명으로 zip을 올리고 아래 url의 태그와
- * version/fileSize를 갱신하세요.
+ * ## 이 파일에 원본 URL을 직접 박지 말 것
+ *
+ * 126MB 바이너리의 호스팅이 지금까지 두 번 죽었다. 두 번 다 "버튼이 404/403" 으로 발견됐고,
+ * 그 사이 유입은 통째로 날아갔다.
+ *   · 2026-08-25 — GitHub 계정(brekarta-stack)이 플래그돼 비로그인 사용자에게 404.
+ *     릴리스 직링크 전멸 → Vercel Blob 으로 이관.
+ *   · 2026-09-15 — 그 Vercel Blob 스토어가 Hobby 무료 전송량 한도 초과로 정지
+ *     (limits-exceeded-suspended) → 403. 126MB × 약 80회면 월 한도가 찬다.
+ *
+ * 그래서 대외에 노출되는 주소는 항상 우리 도메인의 `href`(/download/app) 하나로 고정한다.
+ * 블로그·SNS·QR에 퍼진 링크가 호스팅 이전 때문에 깨지지 않게 하려는 것이다.
+ * 실제 파일 위치(`url`)는 이 상수 또는 DOWNLOAD_FILE_URL 환경변수로만 갈아 끼운다.
+ *
+ * ## 새 버전 배포 절차
+ *   1. `npm run publish:download -- <zip 경로> <버전>`
+ *      (업로드 → 공개 설정 → 익명 다운로드 검증까지 한다. 필요한 자격증명은 그 파일 주석에)
+ *   2. 스크립트가 출력한 URL 로 아래 기본값과 version / fileSize 갱신
+ *   3. `node --test tests/download.test.mjs` 로 링크 생존 확인
  */
+
+/**
+ * 배포 파일의 실제 위치. 환경변수가 있으면 그쪽이 이긴다 —
+ * 호스팅이 또 죽었을 때 코드 수정·리뷰 없이 Vercel 환경변수만 바꿔 되살리기 위한 비상구다.
+ * 모듈 최상위라 서버 프로세스가 뜰 때(콜드 스타트) 한 번 평가된다 — 번들에 값이
+ * 구워지지 않으므로 재빌드는 필요 없지만, Vercel 은 환경변수를 배포에 주입하는 구조라
+ * 대시보드에서 값을 바꾼 뒤 재배포(Redeploy)를 눌러야 반영된다.
+ */
+const DOWNLOAD_FILE_URL =
+  process.env.DOWNLOAD_FILE_URL ??
+  "https://pub-REPLACE_ME.r2.dev/downloads/v1.3/PapercraftStudio-windows-x64.zip";
+
 export const DOWNLOAD = {
   appName: "페이퍼크래프트 스튜디오",
   appNameEn: "Papercraft Studio",
@@ -157,10 +183,10 @@ export const DOWNLOAD = {
   platform: "Windows 10 / 11 (64-bit)",
   fileName: "PapercraftStudio-windows-x64.zip",
   fileSize: "약 126 MB",
-  // 2026-08-25: GitHub 계정(brekarta-stack)이 비로그인 사용자에게 404라 릴리스 링크가
-  // 전부 죽어 Vercel Blob(papercraft-downloads 스토어)으로 이관. 새 버전 배포 시
-  // `vercel blob put <zip> --pathname downloads/v<버전>/... --access public` 후 이 url 교체.
-  url: "https://6qw2ro16ujo2hpx1.public.blob.vercel-storage.com/downloads/v1.3/PapercraftStudio-windows-x64-hWd5eEw0OMQXsANs2i29pHHKYMyv3N.zip",
+  /** 대외 노출용 고정 주소. 버튼·JSON-LD·외부 공유 링크는 전부 이걸 쓴다. */
+  href: "/download/app",
+  /** 원본 파일 위치. `/download/app` 라우트가 여기로 302 한다. 직접 링크하지 말 것. */
+  url: DOWNLOAD_FILE_URL,
   price: "무료",
 } as const;
 
