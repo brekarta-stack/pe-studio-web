@@ -42,7 +42,7 @@ import {
   sanitizeEstimateInput,
   sheetTotalsConsistent,
 } from "@/lib/estimate-types";
-import { SUPPLIER } from "@/lib/estimate-sheet";
+import { SUPPLIER, estimateFromAddress } from "@/lib/estimate-sheet";
 import {
   deleteConnection,
   exportSheetPdf,
@@ -347,7 +347,7 @@ async function prepareSend(id: string, raw: SendInput): Promise<{ ok: true; ctx:
   // 보내는 사람은 대표 주소(ask@papercraft.kr)로 고정한다. 문의 폼 알림의 발신 주소
   // (INQUIRY_FROM_EMAIL = no-reply@…)를 물려받으면 고객이 받은 견적서에 "답장 못 받는 주소"가
   // 보이고, 회신(replyTo)·보관 사본(bcc)과 계정이 갈린다. 바꾸려면 ESTIMATE_FROM_EMAIL 로.
-  const from = process.env.ESTIMATE_FROM_EMAIL ?? `PE Studio <${SUPPLIER.managerEmail}>`;
+  const from = estimateFromAddress();
   if (!apiKey) return { ok: false, error: "메일 발송 설정(RESEND_API_KEY)이 없습니다." };
 
   if (cur.status !== "confirmed") return { ok: false, error: "확인 완료(발송 대기)된 견적서만 발송할 수 있습니다." };
@@ -493,7 +493,7 @@ export async function sendEstimate(id: string, raw: SendInput): Promise<Estimate
     docNumber: claimed.docNumber,
     action: "sent",
     actor,
-    detail: { to, cc, subject, resendId, supply: claimed.supply, total: claimed.total },
+    detail: { from: ctx.from, to, cc, subject, resendId, supply: claimed.supply, total: claimed.total },
   });
 
   // 연결된 제작 문의를 "견적발송" 단계로 — 앞 단계(접수·상담중)일 때만 올린다

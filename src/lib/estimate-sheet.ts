@@ -440,3 +440,13 @@ export function buildSheetRequests(
 
   return { requests: out, layout: L };
 }
+
+
+/**
+ * 견적서 메일의 보내는 사람. 대표 주소(ask@papercraft.kr)로 고정하고 ESTIMATE_FROM_EMAIL 로만 바꾼다.
+ * 발송 액션과 상세 화면이 같은 함수를 써야 "화면에 적힌 계정 = 실제로 나간 계정"이 된다.
+ * (2026-10-26: 기록 칸의 관리자 계정을 발신 계정으로 오해한 일이 있어 화면에 함께 적는다)
+ */
+export function estimateFromAddress(): string {
+  return process.env.ESTIMATE_FROM_EMAIL?.trim() || `PE Studio <${SUPPLIER.managerEmail}>`;
+}

@@ -16,6 +16,7 @@ import {
   SEND_STUCK_MS,
 } from "@/lib/estimate-types";
 import EstimateActions from "@/components/admin/EstimateActions";
+import { estimateFromAddress } from "@/lib/estimate-sheet";
 import EstimatePreview from "@/components/admin/EstimatePreview";
 
 export const dynamic = "force-dynamic";
@@ -140,6 +141,7 @@ export default async function EstimateDetailPage({ params }: { params: Promise<{
             googleConnected={!!connection}
             sheetVersion={sheetVersion}
             draft={{ to: e.clientEmail, subject: draft.subject, body: draft.body }}
+            fromAddress={estimateFromAddress()}
           />
 
           <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -152,7 +154,9 @@ export default async function EstimateDetailPage({ params }: { params: Promise<{
                     <b className="text-slate-700">{EVENT_LABELS[ev.action] ?? ev.action}</b>
                     <span className="tabular-nums text-xs text-slate-400">{formatKstDateTime(ev.createdAt)}</span>
                   </div>
-                  <div className="text-xs text-slate-500">{ev.actor}</div>
+                  {/* actor 는 버튼을 누른 관리자다. 메일의 보내는 계정과 다르다 — 발송 기록에는 둘을 따로 적는다 */}
+                  <div className="text-xs text-slate-500">처리: {ev.actor}</div>
+                  {typeof ev.detail.from === "string" && <div className="break-all text-xs text-slate-500">보낸 계정: {ev.detail.from}</div>}
                   {typeof ev.detail.error === "string" && <div className="text-xs text-red-500">{ev.detail.error}</div>}
                   {typeof ev.detail.reason === "string" && <div className="text-xs text-amber-600">{ev.detail.reason}</div>}
                   {Array.isArray(ev.detail.to) && <div className="break-all text-xs text-slate-500">→ {(ev.detail.to as string[]).join(", ")}</div>}
