@@ -78,7 +78,7 @@ vercel env add SLACK_BOT_TOKEN production
 3. 재배포 뒤 Event Subscriptions 화면에서 Request URL 을 다시 저장(Retry)해 **Verified** 가 뜨는지 본다.
    서버가 `url_verification` 에 `challenge` 로 응답해야 통과한다. 403/503 이면 서명 시크릿이나 봇 토큰이
    비어 있다는 뜻이다.
-4. 대상 채널에서 `/invite @포트폴리오 봇`. 비공개 채널이면 그 채널 안에서 초대해야 한다.
+4. 대상 채널에서 `/invite @portfolio-bot`. 비공개 채널이면 그 채널 안에서 초대해야 한다.
 5. 사진을 올려 본다. 수십 초 뒤 👀 → ✅ 와 스레드 답글이 달린다.
 
 ### 3. DB 인덱스 (권장)

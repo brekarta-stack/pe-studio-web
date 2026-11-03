@@ -6,7 +6,7 @@
   },
   "features": {
     "bot_user": {
-      "display_name": "포트폴리오 봇",
+      "display_name": "portfolio-bot",
       "always_online": true
     }
   },
