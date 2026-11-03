@@ -90,6 +90,21 @@ export const SEED_ARTISTS: Artist[] = [
     published: true,
     sortOrder: 3,
   },
+  {
+    id: "artist-05",
+    name: "백민주",
+    englishName: "Baek Min-ju",
+    role: "페이퍼크래프트 작가 · 로우폴리 푸드·캐릭터",
+    // 작품에서 드러나는 사실만 적었다 (scripts/add-artist-baekminju.mjs 와 동일). 이력은 어드민에서 보완.
+    bio: "음식과 인물을 각진 면으로 단순화해 종이로 옮기는 페이퍼크래프트 작가입니다. 브런치·초밥·짬뽕 같은 일상의 음식부터 한복·발레복을 입은 인물 피규어까지, 부드러운 색감과 또렷한 면 분할로 친근한 입체를 만듭니다.",
+    specialties: ["로우폴리 페이퍼크래프트", "푸드 미니어처", "캐릭터 피규어"],
+    styleTags: ["로우폴리", "파스텔"],
+    career: [],
+    portfolioTag: "백민주",
+    links: [],
+    published: true,
+    sortOrder: 4,
+  },
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
