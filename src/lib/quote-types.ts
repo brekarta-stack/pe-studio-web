@@ -57,6 +57,23 @@ export function manualAcquisition(channel: ManualChannel): QuoteAcquisition {
   };
 }
 
+/* ── 원천(source) ───────────────────────────────────────────
+ * inbound  — 고객이 먼저 연락해 온 문의(폼·전화·이메일 전부)
+ * outbound — 내가 먼저 제안서를 보낸 리드 (마이그레이션 20261013)
+ * 전환 후에도 바꾸지 않는다 — 아웃바운드의 매출 기여를 나중에 세기 위해서다.
+ * (수동 등록 문의의 접수 경로는 여전히 acquisition 이 담당한다 — 그건 인바운드의 하위 구분) */
+export const QUOTE_SOURCES = ["inbound", "outbound"] as const;
+export type QuoteSource = (typeof QUOTE_SOURCES)[number];
+
+export const SOURCE_LABELS: Record<QuoteSource, string> = {
+  inbound:  "인바운드",
+  outbound: "아웃바운드",
+};
+
+export function isQuoteSource(v: unknown): v is QuoteSource {
+  return typeof v === "string" && (QUOTE_SOURCES as readonly string[]).includes(v);
+}
+
 export interface QuoteSubmission {
   id: string;
   product: string;
@@ -116,6 +133,37 @@ export interface QuoteSubmission {
   stage: QuoteStage;
   /** Drop(제외) 처리 시각 (ISO). null 이면 활성 문의 (마이그레이션 20260729) */
   droppedAt: string | null;
+
+  /* ── 영업 파이프라인 (마이그레이션 20261013) ── 적용 전 로우는 전부 기본값 */
+  /** 원천 — 전환 후에도 유지 */
+  source: QuoteSource;
+  /** 기관·회사명 (아웃바운드 필수, 인바운드 선택) */
+  org: string;
+  /** 중복 제안 판정용 정규화 기관명 — normalizeOrgKey(org) */
+  orgKey: string;
+  /** 공공·박물관·대학·기업·지자체 … 자유 텍스트 */
+  segment: string;
+  /** 적합도 점수 (발굴 에이전트 산출). 없으면 null */
+  score: number | null;
+  /** 제안서 덱 링크 */
+  proposalUrl: string;
+  /** 제안서 발송 시각 (ISO) */
+  proposalSentAt: string | null;
+  /** 제안서 수신처 */
+  proposalSentTo: string;
+  /** 다음 액션(팔로업) 예정일 (YYYY-MM-DD) */
+  nextActionAt: string | null;
+  /** 아웃바운드 → 상담 전환 시각 (ISO) */
+  convertedAt: string | null;
+  /** 마지막 단계 변경 시각 (ISO) */
+  stageChangedAt: string | null;
+  /** 완료(delivered/settled) 진입 시각 (ISO) */
+  closedAt: string | null;
+  /** Drop 사유 */
+  lostReason: string;
+  /** 발굴 에이전트 산출물 원문 {subject, body_text, matched_cases, …} */
+  outreach: Record<string, unknown> | null;
+
   createdAt: string;
 }
 
@@ -170,6 +218,24 @@ export function quoteFromRow(r: any): QuoteSubmission {
     inProgress:   !!r.in_progress,
     stage:        isQuoteStage(r.stage) ? r.stage : "new",
     droppedAt:    r.dropped_at ?? null,
+    source:       isQuoteSource(r.source) ? r.source : "inbound",
+    org:          r.org ?? "",
+    orgKey:       r.org_key ?? "",
+    segment:      r.segment ?? "",
+    /* INTEGER 지만 문자열로 오는 드라이버도 있어 숫자로 바꾸고, 못 바꾸면 null */
+    score:        r.score == null || !Number.isFinite(Number(r.score)) ? null : Number(r.score),
+    proposalUrl:  r.proposal_url ?? "",
+    proposalSentAt: r.proposal_sent_at ?? null,
+    proposalSentTo: r.proposal_sent_to ?? "",
+    nextActionAt: r.next_action_at ?? null,
+    convertedAt:  r.converted_at ?? null,
+    stageChangedAt: r.stage_changed_at ?? null,
+    closedAt:     r.closed_at ?? null,
+    lostReason:   r.lost_reason ?? "",
+    /* JSONB 는 객체일 때만 믿는다 — 배열·문자열이 섞여 들어와도 화면이 죽지 않게 */
+    outreach:     r.outreach && typeof r.outreach === "object" && !Array.isArray(r.outreach)
+      ? (r.outreach as Record<string, unknown>)
+      : null,
     createdAt:    r.created_at,
   };
 }

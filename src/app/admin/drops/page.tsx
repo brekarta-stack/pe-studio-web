@@ -39,7 +39,7 @@ export default async function AdminDropsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Drop</h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          제작 문의에서 제외(Drop)한 건입니다. 총 {dropped.length}건 · 복구하면 제작 문의 목록으로 되돌아갑니다.
+          제작 문의에서 제외(Drop)한 건입니다. 총 {dropped.length}건 · 복구하면 원래 있던 화면(제안 영업·제작 문의·완료 프로젝트)으로 되돌아갑니다.
         </p>
       </div>
 

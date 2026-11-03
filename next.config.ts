@@ -45,16 +45,16 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       scriptSrc,
-      // Tailwind 인라인 스타일
-      "style-src 'self' 'unsafe-inline'",
+      // Tailwind 인라인 스타일 + 제안서 편집기의 Google Fonts CSS (src/lib/proposal-book/fonts.ts)
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Supabase Storage + Wikimedia Commons (파트너 로고) + Pollinations(어드민 AI 커버 생성) + data/blob.
       // 외부 스톡 사진(Unsplash)은 블로그 커버를 실제 납품 사례 사진으로 바꾸면서 제거했다 —
       // 다시 허용하면 "남의 사진"이 슬그머니 돌아온다. docs/blog-content-guide.md 참고.
       `img-src 'self' data: blob: https://${SUPABASE_HOST} https://upload.wikimedia.org https://image.pollinations.ai`,
       // Supabase API + Google OAuth
       `connect-src 'self' https://${SUPABASE_HOST} https://accounts.google.com https://oauth2.googleapis.com`,
-      // 폰트
-      "font-src 'self' data:",
+      // 폰트 — 제안서 서체(명조·고딕 선택지)는 Google Fonts 파일 서버에서 받는다
+      "font-src 'self' data: https://fonts.gstatic.com",
       // iframe 완전 차단
       "frame-src 'none'",
       "frame-ancestors 'none'",

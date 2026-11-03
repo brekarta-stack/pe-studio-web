@@ -357,6 +357,7 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
           depositAmount: d.depositAmount,
           depositPaidAt: d.depositPaidAt,
           balancePaidAt: d.balancePaidAt,
+          clientPaidAt: d.clientPaidAt,
           dueDate: d.dueDate,
           memo: d.memo,
         }),
@@ -699,6 +700,19 @@ export default function WorksBoard({ works, artists, unassigned }: Props) {
                         quoteName={w.quoteName}
                         onToggle={(next) => setDraftValue(w.id, "clientVat", next)}
                       />
+                      {/* 수금일 — 고객이 입금한 날. 비우면 미수. 지급 상태(선금·잔금)와는 별개다 */}
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="w-7 flex-shrink-0 text-[11px] font-semibold text-slate-400">수금</span>
+                        <input
+                          type="date"
+                          value={val(w, "clientPaidAt") ?? ""}
+                          onChange={(e) => setDraftValue(w.id, "clientPaidAt", e.target.value || null)}
+                          aria-label={`${w.quoteName} 수금일`}
+                          className={`w-32 rounded-lg border px-1.5 py-0.5 text-xs outline-none focus:border-slate-400 ${
+                            val(w, "clientPaidAt") ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"
+                          }`}
+                        />
+                      </div>
                     </td>
                     <td className={`${td} whitespace-nowrap text-right font-semibold ${m != null && m < 0 ? "text-red-600" : "text-slate-700"}`}>
                       {m == null ? "—" : `${formatWon(m)}원`}
