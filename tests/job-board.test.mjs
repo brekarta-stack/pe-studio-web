@@ -250,3 +250,21 @@ test("이메일 로그인 공급자는 관리자 이메일을 통과시키지 �
   const block = src.slice(src.indexOf('id: "email-link"'), src.indexOf('id: "email-link"') + 800);
   assert.match(block, /isAdminEmail\(email, ADMIN_EMAILS\)\) return null/);
 });
+
+/* ── 작업비 부가세 (2026-11-13 운영자 결정) ─────────────────── */
+
+test("작업비는 부가세 방식: 포함가 = 공급가 + 10%(원 미만 절사), 가져간 배정은 vat", async () => {
+  const { feeBreakdown, feeVatText, JOB_FEE_TAX_MODE } = await import("../src/lib/job-board-types.ts");
+  assert.equal(JOB_FEE_TAX_MODE, "vat");
+  assert.deepEqual(feeBreakdown(1_500_000), { supply: 1_500_000, vat: 150_000, total: 1_650_000 });
+  assert.deepEqual(feeBreakdown(12_345), { supply: 12_345, vat: 1_234, total: 13_579 });
+  assert.equal(feeVatText(1_500_000), "1,650,000원 (부가세 포함 · 공급가 1,500,000원 + 부가세 150,000원)");
+  assert.equal(feeVatText(null), "—");
+
+  const src = read("src/lib/job-board.ts");
+  const claim = src.slice(src.indexOf("export async function claimPosting"), src.indexOf("/** 캘린더 일정 등록"));
+  assert.match(claim, /feeTaxMode: JOB_FEE_TAX_MODE/);
+
+  const mail = newJobMail({ product: "p", quantity: "", artistFee: 1_500_000, dueDate: "2026-11-20", memo: "" }, "https://x");
+  assert.match(mail.text, /작업비: 1,650,000원 \(부가세 포함/);
+});

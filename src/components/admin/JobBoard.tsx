@@ -15,6 +15,8 @@ import {
   ADMIN_WORKER,
   JOB_STATUS_COLORS,
   JOB_STATUS_LABELS,
+  feeBreakdown,
+  parseWon,
   type JobPosting,
   type JobStatus,
 } from "@/lib/job-board-types";
@@ -83,6 +85,14 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
+/** 작업비 입력 아래 — 작업자가 실제로 받는 부가세 포함가를 바로 보여 준다 */
+function feeHint(raw: string): string {
+  const n = parseWon(raw);
+  if (n == null || Number.isNaN(n)) return "작업자는 세금계산서를 발행하고 부가세 10%를 더해 받습니다.";
+  const b = feeBreakdown(n);
+  return `부가세 포함 ${formatWon(b.total)}원 (부가세 ${formatWon(b.vat)}원) — 작업자에게 이 금액으로 보입니다.`;
+}
+
 const inputCls =
   "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#1E22B2] focus:outline-none disabled:bg-slate-50 disabled:text-slate-500";
 
@@ -111,7 +121,7 @@ function PostingEditor({ row, ready }: { row: JobRow; ready: boolean }) {
         <Field label="견적가 (고객, 부가세 별도)" hint="작업자에게 보이지 않습니다">
           <input inputMode="numeric" value={clientAmount} onChange={(e) => setClientAmount(e.target.value)} placeholder="예: 3,800,000" className={inputCls} disabled={!ready || pending} />
         </Field>
-        <Field label="작업비 (작업자에게 공개, 세전)">
+        <Field label="작업비 공급가 (작업자에게 공개, 부가세 별도)" hint={feeHint(artistFee)}>
           <input inputMode="numeric" value={artistFee} onChange={(e) => setArtistFee(e.target.value)} placeholder="예: 1,500,000" className={inputCls} disabled={!ready || pending} />
         </Field>
         <Field label="마감일">
@@ -201,7 +211,13 @@ function ClaimedPanel({ row }: { row: JobRow }) {
         <div className="flex gap-3"><dt className="w-20 flex-shrink-0 text-slate-400">작업자</dt><dd className="font-semibold text-slate-900">{row.claimedByName}</dd></div>
         <div className="flex gap-3"><dt className="w-20 flex-shrink-0 text-slate-400">가져간 시각</dt><dd>{kst(p.claimedAt)}</dd></div>
         <div className="flex gap-3"><dt className="w-20 flex-shrink-0 text-slate-400">견적가</dt><dd>{p.clientAmount == null ? "—" : `${formatWon(p.clientAmount)}원`}</dd></div>
-        <div className="flex gap-3"><dt className="w-20 flex-shrink-0 text-slate-400">작업비</dt><dd>{formatWon(p.artistFee)}원</dd></div>
+        <div className="flex gap-3">
+          <dt className="w-20 flex-shrink-0 text-slate-400">작업비</dt>
+          <dd>
+            {p.artistFee == null ? "—" : `${formatWon(feeBreakdown(p.artistFee).total)}원`}
+            <span className="ml-1 text-xs text-slate-400">부가세 포함 · 공급가 {formatWon(p.artistFee)}원</span>
+          </dd>
+        </div>
         <div className="flex gap-3"><dt className="w-20 flex-shrink-0 text-slate-400">마감일</dt><dd>{p.dueDate}</dd></div>
         <div className="flex gap-3">
           <dt className="w-20 flex-shrink-0 text-slate-400">진행</dt>

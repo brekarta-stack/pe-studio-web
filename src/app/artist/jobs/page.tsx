@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getArtistSession } from "@/lib/session";
 import { listOpenJobs } from "@/lib/job-board";
 import { daysUntil, formatWon } from "@/lib/assignment-types";
+import { feeBreakdown } from "@/lib/job-board-types";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
 import { kstDateKey } from "@/lib/kst";
 
@@ -54,8 +55,9 @@ export default async function ArtistJobsPage() {
                     </p>
                   </div>
                   <p className="text-right">
-                    <span className="block text-[11px] text-slate-400">작업비 (세전)</span>
-                    <b className="text-lg text-slate-900">{formatWon(j.artistFee)}원</b>
+                    <span className="block text-[11px] text-slate-400">작업비 (부가세 포함)</span>
+                    <b className="text-lg text-slate-900">{formatWon(feeBreakdown(j.artistFee).total)}원</b>
+                    <span className="block text-[11px] text-slate-400">공급가 {formatWon(j.artistFee)}원</span>
                   </p>
                 </div>
                 {j.memo && <p className="mt-3 line-clamp-2 text-sm text-slate-600">{j.memo}</p>}

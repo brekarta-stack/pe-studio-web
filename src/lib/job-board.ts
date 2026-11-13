@@ -27,7 +27,8 @@ import {
   type AlertStage,
   type JobPosting,
   type PostingDraft,
-  wonText,
+  feeVatText,
+  JOB_FEE_TAX_MODE,
 } from "./job-board-types";
 import { createCalendarEvent, deleteCalendarEvent, siteBase } from "./google-drive";
 import { dueAlertMail, newJobMail, type JobSummary } from "./job-mail-content";
@@ -239,7 +240,8 @@ export async function claimPosting(postingId: string, artistId: string): Promise
     progress: 0,
     artistFee: p.artistFee,
     clientAmount: p.clientAmount,
-    feeTaxMode: "none" as const,
+    // 세금계산서 발행 → 작업비 + 부가세 10% 지급 (docs/job-board-plan.md §1)
+    feeTaxMode: JOB_FEE_TAX_MODE,
     clientVat: false,
     depositAmount: null,
     depositPaidAt: null,
@@ -321,7 +323,7 @@ async function recordCalendar(p: JobPosting, artistId: string, assignmentId: str
       summary: `[작업 마감] ${worker} · ${product}${quote?.quantity ? ` ${quote.quantity}` : ""}`,
       description: [
         `작업자: ${worker}`,
-        `작업비: ${wonText(p.artistFee)} (세전)`,
+        `작업비: ${feeVatText(p.artistFee)}`,
         `마감일: ${p.dueDate}`,
         p.memo ? `전달 사항: ${p.memo}` : "",
         `가져간 시각: ${new Date(p.claimedAt ?? Date.now()).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`,

@@ -5,7 +5,7 @@
  * 작업자에게 가는 메일이라 고객 개인정보와 견적가는 **인자로도 받지 않는다.**
  */
 
-import { formatRemaining, wonText, type AlertStage } from "./job-board-types.ts";
+import { feeVatText, formatRemaining, type AlertStage } from "./job-board-types.ts";
 
 export interface MailContent {
   subject: string;
@@ -73,7 +73,7 @@ export function newJobMail(job: JobSummary, url: string): MailContent {
   const rows: [string, string][] = [
     ["제품", job.product],
     ["수량", job.quantity],
-    ["작업비", `${wonText(job.artistFee)} (세전)`],
+    ["작업비", feeVatText(job.artistFee)],
     ["마감일", job.dueDate],
     ["전달 사항", job.memo],
   ];

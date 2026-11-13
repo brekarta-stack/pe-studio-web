@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getArtistSession } from "@/lib/session";
 import { getOpenJob } from "@/lib/job-board";
 import { formatWon } from "@/lib/assignment-types";
+import { feeBreakdown } from "@/lib/job-board-types";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
 import BriefPanels from "@/components/artist/BriefPanels";
 import ClaimJobButton from "@/components/artist/ClaimJobButton";
@@ -20,6 +21,7 @@ export default async function ArtistJobDetailPage({ params }: { params: Promise<
   const { id } = await params;
   const job = await getOpenJob(id);
   if (!job) notFound();
+  const fee = feeBreakdown(job.artistFee);
 
   return (
     <div>
@@ -42,8 +44,14 @@ export default async function ArtistJobDetailPage({ params }: { params: Promise<
             <h2 className="mb-2 text-sm font-bold text-slate-700">작업 조건</h2>
             <dl className="text-sm">
               <div className="flex items-baseline justify-between border-b border-slate-100 py-2.5">
-                <dt className="text-slate-500">작업비 (세전)</dt>
-                <dd className="font-bold text-slate-900">{formatWon(job.artistFee)}원</dd>
+                <dt className="text-slate-500">작업비 (부가세 포함)</dt>
+                <dd className="text-lg font-bold text-slate-900">{formatWon(fee.total)}원</dd>
+              </div>
+              <div className="flex items-baseline justify-between border-b border-slate-100 py-2 text-xs text-slate-400">
+                <dt>공급가 + 부가세 10%</dt>
+                <dd>
+                  {formatWon(fee.supply)}원 + {formatWon(fee.vat)}원
+                </dd>
               </div>
               <div className="flex items-baseline justify-between py-2.5">
                 <dt className="text-slate-500">마감일</dt>
@@ -51,7 +59,7 @@ export default async function ArtistJobDetailPage({ params }: { params: Promise<
               </div>
             </dl>
             <p className="mt-2 text-[11px] text-slate-400">
-              마감까지 기간의 50%·25%·10%가 남으면 메일로 알려 드립니다.
+              세금계산서를 발행해 주시면 부가세를 더해 지급합니다. 마감까지 기간의 50%·25%·10%가 남으면 메일로 알려 드립니다.
             </p>
           </div>
 

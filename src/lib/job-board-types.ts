@@ -8,6 +8,8 @@
  * 이 파일은 node --test 가 그대로 불러온다 — 런타임 import 를 두지 않는다.
  */
 
+import { vatOf, type FeeTaxMode } from "./assignment-types.ts";
+
 /* ── 상태 ───────────────────────────────────────────────────── */
 
 export const JOB_STATUSES = ["draft", "open", "claimed"] as const;
@@ -226,6 +228,32 @@ export function isVisibleToWorkers(
   if (p.dueDate < todayKst) return false;
   if (!quote) return false;
   return quote.active && !quote.dropped;
+}
+
+/* ── 작업비 세금 ─────────────────────────────────────────────
+ * 작업자는 세금계산서를 발행하고 작업비 + 부가세 10% 를 받는다(2026-11-13 운영자 결정).
+ * 저장·입력은 시스템 원칙대로 공급가액(세전)이고, 화면과 메일은 **부가세 포함가를 앞에** 보여 준다. */
+
+/** 공고로 가져간 배정의 작업비 세금 처리 */
+export const JOB_FEE_TAX_MODE: FeeTaxMode = "vat";
+
+export interface FeeBreakdown {
+  supply: number;
+  vat: number;
+  /** 부가세 포함 — 작업자가 실제로 받는 금액 */
+  total: number;
+}
+
+export function feeBreakdown(supply: number): FeeBreakdown {
+  const vat = vatOf(supply) ?? 0;
+  return { supply, vat, total: supply + vat };
+}
+
+/** "1,650,000원 (부가세 포함 · 공급가 1,500,000원 + 부가세 150,000원)" */
+export function feeVatText(supply: number | null | undefined): string {
+  if (supply == null) return "—";
+  const b = feeBreakdown(supply);
+  return `${wonText(b.total)} (부가세 포함 · 공급가 ${wonText(b.supply)} + 부가세 ${wonText(b.vat)})`;
 }
 
 /** 원 단위 금액 — 1234567 → "1,234,567원" (메일 본문용, ₩ 기호는 쓰지 않는다) */
