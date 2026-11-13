@@ -1,5 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { consumeLoginToken } from "./login-links";
 import { getAccountByEmail, touchLastLogin } from "./artist-accounts";
 import { canSignIn, normalizeEmail } from "./artist-account-types";
 import { isAdminEmail, parseAdminEmails } from "./admin-emails";
@@ -71,6 +73,26 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    /**
+     * 이메일 로그인 링크 (docs/job-board-plan.md §5) — 구글 계정이 없는 작업자용.
+     * 여기서는 토큰을 소진해 이메일만 돌려준다. 통과 여부는 구글과 똑같이 아래 signIn 콜백
+     * (resolveRole)이 정한다. 관리자 이메일은 이 길로 들어오지 못하게 막는다 — 관리자는 구글로만.
+     */
+    CredentialsProvider({
+      id: "email-link",
+      name: "이메일 로그인 링크",
+      credentials: { token: { label: "token", type: "text" } },
+      async authorize(credentials) {
+        const email = await consumeLoginToken(String(credentials?.token ?? ""));
+        if (!email || isAdminEmail(email, ADMIN_EMAILS)) return null;
+        // 구글처럼 프로필 이름이 오지 않으므로 포털 상단 인사에 쓸 이름을 계정에서 가져온다
+        const account = await getAccountByEmail(email);
+        /* 링크를 보낸 뒤 계정이 막혔으면 여기서 null — signIn 콜백의 거부 URL(상대 경로)은
+           credentials + redirect:false 클라이언트에서 new URL() 이 던져 버튼이 멈춘다 */
+        if (!canSignIn(account)) return null;
+        return { id: email, email, name: account?.displayName || null };
+      },
     }),
   ],
   callbacks: {

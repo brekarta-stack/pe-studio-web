@@ -3,7 +3,7 @@
 /**
  * 아티스트 포털 껍데기 — 상단 탭 + 로그아웃.
  *
- * 어드민(AdminShell)의 사이드바 대신 상단 탭을 쓴다. 메뉴가 둘뿐이고,
+ * 어드민(AdminShell)의 사이드바 대신 상단 탭을 쓴다. 메뉴가 몇 개뿐이고,
  * 아티스트는 작업실·현장에서 휴대폰으로 열어 보는 경우가 많기 때문.
  * 로그인 전(공개 페이지)에는 껍데기 없이 내용만 보여준다 — AdminShell 과 같은 방침.
  */
@@ -14,6 +14,7 @@ import { useSession, signOut } from "next-auth/react";
 
 const TABS = [
   { href: "/artist", exact: true, label: "내 업무" },
+  { href: "/artist/jobs", exact: false, label: "작업 공고" },
   { href: "/artist/settlements", exact: false, label: "정산 내역" },
 ];
 

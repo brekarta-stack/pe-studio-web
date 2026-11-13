@@ -11,6 +11,7 @@
 
 import type { QuoteFile } from "./quote-types";
 import type { DesignLine } from "./quote-pricing";
+import { vatOf } from "./assignment-types.ts";
 import type {
   ArtistPayout,
   AssignmentStatus,
@@ -77,6 +78,15 @@ export interface ArtistSummary {
   unpaidTotal: number;
   /** 지급 완료된 작업비 합계 (세전) */
   paidTotal: number;
+  /** 받을 작업비 — 세금계산서(부가세) 건은 부가세를 더한 금액 (2026-11-13: 작업자에게는 포함가를 앞세운다) */
+  unpaidGross: number;
+  /** 지급 완료 — 위와 같은 기준 */
+  paidGross: number;
+}
+
+/** 부가세 방식이면 부가세를 더한다. 원천징수·세금 없음은 세전 그대로 */
+function gross(amount: number, mode: ArtistPayout["feeTaxMode"]): number {
+  return mode === "vat" ? amount + (vatOf(amount) ?? 0) : amount;
 }
 
 /**
@@ -89,6 +99,8 @@ export function summarize(works: ArtistWork[]): ArtistSummary {
   let done = 0;
   let unpaidTotal = 0;
   let paidTotal = 0;
+  let unpaidGross = 0;
+  let paidGross = 0;
 
   for (const w of works) {
     if (w.offerStatus === "offered") {
@@ -104,10 +116,12 @@ export function summarize(works: ArtistWork[]): ArtistSummary {
     if (w.status !== "cancelled") {
       unpaidTotal += w.payout.unpaid;
       paidTotal += w.payout.paid;
+      unpaidGross += gross(w.payout.unpaid, w.payout.feeTaxMode);
+      paidGross += gross(w.payout.paid, w.payout.feeTaxMode);
     }
   }
 
-  return { pendingOffers, active, done, unpaidTotal, paidTotal };
+  return { pendingOffers, active, done, unpaidTotal, paidTotal, unpaidGross, paidGross };
 }
 
 /** 대시보드 탭 — 목록을 성격별로 나눈다 */

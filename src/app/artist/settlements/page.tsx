@@ -32,20 +32,20 @@ export default async function ArtistSettlementsPage() {
     <div>
       <h1 className="text-xl font-bold text-slate-900">정산 내역</h1>
       <p className="mt-0.5 text-sm text-slate-500">
-        수락한 업무의 작업비 지급 현황입니다. 모든 금액은 세전(공급가액) 기준입니다.
+        수락한 업무의 작업비 지급 현황입니다. 위 합계는 세금계산서 건의 부가세를 포함하고, 표의 작업비는 세전(공급가액)입니다.
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-[11px] font-semibold text-amber-700">받을 작업비</p>
           <p className="mt-1 text-2xl font-bold text-amber-900">
-            {formatWon(summary.unpaidTotal)}원
+            {formatWon(summary.unpaidGross)}원
           </p>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-[11px] font-semibold text-emerald-700">지급 완료</p>
           <p className="mt-1 text-2xl font-bold text-emerald-900">
-            {formatWon(summary.paidTotal)}원
+            {formatWon(summary.paidGross)}원
           </p>
         </div>
       </div>

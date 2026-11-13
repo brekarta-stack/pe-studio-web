@@ -24,12 +24,14 @@ const TABLES = [
   "google_drive_connection",
   "lead_activities",
   "proposal_docs",
+  "job_postings",
+  "artist_login_tokens",
 ] as const;
 
 type TableName = (typeof TABLES)[number];
 
 // studio_reviews 는 id 컬럼이 없고 skey 가 PK → 테이블별 존재 확인용 컬럼 매핑
-const PROBE_COL: Record<string, string> = { studio_reviews: "skey" };
+const PROBE_COL: Record<string, string> = { studio_reviews: "skey", artist_login_tokens: "token_hash" };
 
 /**
  * 테이블 → 그 테이블을 만드는 SQL 파일 (supabase/ 기준 상대경로).
@@ -55,6 +57,8 @@ const TABLE_SQL: Record<TableName, string> = {
   google_drive_connection: "migrations/20260921_estimates.sql",
   lead_activities:         "migrations/20261013_sales_pipeline.sql",
   proposal_docs:           "migrations/20261015_proposal_docs.sql",
+  job_postings:            "migrations/20261113_job_board.sql",
+  artist_login_tokens:     "migrations/20261113_job_board.sql",
 };
 
 /** 테이블은 있는데 나중에 추가된 컬럼만 없는 경우 — 컬럼 단위로도 확인한다 */

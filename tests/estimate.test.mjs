@@ -461,8 +461,9 @@ test("발송 경로 가드 — 멱등 키, 잠금 뒤 판본·합계 재대조, 
 
 test("견적서 메일은 대표 주소에서 나가고 회신·보관 사본과 같은 계정이다", () => {
   const a = src("src/app/admin/estimates/actions.ts");
-  // 보내는 사람: ESTIMATE_FROM_EMAIL 로만 바꿀 수 있고, 기본값은 SUPPLIER.managerEmail
-  assert.match(a, /const from = process\.env\.ESTIMATE_FROM_EMAIL \?\? `PE Studio <\$\{SUPPLIER\.managerEmail\}>`/);
+  // 보내는 사람: 공용 함수 estimateFromAddress() 하나로 정한다 — 상세 화면도 같은 함수로 표시한다
+  // (값 자체는 아래 estimateFromAddress 테스트가 확인한다)
+  assert.match(a, /const from = estimateFromAddress\(\);/);
   // 문의 폼 발신 주소(no-reply@…)를 물려받지 않는다
   assert.ok(!/process\.env\.INQUIRY_FROM_EMAIL/.test(a), "견적서 발신이 문의 폼 발신 주소로 떨어지면 안 된다");
   // 회신·보관 사본도 같은 주소가 최종 기본값
@@ -533,4 +534,14 @@ test("외부 이미지 액세스 — 새 파일은 켜고, 이미 켜진 파일�
   const drive = src("src/lib/google-drive.ts");
   assert.match(drive, /properties\(importFunctionsExternalUrlAccessAllowed\)/);
   assert.match(drive, /buildSpreadsheetPropertiesRequest\(fileName, !meta\.properties\?\.importFunctionsExternalUrlAccessAllowed\)/);
+});
+
+test("estimateFromAddress — 기본은 대표 주소, ESTIMATE_FROM_EMAIL 로만 바뀐다", async () => {
+  const { estimateFromAddress } = await import("../src/lib/estimate-sheet.ts");
+  const prev = process.env.ESTIMATE_FROM_EMAIL;
+  delete process.env.ESTIMATE_FROM_EMAIL;
+  assert.equal(estimateFromAddress(), "PE Studio <ask@papercraft.kr>");
+  process.env.ESTIMATE_FROM_EMAIL = "  Other <x@papercraft.kr>\n";
+  assert.equal(estimateFromAddress(), "Other <x@papercraft.kr>");
+  if (prev === undefined) delete process.env.ESTIMATE_FROM_EMAIL; else process.env.ESTIMATE_FROM_EMAIL = prev;
 });

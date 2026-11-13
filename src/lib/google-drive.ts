@@ -27,6 +27,13 @@ import {
 import { bannerUrl, sealUrlForSheet } from "./estimate-assets";
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+/**
+ * 작업 공고 마감 일정을 연결 계정의 캘린더에 쓰는 권한 (docs/job-board-plan.md §6).
+ * 민감 권한이라 앱 검수 전에는 동의 화면에 "확인되지 않은 앱" 경고가 뜬다. 드라이브와 달리
+ * 필수가 아니다 — 체크를 풀고 연결해도 견적서는 동작하고, 캘린더 기록만 사유와 함께 실패한다.
+ */
+export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const CALENDAR = "https://www.googleapis.com/calendar/v3";
 
 const TABLE = "google_drive_connection";
 const ROW_ID = "default";
@@ -82,7 +89,7 @@ export function buildAuthUrl(state: string): string {
     client_id: clientCreds().id,
     redirect_uri: oauthRedirectUri(),
     response_type: "code",
-    scope: `openid email ${DRIVE_SCOPE}`,
+    scope: `openid email ${DRIVE_SCOPE} ${CALENDAR_SCOPE}`,
     // offline + consent — 두 번째 연결부터는 consent 가 없으면 refresh token 을 주지 않는다
     access_type: "offline",
     prompt: "consent select_account",
@@ -293,7 +300,8 @@ async function describe(res: Response): Promise<string> {
     /* 본문이 JSON 이 아니면 앞부분만 보여 준다 */
   }
   if (/has not been used|is disabled|accessNotConfigured/i.test(msg)) {
-    return `구글 클라우드 프로젝트에서 Google Sheets API 와 Google Drive API 를 사용 설정해야 합니다. (${msg})`;
+    const api = res.url.startsWith(CALENDAR) ? "Google Calendar API" : "Google Sheets API 와 Google Drive API";
+    return `구글 클라우드 프로젝트에서 ${api} 를 사용 설정해야 합니다. (${msg})`;
   }
   return `구글 API 오류 (${res.status}): ${msg}`;
 }
@@ -532,4 +540,56 @@ export async function trashFile(fileId: string): Promise<void> {
   );
   if (res.status === 404) return;
   if (!res.ok) throw new GoogleApiError(await describe(res), res.status);
+}
+
+/* ── 캘린더 (작업 공고 마감 일정) ────────────────────────────── */
+
+/** 연결에 캘린더 권한이 있는가 — 권한 없이 부르면 구글이 403 을 내므로 먼저 거른다 */
+export async function connectionHasCalendar(): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.from(TABLE).select("scope").eq("id", ROW_ID).maybeSingle();
+  if (error || !data) return false;
+  return String(data.scope ?? "").split(" ").includes(CALENDAR_SCOPE);
+}
+
+export interface CalendarEventInput {
+  summary: string;
+  description: string;
+  /** 종일 일정 날짜 YYYY-MM-DD */
+  date: string;
+}
+
+/**
+ * 연결된 계정의 기본 캘린더에 종일 일정을 만든다. 일정 id 를 돌려준다.
+ * 종일 일정의 end 는 다음 날(배타적)이어야 한다 — 같은 날로 두면 구글이 400 을 낸다.
+ */
+export async function createCalendarEvent(input: CalendarEventInput): Promise<string> {
+  if (!(await connectionHasCalendar())) {
+    throw new GoogleNotConnectedError(
+      "구글 연결에 캘린더 권한이 없습니다. 견적서 화면에서 ask@papercraft.kr 로 다시 연결하세요(캘린더 항목 체크).",
+    );
+  }
+  const [y, m, d] = input.date.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  const ev = await gjson<{ id: string }>(
+    `${CALENDAR}/calendars/primary/events`,
+    jsonInit("POST", {
+      summary: input.summary,
+      description: input.description,
+      start: { date: input.date },
+      end: { date: next },
+      // 종일 일정 알림은 그날 0시 기준으로 센다 — 900분 전 = 마감 전날 오전 9시
+      reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 15 * 60 }] },
+      transparency: "transparent",
+    }),
+  );
+  return ev.id;
+}
+
+/** 일정 삭제 — 이미 없으면(404·410) 성공으로 본다 */
+export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  const res = await gfetch(`${CALENDAR}/calendars/primary/events/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+  });
+  if (res.ok || res.status === 404 || res.status === 410) return;
+  throw new GoogleApiError(await describe(res), res.status);
 }

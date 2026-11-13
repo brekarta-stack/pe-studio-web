@@ -37,6 +37,8 @@ interface Props {
   supply: number;
   total: number;
   sentTo: string | null;
+  /** 실제 보내는 계정 — 발송 액션과 같은 함수(estimateFromAddress)에서 온다 */
+  fromAddress: string;
   sentAt: string | null;
   /** 발송 중 상태로 3분 넘게 멈춤 — 서버에서 판정해 넘긴다 */
   stuck: boolean;
@@ -122,7 +124,9 @@ function SendForm({ p, run, isPending }: { p: Props; run: Run; isPending: boolea
         <textarea className={`${field} min-h-56 leading-relaxed`} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>
       <p className="text-xs text-slate-500">
-        첨부: 견적서 PDF (시트에서 발송 순간에 뽑음) · 회신은 ask@papercraft.kr 로 받습니다 · 회사 보관용 사본이 숨은 참조로 함께 갑니다.
+        보내는 계정: <b className="text-slate-700">{p.fromAddress}</b> · 회신도 이 주소로 받습니다.
+        <br />
+        첨부: 견적서 PDF (시트에서 발송 순간에 뽑음) · 회사 보관용 사본이 숨은 참조로 함께 갑니다.
       </p>
       <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
         <b>{p.clientCompany}</b> · {p.docNumber} · 공급가액 {formatAmount(p.supply)}원 (VAT 포함 {formatAmount(p.total)}원)
@@ -274,7 +278,8 @@ export default function EstimateActions(p: Props) {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-sm text-slate-700">
           <b className="text-slate-900">발송 완료</b>
           {p.sentAt && <> · {formatKstDateTime(p.sentAt)}</>}
-          {p.sentTo && <div className="mt-1 break-all text-slate-600">받는 사람: {p.sentTo}</div>}
+          <div className="mt-1 break-all text-slate-600">보낸 계정: {p.fromAddress}</div>
+          {p.sentTo && <div className="break-all text-slate-600">받는 사람: {p.sentTo}</div>}
           <div className="mt-1 text-xs text-slate-500">발송한 견적서는 고칠 수 없습니다. 바뀐 조건으로 다시 보내려면 새 견적서를 만드세요.</div>
         </div>
       )}

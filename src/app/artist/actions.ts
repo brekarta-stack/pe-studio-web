@@ -20,6 +20,9 @@ import {
 } from "@/lib/assignment-types";
 import { applyForAccount, acceptInvite, getAccountByInviteToken } from "@/lib/artist-accounts";
 import { isInviteValid, isValidEmail, normalizeEmail } from "@/lib/artist-account-types";
+import { requestLoginLink } from "@/lib/login-links";
+import { MailNotConfiguredError } from "@/lib/job-mail";
+import { claimPosting, JobUnavailableError } from "@/lib/job-board";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -239,5 +242,45 @@ export async function acceptArtistInvite(
     return { ok: true };
   } catch (e) {
     return fail(e);
+  }
+}
+
+/**
+ * 이메일 로그인 링크 요청 — 공개 액션. 계정이 있든 없든, 발송이 실패하든 같은 결과를 돌려준다
+ * (가입 여부를 떠보지 못하게). 실제로 보낼지는 requestLoginLink 가 정한다.
+ */
+export async function requestEmailLoginLink(email: string): Promise<ActionResult> {
+  try {
+    await requestLoginLink(String(email ?? "").slice(0, 200));
+  } catch (e) {
+    /* 발송 실패도 화면에는 같은 결과로 보인다 — 등록된 이메일에서만 오류가 뜨면 가입 여부가 드러난다.
+       원인은 로그에 남기고(설정 누락이면 MailNotConfiguredError) 운영자가 Vercel 로그로 본다 */
+    const kind = e instanceof MailNotConfiguredError ? "mail-not-configured" : "error";
+    console.error(`[artist] login link failed (${kind}):`, e instanceof Error ? e.message : e);
+  }
+  return { ok: true };
+}
+
+/**
+ * 작업 공고 가져가기 — 선착순. 성공하면 내 업무(수락 완료)가 되고 다른 작업자에게서 사라진다.
+ * 늦게 누른 사람은 "이미 가져갔습니다". 캘린더 기록 실패는 작업자 몫이 아니라 알리지 않는다
+ * (관리자 화면에 사유가 남는다).
+ */
+export async function claimJob(
+  postingId: string
+): Promise<{ ok: true; assignmentId: string } | { ok: false; error: string }> {
+  try {
+    const { artistId } = await requireArtist();
+    const { assignmentId } = await claimPosting(String(postingId ?? ""), artistId);
+    revalidatePath("/artist");
+    revalidatePath("/artist/jobs");
+    revalidatePath("/admin/jobs");
+    revalidatePath("/admin/works");
+    return { ok: true, assignmentId };
+  } catch (e) {
+    if (e instanceof JobUnavailableError) return { ok: false, error: e.message };
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[artist] claim failed:", msg);
+    return { ok: false, error: msg };
   }
 }

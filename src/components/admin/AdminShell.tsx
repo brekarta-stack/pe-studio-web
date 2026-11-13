@@ -117,6 +117,7 @@ const NAV_GROUPS = [
       { href: "/admin/quotes", exact: false, label: "제작 문의", icon: ICONS.quotes },
       // 견적서 생성 → 확인 → 발송 (구글 시트로 만들고 PDF 로 메일 발송)
       { href: "/admin/estimates", exact: false, label: "견적서", icon: ICONS.estimate },
+      { href: "/admin/jobs", exact: false, label: "작업 공고", icon: ICONS.works },
       { href: "/admin/works", exact: false, label: "작업 관리", icon: ICONS.works },
       { href: "/admin/completed", exact: false, label: "완료 프로젝트", icon: ICONS.completed },
       { href: "/admin/settlements", exact: false, label: "월 정산", icon: ICONS.settlement },
