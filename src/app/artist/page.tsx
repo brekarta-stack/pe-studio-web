@@ -94,14 +94,14 @@ export default async function ArtistDashboardPage() {
         <Stat label="진행 중" value={`${summary.active}건`} />
         <Stat
           label="받을 작업비"
-          value={`${formatWon(summary.unpaidTotal)}원`}
-          hint="세전 기준"
-          tone={summary.unpaidTotal > 0 ? "warn" : "default"}
+          value={`${formatWon(summary.unpaidGross)}원`}
+          hint="세금계산서 건은 부가세 포함"
+          tone={summary.unpaidGross > 0 ? "warn" : "default"}
         />
         <Stat
           label="지급 완료"
-          value={`${formatWon(summary.paidTotal)}원`}
-          hint="세전 기준"
+          value={`${formatWon(summary.paidGross)}원`}
+          hint="세금계산서 건은 부가세 포함"
           tone="good"
         />
       </div>

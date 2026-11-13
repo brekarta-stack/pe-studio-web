@@ -312,3 +312,13 @@ test("signInErrorMessage — 아는 코드는 안내로, 모르는 코드도 문
   assert.equal(signInErrorMessage(null), null, "에러가 없으면 배너도 없다");
   assert.equal(typeof signInErrorMessage("wat"), "string", "모르는 코드도 빈손으로 두지 않는다");
 });
+
+test("summarize — 부가세(세금계산서) 건은 받을·받은 금액을 부가세 포함으로도 집계한다", () => {
+  const s = summarize([
+    work({ id: "w1", artistFee: 1_000_000, feeTaxMode: "vat", depositAmount: 400_000, depositPaidAt: "2026-07-10" }),
+    work({ id: "w2", artistFee: 500_000, feeTaxMode: "withholding" }),
+  ]);
+  assert.equal(s.unpaidTotal, 600_000 + 500_000, "세전 합계는 그대로");
+  assert.equal(s.unpaidGross, 660_000 + 500_000, "부가세 건만 10% 가산, 원천징수 건은 세전");
+  assert.equal(s.paidGross, 440_000);
+});

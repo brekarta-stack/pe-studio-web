@@ -12,6 +12,7 @@ import {
   PAYOUT_STATUS_LABELS,
   canArtistWorkOn,
   formatWon,
+  vatOf,
 } from "@/lib/assignment-types";
 import { PRODUCT_LABELS, label } from "@/lib/quote-labels";
 import BriefPanels from "@/components/artist/BriefPanels";
@@ -143,8 +144,12 @@ export default async function ArtistWorkDetailPage({
               </span>
             </div>
 
+            {/* 세금계산서(부가세) 건은 실제로 받는 부가세 포함가를 맨 위에 둔다 */}
             <dl>
-              <MoneyRow label="작업비 (세전)" amount={payout.fee} />
+              {payout.feeTaxMode === "vat" && (
+                <MoneyRow label="작업비 (부가세 포함)" amount={payout.net} />
+              )}
+              <MoneyRow label={payout.feeTaxMode === "vat" ? "공급가" : "작업비 (세전)"} amount={payout.fee} />
               {payout.feeTaxMode !== "none" && (
                 <MoneyRow
                   label={FEE_TAX_LABELS[payout.feeTaxMode]}
@@ -152,7 +157,7 @@ export default async function ArtistWorkDetailPage({
                   hint={payout.taxAmount >= 0 ? "가산" : "공제"}
                 />
               )}
-              <MoneyRow label="실지급액" amount={payout.net} />
+              {payout.feeTaxMode !== "vat" && <MoneyRow label="실지급액" amount={payout.net} />}
             </dl>
 
             <div className="mt-4 border-t border-slate-100 pt-4">
@@ -173,12 +178,22 @@ export default async function ArtistWorkDetailPage({
 
             {payout.unpaid > 0 && (
               <p className="mt-4 rounded-xl bg-amber-50 p-3 text-center text-sm text-amber-800">
-                받을 금액 <b>{formatWon(payout.unpaid)}원</b> (세전)
+                받을 금액{" "}
+                {payout.feeTaxMode === "vat" ? (
+                  <>
+                    <b>{formatWon(payout.unpaid + (vatOf(payout.unpaid) ?? 0))}원</b> (부가세 포함)
+                  </>
+                ) : (
+                  <>
+                    <b>{formatWon(payout.unpaid)}원</b> (세전)
+                  </>
+                )}
               </p>
             )}
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-              모든 금액은 세전(공급가액) 기준입니다.
-              {payout.feeTaxMode === "vat" && " 세금계산서 발행 후 부가세를 더해 지급합니다."}
+              {payout.feeTaxMode === "vat"
+                ? "선금·잔금은 공급가 기준입니다. 세금계산서를 발행해 주시면 부가세를 더해 지급합니다."
+                : "모든 금액은 세전(공급가액) 기준입니다."}
               {payout.feeTaxMode === "withholding" &&
                 " 원천징수 3.3%를 제하고 지급합니다."}
             </p>
