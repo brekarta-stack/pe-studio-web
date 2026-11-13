@@ -272,7 +272,11 @@ export async function claimPosting(postingId: string, artistId: string): Promise
        새로 넣지 않고 그 행을 다시 쓴다 — 아니면 회수 후 같은 사람이 다시 가져갈 때 23505 로 막힌다 */
     const mine = existing.find((a) => a.artistId === artistId);
     if (mine) {
-      await updateAssignment(mine.id, input);
+      // 수금일·예전 납품물 기록은 그대로 둔다 — 수금일 컬럼이 없는 환경에서 부분 저장 오류도 피한다
+      const { clientPaidAt: _cp, deliverables: _dl, ...patch } = input;
+      void _cp;
+      void _dl;
+      await updateAssignment(mine.id, patch);
       assignmentId = mine.id;
     } else {
       assignmentId = (await createAssignment(input)).id;
