@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getArtistSession } from "@/lib/session";
 import { listArtistWorks } from "@/lib/artist-portal";
+import { listOpenJobs } from "@/lib/job-board";
 import { partitionWorks, summarize } from "@/lib/artist-portal-types";
 import { formatWon } from "@/lib/assignment-types";
 import WorkCard from "@/components/artist/WorkCard";
@@ -58,12 +59,31 @@ export default async function ArtistDashboardPage() {
   // 관리자가 포털을 열어 본 경우도 여기로 온다 — 볼 업무가 없으므로 어드민으로 돌려보낸다
   if (!artist) redirect("/admin/works");
 
-  const works = await listArtistWorks(artist.artistId);
+  const [works, openJobs] = await Promise.all([
+    listArtistWorks(artist.artistId),
+    // 공고 목록은 보조 정보 — 읽기 실패로 내 업무 화면까지 죽지 않게 한다
+    listOpenJobs().catch((e) => {
+      console.error("[artist] open jobs load failed:", e);
+      return [];
+    }),
+  ]);
   const summary = summarize(works);
   const { offers, active, done, declined } = partitionWorks(works);
 
   return (
     <div>
+      {openJobs.length > 0 && (
+        <Link
+          href="/artist/jobs"
+          className="mb-5 flex items-center justify-between rounded-2xl border border-[#1E22B2]/20 bg-[#1E22B2]/5 p-4 text-sm"
+        >
+          <span>
+            <b className="text-[#1E22B2]">작업 공고 {openJobs.length}건</b>
+            <span className="text-slate-600"> — 먼저 가져간 분이 맡습니다</span>
+          </span>
+          <span className="font-semibold text-[#1E22B2]">보기 →</span>
+        </Link>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat
           label="응답 대기"

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { signInErrorMessage } from "@/lib/artist-account-types";
 import GoogleSignInButton from "@/components/artist/GoogleSignInButton";
+import EmailLinkForm from "@/components/artist/EmailLinkForm";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,14 @@ export default async function ArtistLoginPage({
         )}
 
         <GoogleSignInButton callbackUrl="/artist" />
+
+        <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+          <span className="h-px flex-1 bg-slate-100" />
+          또는
+          <span className="h-px flex-1 bg-slate-100" />
+        </div>
+
+        <EmailLinkForm />
 
         <div className="mt-6 border-t border-slate-100 pt-5 text-center text-sm text-slate-500">
           아직 계정이 없나요?{" "}

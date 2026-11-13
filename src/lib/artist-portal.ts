@@ -33,7 +33,7 @@ function isMissingTable(error: { message?: string; code?: string } | null): bool
  * 옮기지 않는다 — 아래 select 목록에서도 애초에 안 가져온다(이중 방어).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toBrief(q: any): WorkBrief {
+export function toBrief(q: any): WorkBrief {
   /* 참고 자료: 다중 첨부(files)가 기본이고, 그 이전 데이터는 단일 file_url 에 있다.
      아티스트 입장에선 구분이 무의미하므로 하나의 목록으로 합쳐 준다. */
   const files: QuoteFile[] = Array.isArray(q?.files)
@@ -92,7 +92,7 @@ function toWork(a: Assignment, quoteRow: unknown): ArtistWork {
  * 결과 타입을 만든다. 여러 조각을 이어 붙이면 파싱에 실패해 결과가
  * GenericStringError 로 떨어진다.
  */
-const QUOTE_BRIEF_COLUMNS =
+export const QUOTE_BRIEF_COLUMNS =
   "id, product, quantity, delivery_date, purpose, custom_design, style_type, product_text, color_request, notes, packaging, sampling, rushed, files, designs, file_name, file_url, logo_file_name, logo_file_url, created_at";
 
 /**
