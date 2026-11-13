@@ -153,16 +153,32 @@ test("formatRemaining", () => {
 
 /* ── 작업자 노출 ──────────────────────────────────────────── */
 
-test("isVisibleToWorkers: 공고 중 + 문의 진행 중일 때만", () => {
+test("isVisibleToWorkers: 공고 중 + 문의 진행 중 + 마감 전일 때만", () => {
   const open = { status: "open", artistFee: 100, dueDate: "2026-11-20" };
   const live = { active: true, dropped: false };
-  assert.ok(isVisibleToWorkers(open, live));
-  assert.ok(!isVisibleToWorkers({ ...open, status: "claimed" }, live), "가져간 공고는 다른 작업자에게 안 보인다");
-  assert.ok(!isVisibleToWorkers({ ...open, status: "draft" }, live));
-  assert.ok(!isVisibleToWorkers({ ...open, artistFee: null }, live));
-  assert.ok(!isVisibleToWorkers(open, { active: true, dropped: true }), "Drop 한 문의");
-  assert.ok(!isVisibleToWorkers(open, { active: false, dropped: false }), "완료 단계로 옮긴 문의");
-  assert.ok(!isVisibleToWorkers(open, null), "삭제된 문의");
+  const today = "2026-11-13";
+  assert.ok(isVisibleToWorkers(open, live, today));
+  assert.ok(isVisibleToWorkers(open, live, "2026-11-20"), "마감 당일은 아직 보인다");
+  assert.ok(!isVisibleToWorkers(open, live, "2026-11-21"), "마감이 지난 공고는 숨긴다");
+  assert.ok(!isVisibleToWorkers({ ...open, status: "claimed" }, live, today), "가져간 공고는 다른 작업자에게 안 보인다");
+  assert.ok(!isVisibleToWorkers({ ...open, status: "draft" }, live, today));
+  assert.ok(!isVisibleToWorkers({ ...open, artistFee: null }, live, today));
+  assert.ok(!isVisibleToWorkers(open, { active: true, dropped: true }, today), "Drop 한 문의");
+  assert.ok(!isVisibleToWorkers(open, { active: false, dropped: false }, today), "완료 단계로 옮긴 문의");
+  assert.ok(!isVisibleToWorkers(open, null, today), "삭제된 문의");
+});
+
+test("가져가기: 회수된 같은 작업자 배정은 새로 넣지 않고 다시 쓴다(유니크 23505 회피), 연결은 캘린더보다 먼저", () => {
+  const src = read("src/lib/job-board.ts");
+  const claim = src.slice(src.indexOf("export async function claimPosting"), src.indexOf("/** 캘린더 일정 등록"));
+  assert.match(claim, /existing\.find\(\(a\) => a\.artistId === artistId\)/);
+  assert.ok(claim.indexOf("assignment_id: assignmentId") < claim.indexOf("recordCalendar("), "배정 연결이 캘린더 뒤에 있다");
+  assert.match(claim, /\.eq\("claimed_by", artistId\)\s*\.select\("id"\)/);
+});
+
+test("이메일 로그인: 막힌 계정은 authorize 에서 null (상대 URL 거부 응답으로 버튼이 멈추지 않게)", () => {
+  const src = read("src/lib/auth.ts");
+  assert.match(src, /if \(!canSignIn\(account\)\) return null;/);
 });
 
 test("작업자 조회 컬럼에 고객 신원·견적가가 없다", () => {

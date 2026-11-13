@@ -88,6 +88,9 @@ export const authOptions: NextAuthOptions = {
         if (!email || isAdminEmail(email, ADMIN_EMAILS)) return null;
         // 구글처럼 프로필 이름이 오지 않으므로 포털 상단 인사에 쓸 이름을 계정에서 가져온다
         const account = await getAccountByEmail(email);
+        /* 링크를 보낸 뒤 계정이 막혔으면 여기서 null — signIn 콜백의 거부 URL(상대 경로)은
+           credentials + redirect:false 클라이언트에서 new URL() 이 던져 버튼이 멈춘다 */
+        if (!canSignIn(account)) return null;
         return { id: email, email, name: account?.displayName || null };
       },
     }),

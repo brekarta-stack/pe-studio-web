@@ -17,7 +17,12 @@ export default function VerifyLoginButton({ token }: { token: string }) {
   async function go() {
     setPending(true);
     setError(null);
-    const res = await signIn("email-link", { token, redirect: false });
+    let res: Awaited<ReturnType<typeof signIn>>;
+    try {
+      res = await signIn("email-link", { token, redirect: false });
+    } catch {
+      res = { ok: false, error: "CredentialsSignin", status: 401, url: null };
+    }
     if (res?.ok && !res.error) {
       // 전체 새로 고침으로 들어가야 세션을 읽는 껍데기(ArtistShell)가 바로 바뀐다
       window.location.href = "/artist";

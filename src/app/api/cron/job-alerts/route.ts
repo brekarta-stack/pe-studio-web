@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { workerTokenMatches } from "@/lib/worker-auth";
 import { processDueAlerts } from "@/lib/job-board";
@@ -13,7 +14,9 @@ import { processDueAlerts } from "@/lib/job-board";
  */
 function authorized(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
-  if (cronSecret && req.headers.get("authorization") === `Bearer ${cronSecret}`) return true;
+  const given = Buffer.from(req.headers.get("authorization") ?? "");
+  const expected = Buffer.from(`Bearer ${cronSecret ?? ""}`);
+  if (cronSecret && given.length === expected.length && timingSafeEqual(given, expected)) return true;
   return workerTokenMatches(req);
 }
 

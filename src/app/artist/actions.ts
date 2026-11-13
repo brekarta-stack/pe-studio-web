@@ -246,20 +246,19 @@ export async function acceptArtistInvite(
 }
 
 /**
- * 이메일 로그인 링크 요청 — 공개 액션. 계정이 있든 없든 같은 결과를 돌려준다
+ * 이메일 로그인 링크 요청 — 공개 액션. 계정이 있든 없든, 발송이 실패하든 같은 결과를 돌려준다
  * (가입 여부를 떠보지 못하게). 실제로 보낼지는 requestLoginLink 가 정한다.
- * 메일 설정이 깨진 경우만 오류로 알린다 — 그건 운영 문제라 숨기면 아무도 못 고친다.
  */
 export async function requestEmailLoginLink(email: string): Promise<ActionResult> {
   try {
     await requestLoginLink(String(email ?? "").slice(0, 200));
-    return { ok: true };
   } catch (e) {
-    if (e instanceof MailNotConfiguredError) return fail(e);
-    // DB·발송 오류의 원문은 로그에만 남긴다 — 화면에는 일반 문구
-    console.error("[artist] login link failed:", e instanceof Error ? e.message : e);
-    return { ok: false, error: "지금은 로그인 링크를 보낼 수 없습니다. 잠시 뒤 다시 시도하거나 담당자에게 문의해 주세요." };
+    /* 발송 실패도 화면에는 같은 결과로 보인다 — 등록된 이메일에서만 오류가 뜨면 가입 여부가 드러난다.
+       원인은 로그에 남기고(설정 누락이면 MailNotConfiguredError) 운영자가 Vercel 로그로 본다 */
+    const kind = e instanceof MailNotConfiguredError ? "mail-not-configured" : "error";
+    console.error(`[artist] login link failed (${kind}):`, e instanceof Error ? e.message : e);
   }
+  return { ok: true };
 }
 
 /**

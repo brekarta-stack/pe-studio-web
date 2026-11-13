@@ -211,8 +211,14 @@ export async function claimPosting(postingId: string, artistId: string): Promise
   const posting = await getPosting(postingId);
   if (!posting) throw new JobUnavailableError("공고를 찾을 수 없습니다.");
   const quote = await quoteLiveness(posting.quoteId);
-  if (!isVisibleToWorkers(posting, quote)) {
+  if (!isVisibleToWorkers(posting, quote, kstDateKey())) {
     throw new JobUnavailableError("이미 다른 작업자가 가져갔거나 공고가 내려갔습니다.");
+  }
+
+  // 공고가 열린 뒤 작업 관리에서 다른 사람에게 제안·배정했으면 가져가지 못하게 한다
+  const existing = await listAssignmentsByQuote(posting.quoteId);
+  if (existing.some((a) => (a.offerStatus === "offered" || a.offerStatus === "accepted") && a.status !== "cancelled")) {
+    throw new JobUnavailableError("이 작업은 이미 담당자가 정해졌습니다.");
   }
 
   const claimedAt = new Date().toISOString();
@@ -226,51 +232,76 @@ export async function claimPosting(postingId: string, artistId: string): Promise
   if (!won || won.length === 0) throw new JobUnavailableError("이미 다른 작업자가 가져갔습니다.");
   const p = toPosting(won[0]);
 
-  let assignmentId: string;
-  try {
-    const assignment = await createAssignment({
-      quoteId: p.quoteId,
-      artistId,
-      status: "working",
-      progress: 0,
-      artistFee: p.artistFee,
-      clientAmount: p.clientAmount,
-      feeTaxMode: "none",
-      clientVat: false,
-      depositAmount: null,
-      depositPaidAt: null,
-      balancePaidAt: null,
-      clientPaidAt: null,
-      payoutStatus: "unpaid",
-      paidAt: null,
-      dueDate: p.dueDate,
-      startedAt: kstDateKey(new Date(claimedAt)),
-      memo: p.memo,
-      // 스스로 고른 일이라 제안·수락이 가져간 순간 함께 일어난 것으로 기록한다
-      offerStatus: "accepted",
-      offeredAt: p.openedAt ?? claimedAt,
-      respondedAt: claimedAt,
-      declineReason: "",
-      deliverables: [],
-    });
-    assignmentId = assignment.id;
-  } catch (e) {
-    await supabaseAdmin
+  const input = {
+    quoteId: p.quoteId,
+    artistId,
+    status: "working" as const,
+    progress: 0,
+    artistFee: p.artistFee,
+    clientAmount: p.clientAmount,
+    feeTaxMode: "none" as const,
+    clientVat: false,
+    depositAmount: null,
+    depositPaidAt: null,
+    balancePaidAt: null,
+    clientPaidAt: null,
+    payoutStatus: "unpaid" as const,
+    paidAt: null,
+    dueDate: p.dueDate,
+    startedAt: kstDateKey(new Date(claimedAt)),
+    memo: p.memo,
+    // 스스로 고른 일이라 제안·수락이 가져간 순간 함께 일어난 것으로 기록한다
+    offerStatus: "accepted" as const,
+    offeredAt: p.openedAt ?? claimedAt,
+    respondedAt: claimedAt,
+    declineReason: "",
+    deliverables: [],
+  };
+
+  const revert = () =>
+    supabaseAdmin
       .from(TABLE)
       .update({ status: "open", claimed_by: null, claimed_at: null })
       .eq("id", postingId)
       .eq("claimed_by", artistId)
       .then(({ error: revertErr }) => revertErr && console.error("[job-board] claim revert failed:", revertErr.message));
+
+  let assignmentId: string;
+  try {
+    /* (문의, 작업자) 는 assignments 에서 유니크다. 회수(cancelled)·거절·미제안 행이 남아 있으면
+       새로 넣지 않고 그 행을 다시 쓴다 — 아니면 회수 후 같은 사람이 다시 가져갈 때 23505 로 막힌다 */
+    const mine = existing.find((a) => a.artistId === artistId);
+    if (mine) {
+      await updateAssignment(mine.id, input);
+      assignmentId = mine.id;
+    } else {
+      assignmentId = (await createAssignment(input)).id;
+    }
+  } catch (e) {
+    await revert();
+    const code = (e as { code?: string })?.code;
+    if (code === "23505") throw new JobUnavailableError("이 작업은 이미 담당자가 정해졌습니다.");
     throw e;
   }
 
-  const calendarError = await recordCalendar(p, artistId, assignmentId);
-  const { error: linkErr } = await supabaseAdmin
+  /* 배정 연결은 캘린더(수 초)보다 먼저, "아직 내가 가져간 상태"일 때만 한다.
+     그 사이 관리자가 회수했으면 방금 만든 배정을 취소해 고아 배정이 남지 않게 한다 */
+  const { data: linked, error: linkErr } = await supabaseAdmin
     .from(TABLE)
     .update({ assignment_id: assignmentId })
-    .eq("id", postingId);
-  if (linkErr) console.error("[job-board] assignment link failed:", linkErr.message);
+    .eq("id", postingId)
+    .eq("status", "claimed")
+    .eq("claimed_by", artistId)
+    .select("id");
+  if (linkErr || !linked || linked.length === 0) {
+    await updateAssignment(assignmentId, { status: "cancelled" }).catch((e) =>
+      console.error("[job-board] orphan cancel failed:", e instanceof Error ? e.message : e),
+    );
+    if (linkErr) raise(linkErr);
+    throw new JobUnavailableError("가져가는 사이 공고가 회수되었습니다.");
+  }
 
+  const calendarError = await recordCalendar(p, artistId, assignmentId);
   return { assignmentId, calendarError };
 }
 
@@ -388,12 +419,13 @@ const POSTING_WORKER_COLUMNS = "id, quote_id, status, artist_fee, due_date, memo
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toOpenJobs(postings: any[], quotes: any[]): OpenJob[] {
   const byId = new Map(quotes.map((q) => [q.id as string, q]));
+  const today = kstDateKey();
   const jobs: OpenJob[] = [];
   for (const p of postings) {
     const q = byId.get(p.quote_id);
     const live = q ? { active: isActiveStage(q.stage), dropped: !!q.dropped_at } : null;
     const view = { status: isJobStatus(p.status) ? p.status : "draft", artistFee: p.artist_fee == null ? null : Number(p.artist_fee), dueDate: p.due_date ?? null };
-    if (!isVisibleToWorkers(view, live)) continue;
+    if (!isVisibleToWorkers(view, live, today)) continue;
     jobs.push({
       id: p.id,
       artistFee: view.artistFee!,

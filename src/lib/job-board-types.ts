@@ -213,12 +213,17 @@ export function formatRemaining(ms: number): string {
 
 /* ── 작업자 화면 가드 ───────────────────────────────────────── */
 
-/** 작업자 목록·상세에 보여도 되는 공고인가 — 공고 중이고 문의가 아직 살아 있을 때만 */
+/**
+ * 작업자 목록·상세에 보여도 되는 공고인가 — 공고 중이고, 문의가 아직 살아 있고, 마감일이 지나지 않았을 때만.
+ * 마감이 지난 공고를 가져가면 알림도 안 가고 캘린더도 과거에 찍힌다. todayKst 는 한국 달력의 오늘.
+ */
 export function isVisibleToWorkers(
   p: Pick<JobPosting, "status" | "artistFee" | "dueDate">,
   quote: { active: boolean; dropped: boolean } | null,
+  todayKst: string,
 ): boolean {
   if (p.status !== "open" || p.artistFee == null || !p.dueDate) return false;
+  if (p.dueDate < todayKst) return false;
   if (!quote) return false;
   return quote.active && !quote.dropped;
 }
