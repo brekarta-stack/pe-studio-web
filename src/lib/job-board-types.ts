@@ -70,8 +70,10 @@ export interface WorkerEntry {
   admin?: boolean;
 }
 
+/* id 는 운영 DB artists 표의 값이다 — SEED_ARTISTS(artists.ts)의 id 와 다를 수 있다.
+   오세기는 DB 에서 artist-mru5nxr5 (시드의 artist-04 는 DB 에 없다, 2026-11-27 확인) */
 export const WORKER_ROSTER: readonly WorkerEntry[] = [
-  { artistId: "artist-04", name: "오세기", email: "ask@papercraft.kr", admin: true },
+  { artistId: "artist-mru5nxr5", name: "오세기", email: "ask@papercraft.kr", admin: true },
   { artistId: "artist-01", name: "김철호", email: "finalpaper@naver.com" },
   { artistId: "artist-03", name: "박형미", email: "dinonabi@naver.com" },
 ];

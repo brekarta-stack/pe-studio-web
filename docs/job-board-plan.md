@@ -18,7 +18,7 @@
 
 | 작업자 | artists.id | 알림 메일 | 로그인 |
 |---|---|---|---|
-| 오세기 | artist-04 | ask@papercraft.kr | 관리자 계정이라 포털이 아니라 **관리자 화면에서** 가져간다 |
+| 오세기 | artist-mru5nxr5 (운영 DB id) | ask@papercraft.kr | 관리자 계정이라 포털이 아니라 **관리자 화면에서** 가져간다 |
 | 김철호 | artist-01 | finalpaper@naver.com | 포털 — 이메일 링크 |
 | 박형미 | artist-03 | dinonabi@naver.com | 포털 — 이메일 링크 |
 

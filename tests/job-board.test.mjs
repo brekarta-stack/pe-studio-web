@@ -40,7 +40,7 @@ test("명단: 운영자가 준 세 사람과 메일 주소, 관리자 가져가�
     박형미: "dinonabi@naver.com",
   });
   assert.equal(ADMIN_WORKER.name, "오세기");
-  assert.equal(ADMIN_WORKER.artistId, "artist-04");
+  assert.equal(ADMIN_WORKER.artistId, "artist-mru5nxr5", "운영 DB 의 id — 시드 artist-04 아님");
 });
 
 test("workerEmail: 명단이 우선, 없으면 포털 계정 이메일, 둘 다 없으면 null", () => {
